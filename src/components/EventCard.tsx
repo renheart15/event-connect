@@ -1,0 +1,334 @@
+import { useState, useEffect } from 'react';
+import { Edit } from "lucide-react";
+import { Link, useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar, MapPin, Users, Monitor, Mail, Settings, QrCode, MessageSquare, FileText } from 'lucide-react';
+import QRCodeDisplay from '@/components/QRCodeDisplay';
+import GeofenceMap from '@/components/GeofenceMap';
+import { toast } from '@/hooks/use-toast';
+
+interface EventCardProps {
+  event: any;
+  onInvitationClick: (eventId: string) => void;
+  onReportsClick: (eventId: string) => void;
+  onSettingsClick: (eventId: string) => void;
+  onGeofenceUpdate: (eventId: string, center: [number, number], radius: number) => void;
+  onFeedbackClick: (eventId: string) => void;
+  onDeleteClick: (eventId: string, isCompleted: boolean) => void;
+}
+
+const EventCard = ({ 
+  event, 
+  onInvitationClick, 
+  onReportsClick, 
+  onSettingsClick, 
+  onGeofenceUpdate, 
+  onFeedbackClick, 
+  onDeleteClick 
+}: EventCardProps) => {
+  const isUpcoming = event.status === 'upcoming';
+  const isActive = event.status === 'active';
+  const isCompleted = event.status === 'completed';
+  const [hasRegistrationForm, setHasRegistrationForm] = useState<boolean | null>(null);
+  const [registrationFormId, setRegistrationFormId] = useState<string | null>(null);
+  const [hasFeedbackForm, setHasFeedbackForm] = useState<boolean | null>(null);
+  const [checkingForm, setCheckingForm] = useState(false);
+  const [checkingFeedback, setCheckingFeedback] = useState(false);
+  
+  const navigate = useNavigate();
+
+  // Check if registration form exists for this event
+  useEffect(() => {
+    checkRegistrationFormExists();
+    checkFeedbackFormExists();
+  }, [event.id]);
+
+  const checkRegistrationFormExists = async () => {
+    setCheckingForm(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/registration-forms/event/${event.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setHasRegistrationForm(true);
+          setRegistrationFormId(result.data.registrationForm._id);
+        } else {
+          setHasRegistrationForm(false);
+        }
+      } else {
+        setHasRegistrationForm(false);
+      }
+    } catch (error) {
+      console.error('Error checking registration form:', error);
+      setHasRegistrationForm(false);
+    } finally {
+      setCheckingForm(false);
+    }
+  };
+
+  const checkFeedbackFormExists = async () => {
+    setCheckingFeedback(true);
+    try {
+      const response = await fetch(`/api/feedback-forms/event/${event.id}`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        setHasFeedbackForm(result.success);
+      } else {
+        setHasFeedbackForm(false);
+      }
+    } catch (error) {
+      console.error('Error checking feedback form:', error);
+      setHasFeedbackForm(false);
+    } finally {
+      setCheckingFeedback(false);
+    }
+  };
+
+  const handleEditFormClick = () => {
+    if (hasRegistrationForm && registrationFormId) {
+      // Navigate to edit existing form
+      navigate(`/registration-forms/${registrationFormId}/edit`, {
+        state: { 
+          eventId: event.id, 
+          eventTitle: event.title,
+          mode: 'edit'
+        }
+      });
+    } else {
+      // Navigate to create new form
+      navigate(`/events/${event.id}/registration/create`, {
+        state: { 
+          eventId: event.id, 
+          eventTitle: event.title,
+          mode: 'create'
+        }
+      });
+    }
+  };
+
+  const handleFeedbackClick = () => {
+    // Always open the feedback manager which handles both creation and management
+    onFeedbackClick(event.id);
+  };
+
+  const getEditButtonText = () => {
+    if (checkingForm) return 'Checking...';
+    if (hasRegistrationForm) return 'Edit Form';
+    return 'Create Form';
+  };
+
+  const getFeedbackButtonText = () => {
+    if (checkingFeedback) return 'Checking...';
+    return 'Manage Feedback';
+  };
+
+  const FeedbackIcon = MessageSquare;
+  
+  return (
+    <Card className="group hover:shadow-lg transition-all duration-300 border-0 bg-gradient-to-br from-background to-muted/10">
+      <CardHeader className="pb-4">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+                {event.title}
+              </h3>
+              <Badge 
+                variant={isActive ? "default" : "secondary"}
+                className={`${
+                  isActive 
+                    ? 'bg-green-100 text-green-700 hover:bg-green-100' 
+                    : isCompleted 
+                    ? 'bg-gray-100 text-gray-700 hover:bg-gray-100'
+                    : isUpcoming
+                    ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-100'
+                    : 'bg-blue-100 text-blue-700 hover:bg-blue-100'
+                }`}
+              >
+                {event.status}
+              </Badge>
+            </div>
+            <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+              <div className="flex items-center space-x-1">
+                <Calendar className="w-4 h-4" />
+                <span>
+                  {new Date(event.date).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <MapPin className="w-4 h-4" />
+                <span>{event.location}</span>
+              </div>
+            </div>
+          </div>
+          {(isActive || isUpcoming) && (
+            <Button
+              variant="ghost"
+              className="text-muted-foreground hover:text-primary mr-2 text-blue-700"
+              onClick={handleEditFormClick}
+              disabled={checkingForm}
+            >
+              <Edit className="w-4 h-4" />
+              {getEditButtonText()}
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center p-3 rounded-lg bg-muted/50">
+            <div className="text-2xl font-bold text-foreground">{event.totalParticipants}</div>
+            <div className="text-xs text-muted-foreground">Total</div>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-green-50 dark:bg-green-950/30">
+            <div className="text-2xl font-bold text-green-600">{event.checkedIn}</div>
+            <div className="text-xs text-muted-foreground">Checked In</div>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30">
+            <div className="text-2xl font-bold text-blue-600">{event.currentlyPresent}</div>
+            <div className="text-xs text-muted-foreground">Present</div>
+          </div>
+        </div>
+
+        {/* Action Tabs - Different for completed events */}
+        {isCompleted ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-2">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => onReportsClick(event.id)}
+                className="hover:bg-primary hover:text-primary-foreground transition-colors"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Reports
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={handleFeedbackClick}
+                className="hover:bg-primary hover:text-primary-foreground transition-colors"
+                disabled={checkingFeedback}
+              >
+                <FeedbackIcon className="w-4 h-4 mr-2" />
+                {getFeedbackButtonText()}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => onDeleteClick(event.id, isCompleted)}
+                className="hover:bg-red-600 text-white transition-colors"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-4 bg-muted/30">
+              <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
+              <TabsTrigger value="qr-code" className="text-xs">QR Code</TabsTrigger>
+              <TabsTrigger value="geofence" className="text-xs">Geofence</TabsTrigger>
+              <TabsTrigger value="feedback" className="text-xs">Feedback</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="overview" className="space-y-4 mt-4">
+              <div className="grid grid-cols-2 gap-2">
+                <Link to={`/event/${event.id}/monitor`}>
+                  <Button size="sm" variant="outline" className="w-full hover:bg-primary hover:text-primary-foreground transition-colors">
+                    <Monitor className="w-4 h-4 mr-2" />
+                    Live Monitor
+                  </Button>
+                </Link>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => onInvitationClick(event.id)}
+                  className="hover:bg-primary hover:text-primary-foreground transition-colors"
+                >
+                  <Mail className="w-4 h-4 mr-2" />
+                  Invite
+                </Button>
+                <Link to={`/invitation-history?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}`}>
+                  <Button size="sm" variant="outline" className="w-full hover:bg-primary hover:text-primary-foreground transition-colors">
+                    <FileText className="w-4 h-4 mr-2" />
+                    History
+                  </Button>
+                </Link>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => onReportsClick(event.id)}
+                  className="hover:bg-primary hover:text-primary-foreground transition-colors"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Reports
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => onSettingsClick(event.id)}
+                  className="hover:bg-primary hover:text-primary-foreground transition-colors"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                </Button>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="qr-code" className="py-4">
+              <QRCodeDisplay
+                eventId={event.id}
+                eventTitle={event.title}
+                eventCode={event.eventCode}
+              />
+            </TabsContent>
+            
+            <TabsContent value="geofence" className="py-4">
+              <GeofenceMap
+                eventId={event.id}
+                initialCenter={event.geofence.center}
+                initialRadius={event.geofence.radius}
+                onGeofenceUpdate={(center, radius) => onGeofenceUpdate(event.id, center, radius)}
+              />
+            </TabsContent>
+            
+            <TabsContent value="feedback" className="py-4">
+              <div className="text-center space-y-4">
+                <p className="text-muted-foreground">
+                  Create and manage feedback forms for participants
+                </p>
+                <Button 
+                  onClick={handleFeedbackClick}
+                  className="w-full"
+                  disabled={checkingFeedback}
+                >
+                  <FeedbackIcon className="w-4 h-4 mr-2" />
+                  {getFeedbackButtonText()}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default EventCard;

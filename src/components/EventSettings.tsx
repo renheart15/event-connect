@@ -1,0 +1,407 @@
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
+import { Settings, Save, Trash2, Calendar, MapPin, Users } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+interface Event {
+  id: string;
+  title: string;
+  date: string;
+  status: string;
+  totalParticipants: number;
+  checkedIn: number;
+  currentlyPresent: number;
+  location: {
+    address: string;
+    coordinates: {
+      type: 'Point';
+      coordinates: [number, number];
+    };
+  };
+  eventCode: string;
+  description?: string;
+  maxTimeOutside?: number;
+  startTime?: string; // <-- added
+  endTime?: string;   // <-- added
+  geofence: {
+    center: [number, number];
+    radius: number;
+  };
+}
+
+interface EventSettingsProps {
+  event: Event;
+  isOpen: boolean;
+  onClose: () => void;
+  onEventUpdate?: (eventId: string, updatedData: Partial<Event>) => void;
+  onEventDelete?: (eventId: string) => void;
+}
+
+const EventSettings = ({ event, isOpen, onClose, onEventUpdate, onEventDelete }: EventSettingsProps) => {
+  const { toast } = useToast();
+  const [formData, setFormData] = useState({
+    title: event.title,
+    date: new Date(event.date).toISOString().split('T')[0],
+    description: event.description || '',
+    eventCode: event.eventCode,
+    maxTimeOutside: event.maxTimeOutside?.toString() || '15',
+    startTime: event.startTime || '',
+    endTime: event.endTime || '',
+  });
+
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSave = async () => {
+    const today = new Date();
+    const eventDate = new Date(`${formData.date}T00:00`);
+
+    if (eventDate < new Date(today.toDateString())) {
+      toast({
+        title: 'Invalid Date',
+        description: 'You cannot set an event date in the past.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (formData.startTime && formData.endTime) {
+      const start = new Date(`${formData.date}T${formData.startTime}`);
+      const end = new Date(`${formData.date}T${formData.endTime}`);
+
+      if (start >= end) {
+        toast({
+          title: 'Invalid Time',
+          description: 'End time must be later than start time.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          title: formData.title,
+          date: formData.date,
+          description: formData.description,
+          eventCode: formData.eventCode,
+          maxTimeOutside: formData.maxTimeOutside.trim() === '' ? 15 : parseInt(formData.maxTimeOutside),
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) throw new Error(result.message || 'Failed to update event');
+
+      // 🔁 Optionally update backend status
+      await fetch(`http://localhost:8080/api/events/${event.id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ status: 'active' }), // You can make this dynamic if needed
+      });
+
+      if (onEventUpdate) {
+        onEventUpdate(event.id, result.data.event);
+      }
+
+      toast({
+        title: 'Event Updated',
+        description: 'Event settings have been saved successfully.',
+      });
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+
+      onClose();
+    } catch (error: any) {
+      toast({
+        title: 'Update Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) throw new Error(result.message || 'Failed to delete event');
+
+      if (onEventDelete) {
+        onEventDelete(event.id);
+      }
+
+      toast({
+        title: 'Event Deleted',
+        description: 'The event has been permanently deleted.',
+        variant: 'destructive',
+      });
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+
+      setShowDeleteConfirm(false);
+      onClose();
+    } catch (error: any) {
+      toast({
+        title: 'Deletion Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            Event Settings
+          </DialogTitle>
+          <DialogDescription>
+            Manage the settings and configuration for "{event.title}"
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Event Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Event Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Current Status</p>
+                  <Badge variant={event.status === 'active' ? 'default' : 'secondary'}>
+                    {event.status}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div className="text-center">
+                    <Users className="w-4 h-4 mx-auto mb-1 text-gray-500" />
+                    <p className="font-medium">{event.totalParticipants}</p>
+                    <p className="text-gray-500">Total</p>
+                  </div>
+                  <div className="text-center">
+                    <Calendar className="w-4 h-4 mx-auto mb-1 text-green-500" />
+                    <p className="font-medium text-green-600">{event.checkedIn}</p>
+                    <p className="text-gray-500">Checked In</p>
+                  </div>
+                  <div className="text-center">
+                    <MapPin className="w-4 h-4 mx-auto mb-1 text-blue-500" />
+                    <p className="font-medium text-blue-600">{event.currentlyPresent}</p>
+                    <p className="text-gray-500">Present</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Basic Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Event Title</Label>
+                  <Input
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="eventCode">Event Code</Label>
+                  <Input
+                    id="eventCode"
+                    value={formData.eventCode}
+                    onChange={(e) => handleInputChange('eventCode', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date">Date</Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => handleInputChange('date', e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maxTimeOutside">Max Time Outside (minutes)</Label>
+                  <Input
+                    id="maxTimeOutside"
+                    type="number"
+                    value={formData.maxTimeOutside}
+                    onChange={(e) => handleInputChange('maxTimeOutside', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="startTime">Start Time</Label>
+                  <Input
+                    id="startTime"
+                    type="time"
+                    value={formData.startTime}
+                    onChange={(e) => handleInputChange('startTime', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endTime">End Time</Label>
+                  <Input
+                    id="endTime"
+                    type="time"
+                    value={formData.endTime}
+                    onChange={(e) => handleInputChange('endTime', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Event description (optional)"
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Geofence Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Geofence Configuration</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="font-medium text-gray-700">Center Coordinates</p>
+                  <p className="text-gray-600">
+                    {event.geofence.center[0].toFixed(6)}, {event.geofence.center[1].toFixed(6)}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Radius</p>
+                  <p className="text-gray-600">{event.geofence.radius} meters</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Use the Geofence tab to modify these settings
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Actions */}
+          <div className="flex justify-between">
+            <Button
+              variant="destructive"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Event
+            </Button>
+            
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} className="flex items-center gap-2">
+                <Save className="w-4 h-4" />
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Delete Confirmation Dialog */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg max-w-md mx-4">
+              <h3 className="text-lg font-semibold mb-2">Delete Event</h3>
+              <p className="text-gray-600 mb-4">
+                Are you sure you want to delete "{event.title}"? This action cannot be undone.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default EventSettings;

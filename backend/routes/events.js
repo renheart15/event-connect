@@ -1,0 +1,558 @@
+
+const express = require('express');
+const reverseGeocode = require('../utils/reverseGeocode');
+const fixBrokenLocations = require('../utils/fixBrokenLocations');
+const { body, validationResult } = require('express-validator');
+const Event = require('../models/Event');
+const AttendanceLog = require('../models/AttendanceLog');
+const Invitation = require('../models/Invitation');
+const { auth, requireOrganizer } = require('../middleware/auth');
+
+const router = express.Router();
+
+function computeStatus(date, startTime, endTime) {
+  const now = new Date();
+
+  if (!date || !startTime || !endTime) return 'upcoming';
+
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+
+  const start = new Date(date);
+  start.setHours(startHour, startMin, 0, 0);
+
+  const end = new Date(date);
+  end.setHours(endHour, endMin, 0, 0);
+
+  if (now >= end) return 'completed';
+  if (now >= start) return 'active';
+  return 'upcoming';
+}
+
+// @route   POST /api/events
+// @desc    Create a new event
+// @access  Private (Organizer only)
+router.post('/', auth, requireOrganizer, [
+  body('title').trim().notEmpty().withMessage('Event title is required'),
+  body('date').isISO8601().withMessage('Valid date is required'),
+  body('startTime')
+    .optional()
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage('Start time must be in HH:mm format'),
+
+  body('endTime')
+    .optional()
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage('End time must be in HH:mm format'),
+  body('location.address').trim().notEmpty().withMessage('Event location is required'),
+  body('location.coordinates.type')
+    .equals('Point')
+    .withMessage('Coordinates type must be Point'),
+  body('location.coordinates.coordinates')
+    .isArray({ min: 2, max: 2 })
+    .withMessage('Coordinates must be an array of [longitude, latitude]'),
+  body('location.coordinates.coordinates[0]')
+    .isFloat({ min: -180, max: 180 })
+    .withMessage('Longitude must be valid'),
+  body('location.coordinates.coordinates[1]')
+    .isFloat({ min: -90, max: 90 })
+    .withMessage('Latitude must be valid'),
+
+  body('geofenceRadius').optional().isInt({ min: 1 }).withMessage('Geofence radius must be a positive number'),
+  body('description').optional().trim(),
+  body('maxParticipants').optional().isInt({ min: 1 }).withMessage('Max participants must be at least 1')
+], async (req, res) => {
+  console.log('🟢 Received payload:', JSON.stringify(req.body, null, 2));
+
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    console.log('🔴 Validation errors:', errors.array());
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+
+  try {
+    const coords = req.body.location.coordinates.coordinates.map(Number);
+
+    const { date, startTime, endTime } = req.body;
+    const now = new Date();
+    const start = new Date(date);
+    start.setHours(...startTime.split(':').map(Number), 0, 0);
+
+    const end = new Date(date);
+    end.setHours(...endTime.split(':').map(Number), 0, 0);
+
+    let status = 'upcoming';
+    if (!isNaN(start) && !isNaN(end)) {
+      if (now >= end) status = 'completed';
+      else if (now >= start) status = 'active';
+    }
+
+    const eventData = {
+      title: req.body.title,
+      date: req.body.date,
+      startTime: req.body.startTime,
+      endTime: req.body.endTime,
+      location: {
+        address: req.body.location.address,
+        coordinates: {
+          type: 'Point',
+          coordinates: coords
+        }
+      },
+      geofenceRadius: req.body.geofenceRadius,
+      description: req.body.description,
+      maxParticipants: req.body.maxParticipants,
+      maxTimeOutside: req.body.maxTimeOutside,
+      eventCode: req.body.eventCode,
+      status,
+      organizer: req.user._id
+    };
+
+    const event = await Event.create(eventData);
+    await event.populate('organizer', 'name email');
+
+    res.status(201).json({
+      success: true,
+      message: 'Event created successfully',
+      data: { event }
+    });
+  } catch (error) {
+    console.error('🔥 MongoDB error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Event creation failed',
+      error: error.message
+    });
+  }
+});
+
+// @route   GET /api/events
+// @desc    Get all events (organizer gets their events, admin gets all)
+// @access  Private
+router.get('/', auth, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    let query = {};
+    if (req.user.role === 'organizer') {
+      query.organizer = req.user._id;
+    }
+
+    // Add status filter if provided
+    if (req.query.status) {
+      query.status = req.query.status;
+    }
+
+    // Add date filter if provided
+    if (req.query.fromDate || req.query.toDate) {
+      query.date = {};
+      if (req.query.fromDate) {
+        query.date.$gte = new Date(req.query.fromDate);
+      }
+      if (req.query.toDate) {
+        query.date.$lte = new Date(req.query.toDate);
+      }
+    }
+
+    const total = await Event.countDocuments(query);
+
+    const events = await Event.find(query)
+      .populate('organizer', 'name email')
+      .sort({ date: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Auto-update status and calculate attendance stats
+    const eventsWithStats = [];
+    console.log(`Processing ${events.length} events for user role: ${req.user.role}`);
+    
+    for (let event of events) {
+      // Auto-update status only if statusMode is 'auto'
+      if (event.statusMode === 'auto') {
+        const expectedStatus = computeStatus(event.date, event.startTime, event.endTime);
+        console.log(`Event ${event.title}: current status = ${event.status}, computed status = ${expectedStatus}`);
+        if (expectedStatus !== event.status) {
+          event.status = expectedStatus;
+          await event.save();
+          console.log(`Updated event ${event.title} status to ${expectedStatus}`);
+        }
+      }
+
+      // Calculate attendance statistics for organizers
+      let eventData = event.toObject();
+      if (req.user.role === 'organizer') {
+        try {
+          const totalInvitations = await Invitation.countDocuments({ event: event._id });
+          const totalAttendees = await AttendanceLog.countDocuments({ event: event._id });
+          const currentlyPresent = await AttendanceLog.countDocuments({ 
+            event: event._id, 
+            status: 'checked-in' 
+          });
+
+          eventData.totalParticipants = totalInvitations;
+          eventData.checkedIn = totalAttendees;
+          eventData.currentlyPresent = currentlyPresent;
+        } catch (attendanceError) {
+          console.error('Error calculating attendance for event:', event._id, attendanceError);
+          // Fallback to default values if attendance calculation fails
+          eventData.totalParticipants = 0;
+          eventData.checkedIn = 0;
+          eventData.currentlyPresent = 0;
+        }
+      }
+      
+      eventsWithStats.push(eventData);
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        events: eventsWithStats,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(total / limit),
+          totalEvents: total,
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPreviousPage: page > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get events error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get events',
+      error: error.message
+    });
+  }
+});
+
+// @route   GET /api/events/:id
+// @desc    Get single event
+// @access  Private
+router.get('/:id', auth, async (req, res) => {
+  try {
+    let event = await Event.findById(req.params.id).populate('organizer', 'name email');
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+
+    // Check if user has access to this event
+    if (req.user.role === 'organizer' && event.organizer._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Get attendance statistics if user is organizer
+    let attendanceStats = null;
+    if (req.user.role === 'organizer') {
+      const totalInvitations = await Invitation.countDocuments({ event: event._id });
+      const totalAttendees = await AttendanceLog.countDocuments({ event: event._id });
+      const currentlyPresent = await AttendanceLog.countDocuments({ 
+        event: event._id, 
+        status: 'checked-in' 
+      });
+
+      attendanceStats = {
+        totalInvitations,
+        totalAttendees,
+        currentlyPresent,
+        attendanceRate: totalInvitations > 0 ? ((totalAttendees / totalInvitations) * 100).toFixed(2) : 0
+      };
+    }
+
+    if (event && typeof event.location === 'string') {
+      event.location = {
+        address: event.location,
+        coordinates: {
+          type: 'Point',
+          coordinates: [0, 0]
+        }
+      };
+    }
+
+    res.json({
+      success: true,
+      data: {
+        event: {
+          ...event.toObject(),
+          geofence: {
+            center: event.location.coordinates.coordinates,
+            radius: event.geofenceRadius
+          }
+        },
+        attendanceStats
+      }
+    });
+
+    const expectedStatus = computeStatus(event.date, event.startTime, event.endTime);
+    if (expectedStatus !== event.status) {
+      event.status = expectedStatus;
+      await event.save(); // Save the update
+    }
+
+  } catch (error) {
+    console.error('Get event error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get event',
+      error: error.message
+    });
+  }
+});
+
+// @route   PUT /api/events/:id
+// @desc    Update event
+// @access  Private (Organizer only - own events)
+router.put('/:id', auth, requireOrganizer, [
+  body('title').optional().trim().notEmpty().withMessage('Event title cannot be empty'),
+  body('date').optional().isISO8601().withMessage('Valid date is required'),
+  body('startTime')
+    .optional()
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage('Start time must be in HH:mm format'),
+  body('endTime')
+    .optional()
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .withMessage('End time must be in HH:mm format'),
+  body('location').optional().isObject().withMessage('Location must be an object'),
+  body('location.address')
+    .if(body('location').exists())
+    .isString().notEmpty().withMessage('Address is required if location is sent'),
+  body('location.coordinates.type')
+    .optional()
+    .equals('Point')
+    .withMessage('Coordinates type must be Point'),
+  body('location.coordinates.coordinates')
+    .optional()
+    .isArray({ min: 2, max: 2 })
+    .withMessage('Coordinates must be an array of [longitude, latitude]'),
+  body('location.coordinates.coordinates[0]')
+    .optional()
+    .isFloat({ min: -180, max: 180 })
+    .withMessage('Longitude must be valid'),
+  body('location.coordinates.coordinates[1]')
+    .optional()
+    .isFloat({ min: -90, max: 90 })
+    .withMessage('Latitude must be valid'),
+  body('geofenceRadius')
+    .optional()
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('Geofence radius must be between 1 and 1000'),
+  body('description').optional().trim(),
+  body('maxParticipants').optional().isInt({ min: 1 }).withMessage('Max participants must be at least 1')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const event = await Event.findOne({ _id: req.params.id, organizer: req.user._id });
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found or access denied'
+      });
+    }
+
+    // Validate and update geofence
+    if (req.body.location?.coordinates?.coordinates?.length === 2) {
+      const [lng, lat] = req.body.location.coordinates.coordinates;
+
+      if (typeof lng === 'number' && typeof lat === 'number') {
+        event.location.coordinates = {
+          type: 'Point',
+          coordinates: [lng, lat] // [lng, lat] order for MongoDB GeoJSON
+        };
+
+        // 🔄 Update address via reverse geocoding
+        try {
+          const address = await reverseGeocode(lat, lng);
+          event.location.address = address;
+        } catch (err) {
+          console.warn('⚠️ Failed to reverse geocode:', err.message);
+        }
+      } else {
+        return res.status(400).json({ success: false, message: "Invalid coordinates format" });
+      }
+    }
+
+
+
+    // ✅ Update all other fields if present
+    [
+      'title', 'date', 'geofenceRadius', 'description',
+      'maxParticipants', 'eventCode', 'maxTimeOutside',
+      'startTime', 'endTime'
+    ].forEach(field => {
+      if (req.body[field] !== undefined) {
+        event[field] = req.body[field];
+      }
+    });
+
+    await event.save();
+
+    const updatedEvent = await Event.findById(event._id).populate('organizer', 'name email');
+
+    res.json({
+      success: true,
+      message: 'Event updated successfully',
+      data: {
+        event: updatedEvent
+      }
+    });
+  } catch (error) {
+    console.error('Event update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Event update failed',
+      error: error.message
+    });
+  }
+});
+
+// @route   DELETE /api/events/:id
+// @desc    Delete event
+// @access  Private (Organizer only - own events)
+router.delete('/:id', auth, requireOrganizer, async (req, res) => {
+  try {
+    const event = await Event.findOne({ _id: req.params.id, organizer: req.user._id });
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found or access denied'
+      });
+    }
+
+    // Delete related invitations and attendance logs
+    await Invitation.deleteMany({ event: req.params.id });
+    await AttendanceLog.deleteMany({ event: req.params.id });
+    await Event.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: 'Event deleted successfully'
+    });
+  } catch (error) {
+    console.error('Event deletion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Event deletion failed',
+      error: error.message
+    });
+  }
+});
+
+// @route   PATCH /api/events/:id/status
+// @desc    Update status field of an event (used by frontend if time-based status is out-of-sync)
+// @access  Private (Organizer only - own events)
+router.patch('/:id/status', auth, requireOrganizer, async (req, res) => {
+  const { status } = req.body;
+
+  const validStatuses = ['upcoming', 'active', 'completed', 'cancelled'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid status value',
+    });
+  }
+
+  console.log(`[Status Update] Incoming status: "${status}" for event ID: ${req.params.id}`);
+
+  try {
+    const event = await Event.findOneAndUpdate(
+      { _id: req.params.id, organizer: req.user._id },
+      { status },
+      {
+        new: true,
+        runValidators: true, // ensures Mongoose applies enum validation
+      }
+    );
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found or access denied',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Status updated successfully',
+      data: { event },
+    });
+  } catch (error) {
+    console.error('[Status Update Error]:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update event status',
+      error: error.message,
+    });
+  }
+});
+
+// @route   GET /api/events/code/:eventCode
+// @desc    Find event by event code
+// @access  Private
+router.get('/code/:eventCode', auth, async (req, res) => {
+  try {
+    const event = await Event.findOne({ 
+      eventCode: req.params.eventCode.toUpperCase(),
+      isActive: true 
+    }).populate('organizer', 'name email');
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found with that code'
+      });
+    }
+
+    // Auto-update status if needed
+    const expectedStatus = computeStatus(event.date, event.startTime, event.endTime);
+    if (expectedStatus !== event.status && event.statusMode === 'auto') {
+      event.status = expectedStatus;
+      await event.save();
+    }
+
+    res.json({
+      success: true,
+      data: {
+        event
+      }
+    });
+  } catch (error) {
+    console.error('Find event by code error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to find event',
+      error: error.message
+    });
+  }
+});
+
+router.get('/dev/fix-locations', async (req, res) => {
+  await fixBrokenLocations();
+  res.json({ success: true, message: 'Broken locations fixed' });
+});
+
+module.exports = router;
