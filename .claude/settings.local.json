@@ -39,7 +39,8 @@
       "Bash(setx:*)",
       "Read(//c/Users/ralfa/**)",
       "Bash(where cloudflared)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(SET PORT=5001)"
     ],
     "deny": [],
     "ask": []

@@ -5,6 +5,7 @@ const nodemailer = require('nodemailer');
 const Event = require('../models/Event');
 const User = require('../models/User');
 const Invitation = require('../models/Invitation');
+const AttendanceLog = require('../models/AttendanceLog');
 const { auth, requireOrganizer } = require('../middleware/auth');
 
 const router = express.Router();
@@ -391,22 +392,40 @@ router.get('/code/:code', async (req, res) => {
     const participant = invitation.participant;
     const requiresSignup = participant && participant.isTemporaryAccount;
 
-    // Check if invitation has expired
-    if (new Date() > invitation.expiresAt) {
-      // Update status to expired
-      invitation.status = 'expired';
-      await invitation.save();
-      
-      return res.status(410).json({
-        success: false,
-        message: 'This invitation has expired',
-        data: invitation
+    // Check if invitation has expired (but don't expire accepted invitations or if participant has checked in)
+    if (new Date() > invitation.expiresAt && invitation.status !== 'accepted') {
+      // Check if participant has attended the event (has attendance record)
+      const attendanceRecord = await AttendanceLog.findOne({
+        invitation: invitation._id,
+        participant: invitation.participant
       });
+      
+      // If participant has checked in, don't expire the invitation
+      if (!attendanceRecord) {
+        // Update status to expired only if not already accepted and hasn't attended
+        invitation.status = 'expired';
+        await invitation.save();
+        
+        return res.status(410).json({
+          success: false,
+          message: 'This invitation has expired',
+          data: invitation
+        });
+      }
     }
 
+    // Check if participant has attended the event for frontend use
+    const attendanceRecord = await AttendanceLog.findOne({
+      invitation: invitation._id,
+      participant: invitation.participant
+    });
+    
     res.json({
       success: true,
-      data: invitation,
+      data: {
+        ...invitation.toObject(),
+        hasAttended: !!attendanceRecord
+      },
       requiresSignup
     });
   } catch (error) {
@@ -435,10 +454,25 @@ router.get('/my', auth, async (req, res) => {
       })
       .sort({ sentAt: -1 });
 
+    // Add attendance information to each invitation
+    const invitationsWithAttendance = await Promise.all(
+      invitations.map(async (invitation) => {
+        const attendanceRecord = await AttendanceLog.findOne({
+          invitation: invitation._id,
+          participant: req.user._id
+        });
+        
+        return {
+          ...invitation.toObject(),
+          hasAttended: !!attendanceRecord
+        };
+      })
+    );
+
     res.json({
       success: true,
       data: {
-        invitations
+        invitations: invitationsWithAttendance
       }
     });
   } catch (error) {
@@ -676,7 +710,7 @@ router.put('/:id/respond', optionalAuth, [
 
     // If user is authenticated, verify ownership
     // If not authenticated, we'll allow public response (for email links)
-    if (req.user && invitation.participant.toString() !== req.user._id.toString()) {
+    if (req.user && req.user._id && invitation.participant.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Access denied - not your invitation'
@@ -690,11 +724,21 @@ router.put('/:id/respond', optionalAuth, [
       });
     }
 
-    if (new Date() > invitation.expiresAt) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invitation has expired'
+    // Don't allow responding if expired, unless it's already accepted or participant has attended
+    if (new Date() > invitation.expiresAt && invitation.status !== 'accepted') {
+      // Check if participant has attended the event (has attendance record)
+      const attendanceRecord = await AttendanceLog.findOne({
+        invitation: invitation._id,
+        participant: invitation.participant
       });
+      
+      // If participant hasn't checked in, consider it expired
+      if (!attendanceRecord) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invitation has expired'
+        });
+      }
     }
 
     invitation.status = response;
@@ -765,10 +809,35 @@ router.delete('/my/expired', auth, async (req, res) => {
   try {
     const now = new Date();
     
-    // Find all expired invitations for the current user
-    const expiredInvitations = await Invitation.find({
-      participant: req.user._id,
-      expiresAt: { $lt: now }
+    // Find all invitations for the current user, populate event data
+    const allInvitations = await Invitation.find({
+      participant: req.user._id
+    }).populate('event');
+
+    // Check attendance for each invitation
+    const invitationsWithAttendance = await Promise.all(
+      allInvitations.map(async (invitation) => {
+        const attendance = await AttendanceLog.findOne({
+          invitation: invitation._id,
+          participant: req.user._id
+        });
+        
+        return {
+          ...invitation.toObject(),
+          hasAttended: !!attendance
+        };
+      })
+    );
+
+    // Filter expired invitations using the same logic as frontend
+    const expiredInvitations = invitationsWithAttendance.filter(invitation => {
+      // Don't consider accepted invitations or invitations from participants who attended as expired
+      if (invitation.status === 'accepted' || invitation.hasAttended) return false;
+      
+      // Check if event has ended (similar to frontend logic)
+      const eventDate = new Date(invitation.event.date);
+      const eventEndTime = new Date(eventDate.getTime() + (invitation.event.duration || 3600000)); // Default 1 hour
+      return now > eventEndTime;
     });
 
     if (expiredInvitations.length === 0) {
@@ -779,10 +848,11 @@ router.delete('/my/expired', auth, async (req, res) => {
       });
     }
 
-    // Delete all expired invitations for the current user
+    // Delete only the truly expired invitations
+    const expiredIds = expiredInvitations.map(inv => inv._id);
     const result = await Invitation.deleteMany({
-      participant: req.user._id,
-      expiresAt: { $lt: now }
+      _id: { $in: expiredIds },
+      participant: req.user._id
     });
 
     res.json({
@@ -795,6 +865,86 @@ router.delete('/my/expired', auth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to dismiss expired invitations',
+      error: error.message
+    });
+  }
+});
+
+// @route   DELETE /api/invitations/my/accepted
+// @desc    Delete all accepted invitations for current participant
+// @access  Private (Participant only)
+router.delete('/my/accepted', auth, async (req, res) => {
+  try {
+    // Find all accepted invitations for the current user
+    const acceptedInvitations = await Invitation.find({
+      participant: req.user._id,
+      status: 'accepted'
+    });
+
+    if (acceptedInvitations.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No accepted invitations to dismiss',
+        deletedCount: 0
+      });
+    }
+
+    // Delete all accepted invitations for the current user
+    const result = await Invitation.deleteMany({
+      participant: req.user._id,
+      status: 'accepted'
+    });
+
+    res.json({
+      success: true,
+      message: `${result.deletedCount} accepted invitation(s) dismissed successfully`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Delete accepted invitations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to dismiss accepted invitations',
+      error: error.message
+    });
+  }
+});
+
+// @route   DELETE /api/invitations/my/declined
+// @desc    Delete all declined invitations for current participant
+// @access  Private (Participant only)
+router.delete('/my/declined', auth, async (req, res) => {
+  try {
+    // Find all declined invitations for the current user
+    const declinedInvitations = await Invitation.find({
+      participant: req.user._id,
+      status: 'declined'
+    });
+
+    if (declinedInvitations.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No declined invitations to dismiss',
+        deletedCount: 0
+      });
+    }
+
+    // Delete all declined invitations for the current user
+    const result = await Invitation.deleteMany({
+      participant: req.user._id,
+      status: 'declined'
+    });
+
+    res.json({
+      success: true,
+      message: `${result.deletedCount} declined invitation(s) dismissed successfully`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Delete declined invitations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to dismiss declined invitations',
       error: error.message
     });
   }

@@ -498,15 +498,25 @@ const ParticipantDashboard = () => {
           // Allow check-in 30 minutes before start time
           const checkInStartTime = new Date(eventStartTime.getTime() - 30 * 60 * 1000);
           
-          console.log(`Event ${event.title}: now=${now.toLocaleString()}, checkInStart=${checkInStartTime.toLocaleString()}, start=${eventStartTime.toLocaleString()}, end=${eventEndTime.toLocaleString()}, status=${invitation.status}`);
+          console.log(`Event ${event.title}: now=${now.toLocaleString()}, checkInStart=${checkInStartTime.toLocaleString()}, start=${eventStartTime.toLocaleString()}, end=${eventEndTime.toLocaleString()}, eventStatus=${event.status}, invitationStatus=${invitation.status}`);
           
-          return now >= checkInStartTime && now <= eventEndTime && (invitation.status === 'accepted' || invitation.status === 'pending');
+          // Don't include completed events in monitoring
+          if (event.status === 'completed') {
+            return false;
+          }
+          
+          return now >= checkInStartTime && (invitation.status === 'accepted' || invitation.status === 'pending');
         } else {
           // Fallback to old logic if times are not available
           const eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000));
           const eventStartTime = new Date(eventDate.getTime() - 30 * 60 * 1000);
           
-          return now >= eventStartTime && now <= eventEndTime && (invitation.status === 'accepted' || invitation.status === 'pending');
+          // Don't include completed events in monitoring
+          if (event.status === 'completed') {
+            return false;
+          }
+          
+          return now >= eventStartTime && (invitation.status === 'accepted' || invitation.status === 'pending');
         }
       });
 
@@ -1508,6 +1518,9 @@ const ParticipantDashboard = () => {
 
   // Helper function to check if invitation is expired
   const isInvitationExpired = (invitation: any) => {
+    // Don't consider accepted invitations or invitations from participants who attended as expired
+    if (invitation.status === 'accepted' || invitation.hasAttended) return false;
+    
     const now = new Date();
     const eventDate = new Date(invitation.event.date);
     const eventEndTime = new Date(eventDate.getTime() + (invitation.event.duration || 3600000)); // Default 1 hour
@@ -1529,6 +1542,16 @@ const ParticipantDashboard = () => {
   // Get active (non-expired) invitations
   const getActiveInvitations = () => {
     return myInvitations.filter(invitation => !isInvitationExpired(invitation));
+  };
+
+  // Get accepted invitations
+  const getAcceptedInvitations = () => {
+    return myInvitations.filter(invitation => invitation.status === 'accepted');
+  };
+
+  // Get declined invitations
+  const getDeclinedInvitations = () => {
+    return myInvitations.filter(invitation => invitation.status === 'declined');
   };
 
   const getActiveEvents = () => {
@@ -1554,6 +1577,25 @@ const ParticipantDashboard = () => {
     return `${hours}h ${minutes}m`;
   };
 
+  const formatEventTime = (event: any) => {
+    if (event.startTime && event.endTime) {
+      // Format startTime and endTime properly
+      const formatTime = (timeString: string) => {
+        if (!timeString) return '';
+        return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+      };
+      
+      return `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`;
+    }
+    
+    // Fallback to just the date
+    return new Date(event.date).toLocaleDateString();
+  };
+
   // Render content based on active view
   const renderMainContent = () => {
     if (isLoading) {
@@ -1571,6 +1613,9 @@ const ParticipantDashboard = () => {
       const upcomingEvents = getUpcomingEvents();
       const activeInvitations = getActiveInvitations();
       const expiredInvitations = getExpiredInvitations();
+      const acceptedInvitations = getAcceptedInvitations();
+      const declinedInvitations = getDeclinedInvitations();
+      const pendingInvitations = myInvitations.filter(invitation => invitation.status === 'pending' && !isInvitationExpired(invitation));
       
       return (
         <div className="p-4 space-y-4">
@@ -1586,58 +1631,145 @@ const ParticipantDashboard = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Active Invitations */}
-              {activeInvitations.length > 0 && (
+              {/* Pending Invitations */}
+              {pendingInvitations.length > 0 && (
                 <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Active Invitations</h3>
-                  {activeInvitations.map((invitation) => {
-                    return (
-                      <div key={invitation._id} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-                        <div className="flex flex-col">
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Pending Invitations ({pendingInvitations.length})</h3>
+                  {pendingInvitations.map((invitation) => (
+                    <div key={invitation._id} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+                      <div className="flex flex-col">
+                        <h3 className="font-semibold text-gray-900 dark:text-white">{invitation.event.title}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{invitation.event.description}</p>
+                        <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          <span>{new Date(invitation.event.date).toLocaleDateString()}</span>
+                          <span className="mx-2">•</span>
+                          <span>{formatEventTime(invitation.event)}</span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
+                            Pending Response
+                          </span>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleInvitationResponse(invitation._id, 'accepted')}
+                              className="text-green-600 hover:text-green-700 text-sm font-medium"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleInvitationResponse(invitation._id, 'declined')}
+                              className="text-red-600 hover:text-red-700 text-sm font-medium"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Accepted Invitations */}
+              {acceptedInvitations.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Accepted Invitations ({acceptedInvitations.length})
+                    </h3>
+                    <Button
+                      onClick={handleDismissAllAcceptedInvitations}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      Clear All
+                    </Button>
+                  </div>
+                  {acceptedInvitations.map((invitation) => (
+                    <div key={invitation._id} className="bg-green-50 dark:bg-green-900/10 rounded-lg p-4 shadow-sm border border-green-200 dark:border-green-900/20">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
                           <h3 className="font-semibold text-gray-900 dark:text-white">{invitation.event.title}</h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{invitation.event.description}</p>
                           <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
                             <span>{new Date(invitation.event.date).toLocaleDateString()}</span>
                             <span className="mx-2">•</span>
-                            <span>{new Date(invitation.event.date).toLocaleTimeString()}</span>
+                            <span>{formatEventTime(invitation.event)}</span>
                           </div>
-                          
-                          {/* Invitation Status */}
-                          <div className="flex items-center justify-between mt-3">
-                            <div className="flex items-center">
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                invitation.status === 'accepted' 
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300'
-                                  : invitation.status === 'declined'
-                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300'
-                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300'
-                              }`}>
-                                {invitation.status === 'pending' ? 'Pending Response' : invitation.status.charAt(0).toUpperCase() + invitation.status.slice(1)}
-                              </span>
-                            </div>
-                            
-                            {/* Action buttons for pending invitations */}
-                            {invitation.status === 'pending' && (
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={() => handleInvitationResponse(invitation._id, 'accepted')}
-                                  className="text-green-600 hover:text-green-700 text-sm font-medium"
-                                >
-                                  Accept
-                                </button>
-                                <button
-                                  onClick={() => handleInvitationResponse(invitation._id, 'declined')}
-                                  className="text-red-600 hover:text-red-700 text-sm font-medium"
-                                >
-                                  Decline
-                                </button>
-                              </div>
-                            )}
+                          <div className="flex items-center mt-3">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                              Accepted
+                            </span>
                           </div>
                         </div>
+                        <div className="flex flex-col items-center">
+                          <Button
+                            onClick={() => handleDismissExpiredInvitation(invitation._id)}
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+                            title="Dismiss accepted invitation"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Declined Invitations */}
+              {declinedInvitations.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Declined Invitations ({declinedInvitations.length})
+                    </h3>
+                    <Button
+                      onClick={handleDismissAllDeclinedInvitations}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      Clear All
+                    </Button>
+                  </div>
+                  {declinedInvitations.map((invitation) => (
+                    <div key={invitation._id} className="bg-red-50 dark:bg-red-900/10 rounded-lg p-4 shadow-sm border border-red-200 dark:border-red-900/20">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{invitation.event.title}</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{invitation.event.description}</p>
+                          <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            <span>{new Date(invitation.event.date).toLocaleDateString()}</span>
+                            <span className="mx-2">•</span>
+                            <span>{formatEventTime(invitation.event)}</span>
+                          </div>
+                          <div className="flex items-center mt-3">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                              Declined
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <Button
+                            onClick={() => handleDismissExpiredInvitation(invitation._id)}
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                            title="Dismiss declined invitation"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
               
@@ -1667,7 +1799,7 @@ const ParticipantDashboard = () => {
                           <div className="flex items-center mt-2 text-xs text-gray-400 dark:text-gray-500">
                             <span>{new Date(invitation.event.date).toLocaleDateString()}</span>
                             <span className="mx-2">•</span>
-                            <span>{new Date(invitation.event.date).toLocaleTimeString()}</span>
+                            <span>{formatEventTime(invitation.event)}</span>
                           </div>
                           
                           {/* Expired Status */}
@@ -2387,6 +2519,112 @@ const ParticipantDashboard = () => {
       toast({
         title: "Error",
         description: error.message || "Failed to dismiss expired invitations. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle dismissing all accepted invitations
+  const handleDismissAllAcceptedInvitations = async () => {
+    try {
+      const acceptedInvitations = getAcceptedInvitations();
+      
+      if (acceptedInvitations.length === 0) {
+        toast({
+          title: "No Accepted Invitations",
+          description: "There are no accepted invitations to dismiss.",
+        });
+        return;
+      }
+
+      // Show confirmation dialog
+      const confirmed = window.confirm(
+        `Are you sure you want to dismiss all ${acceptedInvitations.length} accepted invitation(s)? This action cannot be undone.`
+      );
+      
+      if (!confirmed) {
+        return;
+      }
+
+      const response = await fetch(`${API_CONFIG.API_BASE}/invitations/my/accepted`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove all accepted invitations from local state
+        const updatedInvitations = myInvitations.filter(inv => inv.status !== 'accepted');
+        setMyInvitations(updatedInvitations);
+        
+        toast({
+          title: "All Accepted Invitations Dismissed",
+          description: `${result.deletedCount} accepted invitation(s) have been removed from your list.`,
+        });
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to dismiss accepted invitations. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle dismissing all declined invitations
+  const handleDismissAllDeclinedInvitations = async () => {
+    try {
+      const declinedInvitations = getDeclinedInvitations();
+      
+      if (declinedInvitations.length === 0) {
+        toast({
+          title: "No Declined Invitations",
+          description: "There are no declined invitations to dismiss.",
+        });
+        return;
+      }
+
+      // Show confirmation dialog
+      const confirmed = window.confirm(
+        `Are you sure you want to dismiss all ${declinedInvitations.length} declined invitation(s)? This action cannot be undone.`
+      );
+      
+      if (!confirmed) {
+        return;
+      }
+
+      const response = await fetch(`${API_CONFIG.API_BASE}/invitations/my/declined`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove all declined invitations from local state
+        const updatedInvitations = myInvitations.filter(inv => inv.status !== 'declined');
+        setMyInvitations(updatedInvitations);
+        
+        toast({
+          title: "All Declined Invitations Dismissed",
+          description: `${result.deletedCount} declined invitation(s) have been removed from your list.`,
+        });
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to dismiss declined invitations. Please try again.",
         variant: "destructive",
       });
     }

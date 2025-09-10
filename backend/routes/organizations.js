@@ -377,4 +377,102 @@ router.delete('/leave', auth, async (req, res) => {
   }
 });
 
+// @route   POST /api/organizations/send-invitations
+// @desc    Send invitations to selected organization members
+// @access  Private (Owner/Admin only)
+router.post('/send-invitations', auth, [
+  body('organizationId').notEmpty().withMessage('Organization ID is required'),
+  body('memberIds').isArray({ min: 1 }).withMessage('At least one member ID is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const userId = req.user._id;
+    const { organizationId, memberIds } = req.body;
+
+    // Find organization and verify user has permission
+    const organization = await Organization.findOne({
+      _id: organizationId,
+      $or: [
+        { owner: userId },
+        { admins: userId }
+      ],
+      isActive: true
+    })
+    .populate('members.user', 'name email')
+    .populate('owner', 'name email');
+
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        message: 'Organization not found or access denied'
+      });
+    }
+
+    // Verify all memberIds are valid members of the organization
+    const validMemberIds = organization.members.map(member => member.user._id.toString());
+    const invalidIds = memberIds.filter(id => !validMemberIds.includes(id.toString()));
+    
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Some member IDs are not valid members of this organization'
+      });
+    }
+
+    // Get selected members
+    const selectedMembers = organization.members.filter(member => 
+      memberIds.includes(member.user._id.toString())
+    );
+
+    // In a real application, you would send actual emails here
+    // For now, we'll just simulate sending invitations
+    console.log(`Sending invitations from organization "${organization.name}" to:`, 
+      selectedMembers.map(member => ({
+        name: member.user.name,
+        email: member.user.email
+      }))
+    );
+
+    // Here you would integrate with an email service like SendGrid, Nodemailer, etc.
+    // Example invitation email content:
+    const invitationData = {
+      organizationName: organization.name,
+      senderName: req.user.name,
+      recipients: selectedMembers.map(member => ({
+        name: member.user.name,
+        email: member.user.email,
+        role: member.role
+      }))
+    };
+
+    // Simulate successful sending (in production, handle email service responses)
+    const successCount = selectedMembers.length;
+
+    res.json({
+      success: true,
+      message: `Successfully sent invitations to ${successCount} member(s)`,
+      data: {
+        organizationName: organization.name,
+        recipientCount: successCount,
+        recipients: invitationData.recipients
+      }
+    });
+  } catch (error) {
+    console.error('Send invitations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send invitations',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

@@ -41,6 +41,7 @@ interface Invitation {
   status: 'pending' | 'accepted' | 'declined' | 'expired';
   event: Event;
   expiresAt: string;
+  hasAttended?: boolean;
 }
 
 const InvitationView = () => {
@@ -164,7 +165,9 @@ const InvitationView = () => {
     });
   };
 
-  const isExpired = (expiresAt: string) => {
+  const isExpired = (expiresAt: string, status: string, hasAttended?: boolean) => {
+    // Don't consider accepted invitations or invitations from participants who attended as expired
+    if (status === 'accepted' || hasAttended) return false;
     return new Date() > new Date(expiresAt);
   };
 
@@ -194,7 +197,7 @@ const InvitationView = () => {
     );
   }
 
-  const expired = isExpired(invitation.expiresAt);
+  const expired = isExpired(invitation.expiresAt, invitation.status, invitation.hasAttended);
   const canRespond = !expired && invitation.status === 'pending';
 
   return (

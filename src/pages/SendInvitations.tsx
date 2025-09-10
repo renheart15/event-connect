@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,13 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Send, Plus, X, Key, Upload, Download, FileSpreadsheet, ArrowLeft, Calendar, MapPin, Users } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Mail, Send, Plus, X, Key, Upload, Download, FileSpreadsheet, ArrowLeft, Calendar, MapPin, Users, Building2, Crown, Shield, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useRef } from 'react';
 import { emailCredentialsService } from '@/services/emailCredentialsService';
+import { API_CONFIG } from '@/config';
 
 interface Participant {
   id: string;
@@ -33,6 +35,30 @@ interface Event {
   checkedIn: number;
 }
 
+interface OrganizationMember {
+  user: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  role: 'member' | 'admin';
+  joinedAt: string;
+}
+
+interface Organization {
+  _id: string;
+  name: string;
+  description?: string;
+  organizationCode: string;
+  owner: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  members: OrganizationMember[];
+  memberCount: number;
+}
+
 const SendInvitations = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -45,8 +71,26 @@ const SendInvitations = () => {
     { id: '1', name: '', email: '' }
   ]);
   const [uploadedParticipants, setUploadedParticipants] = useState<Participant[]>([]);
-  const [activeTab, setActiveTab] = useState<'manual' | 'upload'>('manual');
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'manual' | 'upload' | 'organization'>('manual');
+  const [selectableMembers, setSelectableMembers] = useState<OrganizationMember[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Memoize current user ID to avoid re-parsing localStorage on every render
+  const currentUserId = useMemo(() => {
+    try {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        return user._id || user.id;
+      }
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+    }
+    return null;
+  }, []);
   
   const [emailPassword, setEmailPassword] = useState('');
   const [gmailEmail, setGmailEmail] = useState('');
@@ -63,8 +107,28 @@ const SendInvitations = () => {
     }
     
     fetchEventDetails();
+    fetchOrganizations();
     checkStoredCredentials();
   }, [eventId, navigate]);
+
+  const fetchOrganizations = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_CONFIG.API_BASE}/organizations/owned`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      const result = await response.json();
+      if (result.success && result.data.length > 0) {
+        setOrganizations(result.data);
+        setSelectedOrg(result.data[0]); // Select first organization by default
+      }
+    } catch (error) {
+      console.error('Error fetching organizations:', error);
+    }
+  };
 
   const checkStoredCredentials = async () => {
     try {
@@ -333,6 +397,61 @@ const SendInvitations = () => {
     }
   };
 
+  const getRoleIcon = (role: string, isOwner: boolean = false) => {
+    if (isOwner) return <Crown className="w-4 h-4 text-yellow-600" />;
+    if (role === 'admin') return <Shield className="w-4 h-4 text-blue-600" />;
+    return <User className="w-4 h-4 text-gray-500" />;
+  };
+
+  const getRoleLabel = (role: string, isOwner: boolean = false) => {
+    if (isOwner) return 'Owner';
+    return role.charAt(0).toUpperCase() + role.slice(1);
+  };
+
+  const handleMemberSelection = (memberId: string, checked: boolean) => {
+    setSelectedMembers(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(memberId);
+      } else {
+        newSet.delete(memberId);
+      }
+      return newSet;
+    });
+  };
+
+  // Update selectable members when organization changes
+  useEffect(() => {
+    if (selectedOrg && currentUserId) {
+      // Include both owner and members, but exclude current user
+      const allMembers = [
+        // Add owner as a selectable member (if not current user)
+        ...(selectedOrg.owner._id !== currentUserId ? [{
+          user: selectedOrg.owner,
+          role: 'owner' as const,
+          joinedAt: selectedOrg.createdAt || new Date().toISOString()
+        }] : []),
+        // Add regular members (excluding current user)
+        ...selectedOrg.members.filter(member => member.user._id !== currentUserId)
+      ];
+      setSelectableMembers(allMembers);
+      // Clear previous selections when organization changes
+      setSelectedMembers(new Set());
+    } else {
+      setSelectableMembers([]);
+      setSelectedMembers(new Set());
+    }
+  }, [selectedOrg, currentUserId]);
+
+  const handleSelectAllMembers = () => {
+    const allMemberIds = selectableMembers.map(member => member.user._id);
+    setSelectedMembers(new Set(allMemberIds));
+  };
+
+  const handleClearAllMembers = () => {
+    setSelectedMembers(new Set());
+  };
+
   // Clear saved password
   const clearSavedPassword = async () => {
     try {
@@ -358,7 +477,23 @@ const SendInvitations = () => {
     e.preventDefault();
     
     // Get participants from the active tab
-    const currentParticipants = activeTab === 'manual' ? participants : uploadedParticipants;
+    let currentParticipants: Participant[] = [];
+    
+    if (activeTab === 'manual') {
+      currentParticipants = participants;
+    } else if (activeTab === 'upload') {
+      currentParticipants = uploadedParticipants;
+    } else if (activeTab === 'organization') {
+      // Convert selected organization members to participants
+      const selectedMembersList = selectableMembers.filter(member => 
+        selectedMembers.has(member.user._id)
+      );
+      currentParticipants = selectedMembersList.map(member => ({
+        id: member.user._id,
+        name: member.user.name,
+        email: member.user.email
+      }));
+    }
     
     // Validate all participants
     const validParticipants = currentParticipants.filter(p => p.name.trim() && p.email.trim());
@@ -707,8 +842,8 @@ const SendInvitations = () => {
                   </div>
                 </Card>
 
-                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'manual' | 'upload')} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
+                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'manual' | 'upload' | 'organization')} className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="manual" className="flex items-center gap-2">
                       <Plus className="w-4 h-4" />
                       Manual Entry
@@ -716,6 +851,10 @@ const SendInvitations = () => {
                     <TabsTrigger value="upload" className="flex items-center gap-2">
                       <Upload className="w-4 h-4" />
                       File Upload
+                    </TabsTrigger>
+                    <TabsTrigger value="organization" className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4" />
+                      Organization
                     </TabsTrigger>
                   </TabsList>
                   
@@ -893,6 +1032,184 @@ const SendInvitations = () => {
                       </div>
                     )}
                   </TabsContent>
+                  
+                  <TabsContent value="organization" className="space-y-4">
+                    {organizations.length === 0 ? (
+                      <Card className="p-4 border-dashed border-2">
+                        <div className="text-center space-y-4">
+                          <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                            <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="font-medium">No Organizations Found</h3>
+                            <p className="text-sm text-muted-foreground">
+                              You need to create an organization first to invite members
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => navigate('/organization')}
+                            className="flex items-center gap-2"
+                          >
+                            <Building2 className="w-4 h-4" />
+                            Manage Organizations
+                          </Button>
+                        </div>
+                      </Card>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* Organization Selection */}
+                        {organizations.length > 1 && (
+                          <Card className="p-4">
+                            <div className="space-y-3">
+                              <Label className="text-sm font-medium">Select Organization</Label>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {organizations.map((org) => (
+                                  <div
+                                    key={org._id}
+                                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                                      selectedOrg?._id === org._id
+                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                                        : 'border-gray-200 hover:border-gray-300 dark:border-gray-700'
+                                    }`}
+                                    onClick={() => {
+                                      setSelectedOrg(org);
+                                    }}
+                                  >
+                                    <h4 className="font-medium text-sm">{org.name}</h4>
+                                    <p className="text-xs text-muted-foreground">
+                                      {org.memberCount} member(s)
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </Card>
+                        )}
+
+                        {/* Member Selection */}
+                        {selectedOrg && selectableMembers.length > 0 ? (
+                          <Card className="p-4">
+                            <div className="space-y-4">
+                              {/* Selection Controls */}
+                              <div className="flex items-center justify-between pb-4 border-b">
+                                <div>
+                                  <h4 className="font-medium">Select Members from {selectedOrg.name}</h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    Choose organization members to invite to this event
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleSelectAllMembers}
+                                  >
+                                    Check All
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleClearAllMembers}
+                                  >
+                                    Clear All
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className="text-sm text-muted-foreground mb-4">
+                                {selectedMembers.size} of {selectableMembers.length} member(s) selected
+                              </div>
+
+                              {/* Member List Table */}
+                              <div className="border rounded-lg max-h-96 overflow-y-auto">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead className="w-12">
+                                        <Checkbox
+                                          checked={selectedMembers.size === selectableMembers.length && selectableMembers.length > 0}
+                                          onCheckedChange={(checked) => {
+                                            if (checked) {
+                                              handleSelectAllMembers();
+                                            } else {
+                                              handleClearAllMembers();
+                                            }
+                                          }}
+                                        />
+                                      </TableHead>
+                                      <TableHead>Name</TableHead>
+                                      <TableHead>Email</TableHead>
+                                      <TableHead>Role</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {selectableMembers.length === 0 ? (
+                                      <TableRow>
+                                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                                          No other members available to invite
+                                        </TableCell>
+                                      </TableRow>
+                                    ) : (
+                                      selectableMembers.map((member) => (
+                                        <TableRow
+                                          key={member.user._id}
+                                          className="hover:bg-gray-50 dark:hover:bg-gray-800"
+                                        >
+                                          <TableCell>
+                                            <Checkbox
+                                              checked={selectedMembers.has(member.user._id)}
+                                              onCheckedChange={(checked) => {
+                                                handleMemberSelection(member.user._id, checked === true);
+                                              }}
+                                            />
+                                          </TableCell>
+                                          <TableCell>
+                                            <div className="flex items-center gap-2">
+                                              {getRoleIcon(member.role, member.role === 'owner')}
+                                              <span className="font-medium">{member.user.name}</span>
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>
+                                            <span className="text-muted-foreground">{member.user.email}</span>
+                                          </TableCell>
+                                          <TableCell>
+                                            <Badge 
+                                              variant={member.role === 'owner' ? 'default' : member.role === 'admin' ? 'default' : 'secondary'}
+                                              className={member.role === 'owner' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : member.role === 'admin' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ''}
+                                            >
+                                              {getRoleLabel(member.role, member.role === 'owner')}
+                                            </Badge>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </div>
+                          </Card>
+                        ) : selectedOrg ? (
+                          <Card className="p-4 border-dashed border-2">
+                            <div className="text-center space-y-4">
+                              <div className="mx-auto w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
+                                <Users className="w-6 h-6 text-gray-400" />
+                              </div>
+                              <div className="space-y-2">
+                                <h3 className="font-medium">No Members Available</h3>
+                                <p className="text-sm text-muted-foreground">
+                                  "{selectedOrg.name}" doesn't have any members to invite yet
+                                </p>
+                              </div>
+                            </div>
+                          </Card>
+                        ) : null}
+                      </div>
+                    )}
+                  </TabsContent>
                 </Tabs>
                 
                 <div className="flex gap-4 pt-6">
@@ -915,7 +1232,27 @@ const SendInvitations = () => {
                     ) : (
                       <>
                         <Send className="w-4 h-4" />
-                        Send {(activeTab === 'manual' ? participants : uploadedParticipants).filter(p => p.name.trim() && p.email.trim()).length} Invitation{(activeTab === 'manual' ? participants : uploadedParticipants).filter(p => p.name.trim() && p.email.trim()).length !== 1 ? 's' : ''}
+                        Send {(() => {
+                          let count = 0;
+                          if (activeTab === 'manual') {
+                            count = participants.filter(p => p.name.trim() && p.email.trim()).length;
+                          } else if (activeTab === 'upload') {
+                            count = uploadedParticipants.filter(p => p.name.trim() && p.email.trim()).length;
+                          } else if (activeTab === 'organization') {
+                            count = selectedMembers.size;
+                          }
+                          return count;
+                        })()} Invitation{(() => {
+                          let count = 0;
+                          if (activeTab === 'manual') {
+                            count = participants.filter(p => p.name.trim() && p.email.trim()).length;
+                          } else if (activeTab === 'upload') {
+                            count = uploadedParticipants.filter(p => p.name.trim() && p.email.trim()).length;
+                          } else if (activeTab === 'organization') {
+                            count = selectedMembers.size;
+                          }
+                          return count !== 1 ? 's' : '';
+                        })()}
                       </>
                     )}
                   </Button>

@@ -38,7 +38,6 @@ const OrganizerDashboard = () => {
   const [user, setUser] = useState<any>(null);
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [organization, setOrganization] = useState<any>(null);
 
   // Check for system-wide dark mode
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -94,30 +93,6 @@ const OrganizerDashboard = () => {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch user's organization
-  useEffect(() => {
-    const fetchOrganization = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('/api/organizations/my', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-
-        const result = await response.json();
-        if (result.success) {
-          setOrganization(result.data);
-        }
-        // If no organization found, that's okay - organizer hasn't created one yet
-      } catch (error) {
-        console.error('Error fetching organization:', error);
-        // Silent fail - organization is optional
-      }
-    };
-
-    fetchOrganization();
-  }, []);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -561,45 +536,6 @@ const OrganizerDashboard = () => {
           </div>
         </div>
 
-        {/* Organization Section - Only show if organization exists */}
-        {organization && (
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
-            <CardHeader>
-              <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                My Organization
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <h4 className="font-semibold text-blue-800 dark:text-blue-200">{organization.name}</h4>
-                  <p className="text-blue-600 dark:text-blue-300 text-sm">{organization.description || 'No description'}</p>
-                </div>
-                <div>
-                  <p className="text-blue-700 dark:text-blue-200 text-sm">
-                    <strong>Code:</strong> <span className="font-mono bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">{organization.organizationCode}</span>
-                  </p>
-                  <p className="text-blue-600 dark:text-blue-300 text-sm">
-                    <strong>Members:</strong> {organization.memberCount || 0}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Link to="/organization">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-600 dark:text-blue-200 dark:hover:bg-blue-950"
-                    >
-                      <Settings className="w-4 h-4 mr-2" />
-                      Manage
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Actions Section */}
         <div className="flex flex-col sm:flex-row gap-4">
