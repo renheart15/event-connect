@@ -112,11 +112,11 @@ const NotificationDropdown: React.FC = () => {
   const getAlertIcon = (type: string) => {
     switch (type) {
       case 'warning':
-        return <AlertTriangle className="w-4 h-4 text-purple-600" />;
+        return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
       case 'exceeded_limit':
-        return <AlertTriangle className="w-4 h-4 text-black" />;
+        return <AlertTriangle className="w-4 h-4 text-red-600" />;
       case 'returned':
-        return <MapPin className="w-4 h-4 text-purple-600" />;
+        return <MapPin className="w-4 h-4 text-green-600" />;
       default:
         return <Bell className="w-4 h-4" />;
     }
@@ -155,7 +155,7 @@ const NotificationDropdown: React.FC = () => {
         <Button variant="ghost" size="sm" className="relative p-2" title="Notifications">
           <Bell className="h-5 w-5" />
           {hasUnreadAlerts && (
-            <span className="absolute -top-1 -right-1 h-3 w-3 bg-purple-500 rounded-full flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full flex items-center justify-center">
               <span className="text-[8px] text-white font-bold">
                 {alerts.length > 9 ? '9+' : alerts.length}
               </span>
@@ -195,8 +195,8 @@ const NotificationDropdown: React.FC = () => {
             </div>
           ) : alerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-              <Users className="w-8 h-8 mb-2 text-purple-500" />
-              <p className="text-sm text-purple-600 font-medium">All participants are within premises</p>
+              <Users className="w-8 h-8 mb-2 text-green-500" />
+              <p className="text-sm text-green-600 font-medium">All participants are within premises</p>
               <p className="text-xs text-gray-500 mt-1">No active location alerts</p>
             </div>
           ) : (
