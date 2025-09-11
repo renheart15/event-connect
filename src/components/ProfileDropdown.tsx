@@ -70,8 +70,8 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
       .slice(0, 2);
   };
 
-  // Fixed positioning with 2% right margin, not movable
-  const positionClasses = "absolute top-4 z-50";
+  // Fixed positioning in upper right corner with 2% right margin
+  const positionClasses = "fixed top-4 z-50";
 
   return (
     <div className={`${positionClasses} ${className}`} style={{ right: '2%' }}>
