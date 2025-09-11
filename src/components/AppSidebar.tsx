@@ -28,28 +28,28 @@ const organizerItems = [
     title: 'Dashboard',
     url: '/organizer-dashboard',
     icon: LayoutDashboard,
-    color: 'from-black to-black',
+    color: 'from-blue-500 to-blue-600',
     description: 'Overview and analytics'
   },
   {
     title: 'Organization',
     url: '/organization',
     icon: Building2,
-    color: 'from-black to-black',
+    color: 'from-cyan-500 to-cyan-600',
     description: 'Manage organization'
   },
   {
     title: 'Create Event',
     url: '/create-event',
     icon: Plus,
-    color: 'from-black to-black',
+    color: 'from-green-500 to-green-600',
     description: 'Add new events'
   },
   {
     title: 'Invitations',
     url: '/invitations',
     icon: Mail,
-    color: 'from-black to-black',
+    color: 'from-orange-500 to-orange-600',
     description: 'Manage invitations'
   },
 ];
@@ -59,14 +59,14 @@ const eventItems = [
     title: 'All Events',
     url: '/all-events',
     icon: Calendar,
-    color: 'from-black to-black',
+    color: 'from-purple-500 to-purple-600',
     description: 'View all events'
   },
   {
     title: 'Event Monitor',
     url: '/event-monitor',
     icon: Monitor,
-    color: 'from-black to-black',
+    color: 'from-indigo-500 to-indigo-600',
     description: 'Real-time monitoring'
   },
 ];
