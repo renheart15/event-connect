@@ -70,11 +70,9 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
       .slice(0, 2);
   };
 
-  // Fixed positioning in upper right corner with 2% right margin
-  const positionClasses = "fixed top-4 z-50";
-
+  // For embedded use in headers - no absolute positioning needed
   return (
-    <div className={`${positionClasses} ${className}`} style={{ right: '2%' }}>
+    <div className={className}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Avatar className="h-10 w-10 cursor-pointer hover:ring-2 hover:ring-primary transition-all">

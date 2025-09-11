@@ -5,7 +5,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Eye, Filter, Calendar, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import EventCard from '@/components/EventCard';
-import ProfileDropdown from '@/components/ProfileDropdown';
 import ParticipantReports from '@/components/ParticipantReports';
 import EventSettings from '@/components/EventSettings';
 import FeedbackFormManager from '@/components/FeedbackFormManager';
@@ -283,8 +282,7 @@ const AllEvents = () => {
   }
 
   return (
-    <div className="bg-gray-50 relative">
-      <ProfileDropdown />
+    <div className="bg-gray-50">
       <div className="bg-white border-b px-6 py-4 mb-6">
         <div className="flex justify-between items-center">
           <div>

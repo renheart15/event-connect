@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from './ui/sidebar';
+import ProfileDropdown from './ProfileDropdown';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -36,10 +37,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <SidebarProvider>
       <AppSidebar user={user} />
       <SidebarInset className="min-h-screen">
-        <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b">
-          <SidebarTrigger className="-ml-1" />
-          <div className="flex items-center gap-2 ml-2">
-            <h1 className="text-lg font-semibold">Event Connect</h1>
+        <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b justify-between">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger className="-ml-1" />
+            <div className="flex items-center gap-2 ml-2">
+              <h1 className="text-lg font-semibold">Event Connect</h1>
+            </div>
+          </div>
+          <div className="relative">
+            <ProfileDropdown />
           </div>
         </header>
         <main className="flex-1 min-h-[calc(100vh-4rem)] overflow-auto">
