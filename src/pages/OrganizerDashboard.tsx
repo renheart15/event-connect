@@ -526,13 +526,8 @@ const OrganizerDashboard = () => {
     <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Stats Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-3">
-            {stats && <DashboardStats stats={stats} />}
-          </div>
-          <div className="lg:col-span-1">
-            {/* Location alerts are now in the notification bell dropdown */}
-          </div>
+        <div>
+          {stats && <DashboardStats stats={stats} />}
         </div>
 
 
