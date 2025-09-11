@@ -70,13 +70,11 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
       .slice(0, 2);
   };
 
-  // Adjust positioning based on whether it's a public page or has sidebar
-  const positionClasses = isPublicPage 
-    ? "fixed top-4 right-4 z-50" 
-    : "fixed top-4 right-4 z-50";
+  // Fixed positioning with 10% right margin, not movable
+  const positionClasses = "fixed top-4 z-50 pointer-events-auto";
 
   return (
-    <div className={`${positionClasses} ${className}`}>
+    <div className={`${positionClasses} ${className}`} style={{ right: '10%' }}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Avatar className="h-10 w-10 cursor-pointer hover:ring-2 hover:ring-primary transition-all">
