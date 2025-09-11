@@ -393,7 +393,23 @@ router.get('/code/:code', async (req, res) => {
     const requiresSignup = participant && participant.isTemporaryAccount;
 
     // Check if invitation has expired (but don't expire accepted invitations or if participant has checked in)
-    if (new Date() > invitation.expiresAt && invitation.status !== 'accepted') {
+    const now = new Date();
+    const event = invitation.event;
+    const eventDate = new Date(event.date);
+    
+    let eventEndTime;
+    
+    if (event.startTime && event.endTime) {
+      // Use actual end time if available
+      const [endHour, endMin] = event.endTime.split(':').map(Number);
+      eventEndTime = new Date(eventDate);
+      eventEndTime.setHours(endHour, endMin, 0, 0);
+    } else {
+      // Fallback to duration-based calculation
+      eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
+    }
+    
+    if (now > eventEndTime && invitation.status !== 'accepted') {
       // Check if participant has attended the event (has attendance record)
       const attendanceRecord = await AttendanceLog.findOne({
         invitation: invitation._id,
@@ -725,7 +741,23 @@ router.put('/:id/respond', optionalAuth, [
     }
 
     // Don't allow responding if expired, unless it's already accepted or participant has attended
-    if (new Date() > invitation.expiresAt && invitation.status !== 'accepted') {
+    const now = new Date();
+    const event = await Event.findById(invitation.event);
+    const eventDate = new Date(event.date);
+    
+    let eventEndTime;
+    
+    if (event.startTime && event.endTime) {
+      // Use actual end time if available
+      const [endHour, endMin] = event.endTime.split(':').map(Number);
+      eventEndTime = new Date(eventDate);
+      eventEndTime.setHours(endHour, endMin, 0, 0);
+    } else {
+      // Fallback to duration-based calculation
+      eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
+    }
+    
+    if (now > eventEndTime && invitation.status !== 'accepted') {
       // Check if participant has attended the event (has attendance record)
       const attendanceRecord = await AttendanceLog.findOne({
         invitation: invitation._id,
@@ -834,9 +866,22 @@ router.delete('/my/expired', auth, async (req, res) => {
       // Don't consider accepted invitations or invitations from participants who attended as expired
       if (invitation.status === 'accepted' || invitation.hasAttended) return false;
       
-      // Check if event has ended (similar to frontend logic)
-      const eventDate = new Date(invitation.event.date);
-      const eventEndTime = new Date(eventDate.getTime() + (invitation.event.duration || 3600000)); // Default 1 hour
+      // Check if event has ended (consistent with frontend logic)
+      const event = invitation.event;
+      const eventDate = new Date(event.date);
+      
+      let eventEndTime;
+      
+      if (event.startTime && event.endTime) {
+        // Use actual end time if available
+        const [endHour, endMin] = event.endTime.split(':').map(Number);
+        eventEndTime = new Date(eventDate);
+        eventEndTime.setHours(endHour, endMin, 0, 0);
+      } else {
+        // Fallback to duration-based calculation
+        eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
+      }
+      
       return now > eventEndTime;
     });
 

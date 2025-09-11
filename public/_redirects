@@ -1,0 +1,6 @@
+# SPA fallback for client-side routing
+# API requests should go to the backend
+/api/* https://backend.event-connect.site/api/:splat 200
+
+# All other routes should serve the index.html for SPA routing
+/* /index.html 200

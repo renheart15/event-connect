@@ -1522,8 +1522,21 @@ const ParticipantDashboard = () => {
     if (invitation.status === 'accepted' || invitation.hasAttended) return false;
     
     const now = new Date();
-    const eventDate = new Date(invitation.event.date);
-    const eventEndTime = new Date(eventDate.getTime() + (invitation.event.duration || 3600000)); // Default 1 hour
+    const event = invitation.event;
+    const eventDate = new Date(event.date);
+    
+    let eventEndTime: Date;
+    
+    if (event.startTime && event.endTime) {
+      // Use actual end time if available
+      const [endHour, endMin] = event.endTime.split(':').map(Number);
+      eventEndTime = new Date(eventDate);
+      eventEndTime.setHours(endHour, endMin, 0, 0);
+    } else {
+      // Fallback to duration-based calculation
+      eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
+    }
+    
     return now > eventEndTime;
   };
 

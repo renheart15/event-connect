@@ -40,7 +40,11 @@
       "Read(//c/Users/ralfa/**)",
       "Bash(where cloudflared)",
       "Bash(git init:*)",
-      "Bash(SET PORT=5001)"
+      "Bash(SET PORT=5001)",
+      "Bash(git push:*)",
+      "Bash(npm test)",
+      "Bash(npm run:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

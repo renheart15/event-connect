@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar } from 'lucide-react';
+import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, TrendingUp, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import LocationStatusDisplay from '@/components/LocationStatusDisplay';
@@ -23,10 +23,17 @@ const EventMonitor = () => {
     totalCheckedOut: 0,
     averageDuration: 0
   });
+  const [isConnected, setIsConnected] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+  const [connectionRetries, setConnectionRetries] = useState(0);
+  const [availableEvents, setAvailableEvents] = useState([]);
+  const [loadingEvents, setLoadingEvents] = useState(false);
 
   // Fetch real-time attendance data
   const fetchAttendanceData = useCallback(async () => {
     try {
+      setRefreshing(true);
       const token = localStorage.getItem('token');
       if (!token) {
         console.warn('No auth token found, redirecting to login');
@@ -66,9 +73,16 @@ const EventMonitor = () => {
 
       setParticipants(transformedParticipants);
       setStats(data.data.stats);
+      setIsConnected(true);
+      setConnectionRetries(0);
+      setLastUpdate(new Date());
       setLoading(false);
+      setRefreshing(false);
     } catch (error) {
       console.error('Failed to fetch attendance data:', error);
+      setIsConnected(false);
+      setConnectionRetries(prev => prev + 1);
+      setRefreshing(false);
       
       let errorMessage = "Please check your connection and try again";
       if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
@@ -79,24 +93,25 @@ const EventMonitor = () => {
         return;
       } else if (error.response?.status === 429) {
         errorMessage = "Rate limit exceeded. Monitoring will resume automatically in a few minutes.";
-        // Don't show repeated rate limit errors
         console.warn('Rate limited - will retry automatically');
         return;
       } else if (error.message?.includes('Unexpected token')) {
-        // Handle JSON parsing errors which often indicate rate limiting or server errors
         errorMessage = "Server temporarily unavailable. Retrying automatically...";
         console.warn('JSON parsing error, likely due to rate limiting or server issue');
         return;
       }
       
-      toast({
-        title: "Failed to fetch attendance data",
-        description: errorMessage,
-        variant: "destructive"
-      });
+      // Only show error toast for first few retries to avoid spam
+      if (connectionRetries < 3) {
+        toast({
+          title: "Failed to fetch attendance data",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      }
       setLoading(false);
     }
-  }, [eventId, navigate]);
+  }, [eventId, navigate, connectionRetries]);
 
   // Fetch event details
   const fetchEventData = useCallback(async () => {
@@ -160,8 +175,8 @@ const EventMonitor = () => {
   useEffect(() => {
     // Check if eventId exists
     if (!eventId) {
-      console.error('No eventId provided in URL');
-      navigate('/organizer-dashboard');
+      // If no eventId, fetch available events for selection instead of redirecting
+      fetchAvailableEvents();
       return;
     }
 
@@ -183,7 +198,34 @@ const EventMonitor = () => {
       clearInterval(timer);
       clearInterval(dataRefreshInterval);
     };
-  }, [eventId, navigate, fetchEventData, fetchAttendanceData]);
+  }, [eventId, navigate, fetchEventData, fetchAttendanceData, fetchAvailableEvents]);
+
+  // Fetch available events for selection
+  const fetchAvailableEvents = useCallback(async () => {
+    try {
+      setLoadingEvents(true);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/login?role=organizer');
+        return;
+      }
+
+      const response = await fetch(`${API_CONFIG.API_BASE}/events`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAvailableEvents(data.data || []);
+      }
+      setLoadingEvents(false);
+    } catch (error) {
+      console.error('Failed to fetch events:', error);
+      setLoadingEvents(false);
+    }
+  }, [navigate]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -205,12 +247,91 @@ const EventMonitor = () => {
     }
   };
 
-  if (loading) {
+  if (loading || loadingEvents) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Loading event monitor...</p>
+          <p className="text-gray-600">{!eventId ? 'Loading events...' : 'Loading event monitor...'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show event selection when no eventId is provided
+  if (!eventId) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Select Event to Monitor</h1>
+                <p className="text-sm text-gray-600">Choose an event to start live monitoring</p>
+              </div>
+              <Link to="/organizer-dashboard">
+                <Button variant="outline">Back to Dashboard</Button>
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5" />
+                Available Events
+              </CardTitle>
+              <CardDescription>
+                Select an event to start real-time monitoring
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {availableEvents.length > 0 ? (
+                <div className="grid gap-4">
+                  {availableEvents.map((event) => (
+                    <div key={event._id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg">{event.title}</h3>
+                          <p className="text-gray-600 text-sm mb-2">{event.description}</p>
+                          <div className="flex items-center gap-4 text-sm text-gray-500">
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4" />
+                              {event.location?.address || event.location || 'Location TBD'}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-4 h-4" />
+                              {new Date(event.date).toLocaleDateString()} at {event.startTime}
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => navigate(`/event/${event._id}/monitor`)}
+                          className="ml-4"
+                        >
+                          <Activity className="w-4 h-4 mr-2" />
+                          Start Monitoring
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg mb-2">No Events Found</p>
+                  <p className="text-sm mb-4">You haven't created any events yet.</p>
+                  <Link to="/create-event">
+                    <Button>
+                      Create Your First Event
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -232,8 +353,33 @@ const EventMonitor = () => {
                 <p className="text-sm text-gray-600">Current Time</p>
                 <p className="font-mono text-lg">{currentTime.toLocaleTimeString()}</p>
               </div>
-              <Button onClick={() => fetchAttendanceData()} variant="outline" size="sm">
-                Refresh Data
+              
+              {/* Connection Status */}
+              <div className="flex items-center space-x-2">
+                {isConnected ? (
+                  <div className="flex items-center text-green-600">
+                    <Wifi className="w-4 h-4 mr-1" />
+                    <span className="text-sm">Connected</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center text-red-600">
+                    <WifiOff className="w-4 h-4 mr-1" />
+                    <span className="text-sm">Disconnected</span>
+                  </div>
+                )}
+                <div className="text-xs text-gray-500">
+                  Last update: {lastUpdate.toLocaleTimeString()}
+                </div>
+              </div>
+
+              <Button 
+                onClick={() => fetchAttendanceData()} 
+                variant="outline" 
+                size="sm"
+                disabled={refreshing}
+              >
+                <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Refreshing...' : 'Refresh Data'}
               </Button>
               <Link to="/organizer-dashboard">
                 <Button variant="outline">Back to Dashboard</Button>
@@ -245,10 +391,14 @@ const EventMonitor = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="attendance" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="attendance" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               Attendance Monitor
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Live Analytics
             </TabsTrigger>
             <TabsTrigger value="location" className="flex items-center gap-2">
               <Radar className="w-4 h-4" />
@@ -377,6 +527,113 @@ const EventMonitor = () => {
                       <p className="text-sm">Participants will appear here when they check in with their QR codes</p>
                     </div>
                   )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="mt-6">
+            {/* Live Analytics Dashboard */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* Attendance Trend */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-blue-600" />
+                    Attendance Trends
+                  </CardTitle>
+                  <CardDescription>Real-time attendance patterns</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                      <span className="text-sm font-medium">Peak Attendance</span>
+                      <span className="text-lg font-bold text-green-600">{stats.currentlyPresent}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                      <span className="text-sm font-medium">Check-in Rate</span>
+                      <span className="text-lg font-bold text-blue-600">
+                        {stats.totalCheckedIn > 0 ? Math.round((stats.totalCheckedIn / 60) * 100) / 100 : 0}/min
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+                      <span className="text-sm font-medium">Retention Rate</span>
+                      <span className="text-lg font-bold text-purple-600">
+                        {stats.totalCheckedIn > 0 ? Math.round((stats.currentlyPresent / stats.totalCheckedIn) * 100) : 0}%
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Event Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-green-600" />
+                    Event Health
+                  </CardTitle>
+                  <CardDescription>System status and performance</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Connection Status</span>
+                      <Badge variant={isConnected ? "default" : "destructive"}>
+                        {isConnected ? "Active" : "Disconnected"}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Data Freshness</span>
+                      <Badge variant="secondary">
+                        {Math.round((new Date() - lastUpdate) / 1000)}s ago
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Auto Refresh</span>
+                      <Badge variant="outline">45s interval</Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">Connection Retries</span>
+                      <Badge variant={connectionRetries > 0 ? "destructive" : "default"}>
+                        {connectionRetries}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Participant Activity Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Participant Activity Summary</CardTitle>
+                <CardDescription>Quick overview of participant engagement</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <p className="text-2xl font-bold text-gray-900">{participants.length}</p>
+                    <p className="text-sm text-gray-600">Total Participants</p>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <p className="text-2xl font-bold text-green-600">
+                      {participants.filter(p => p.status === 'present').length}
+                    </p>
+                    <p className="text-sm text-gray-600">Currently Present</p>
+                  </div>
+                  <div className="text-center p-4 bg-orange-50 rounded-lg">
+                    <p className="text-2xl font-bold text-orange-600">
+                      {participants.filter(p => p.status === 'left-early').length}
+                    </p>
+                    <p className="text-sm text-gray-600">Left Early</p>
+                  </div>
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <p className="text-2xl font-bold text-blue-600">
+                      {participants.length > 0 ? Math.round(participants.reduce((acc, p) => acc + p.duration, 0) / participants.length / 60) : 0}
+                    </p>
+                    <p className="text-sm text-gray-600">Avg Duration (min)</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>

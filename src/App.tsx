@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
 import AutoLocationPermission from "./components/AutoLocationPermission";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -25,41 +26,44 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AutoLocationPermission />
-      <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/organizer-dashboard" element={<OrganizerDashboard />} />
-            <Route path="/organization" element={<OrganizationManagement />} />
-            <Route path="/all-events" element={<AllEvents />} />
-            <Route path="/invitations" element={<Invitations />} />
-            <Route path="/send-invitations" element={<SendInvitations />} />
-            <Route path="/invitation-summary" element={<InvitationSummary />} />
-            <Route path="/invitation/:code" element={<InvitationView />} />
-            <Route
-              path="/events/:eventId/registration/create"
-              element={<CreateRegistrationForm />}
-            />
-            <Route
-              path="/registration-forms/:formId/edit"
-              element={<EditRegistrationForm />}
-            />
-            <Route path="/participant-dashboard" element={<ParticipantDashboard />} />
-            <Route path="/create-event" element={<CreateEvent />} />
-            <Route path="/event/:eventId/monitor" element={<EventMonitor />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Layout>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AutoLocationPermission />
+        <BrowserRouter>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/organizer-dashboard" element={<OrganizerDashboard />} />
+              <Route path="/organization" element={<OrganizationManagement />} />
+              <Route path="/all-events" element={<AllEvents />} />
+              <Route path="/invitations" element={<Invitations />} />
+              <Route path="/send-invitations" element={<SendInvitations />} />
+              <Route path="/invitation-summary" element={<InvitationSummary />} />
+              <Route path="/invitation/:code" element={<InvitationView />} />
+              <Route
+                path="/events/:eventId/registration/create"
+                element={<CreateRegistrationForm />}
+              />
+              <Route
+                path="/registration-forms/:formId/edit"
+                element={<EditRegistrationForm />}
+              />
+              <Route path="/participant-dashboard" element={<ParticipantDashboard />} />
+              <Route path="/create-event" element={<CreateEvent />} />
+              <Route path="/event/:eventId/monitor" element={<EventMonitor />} />
+              <Route path="/event-monitor" element={<EventMonitor />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Layout>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
