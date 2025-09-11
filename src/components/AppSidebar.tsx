@@ -92,20 +92,20 @@ export function AppSidebar({ user }: AppSidebarProps) {
       </SidebarHeader>
 
       <SidebarContent className="p-4">
-        <div className="space-y-2">
+        <div className="space-y-1">
           <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3">Organizer</h3>
           {organizerItems.map((item) => (
             <Link
               key={item.title}
               to={item.url}
-              className={`w-full flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-left ${
+              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
                 isActive(item.url) 
-                  ? `bg-${item.color.split('-')[1]}-50 dark:bg-${item.color.split('-')[1]}-900/20 border-l-4 border-${item.color.split('-')[1]}-500` 
+                  ? `bg-${item.color.split('-')[1]}-50 dark:bg-${item.color.split('-')[1]}-900/20 border-l-3 border-${item.color.split('-')[1]}-500` 
                   : ''
               }`}
             >
-              <div className={`w-10 h-10 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center mr-3 flex-shrink-0`}>
-                <item.icon className="w-5 h-5 text-white" />
+              <div className={`w-8 h-8 bg-gradient-to-r ${item.color} rounded-md flex items-center justify-center mr-2 flex-shrink-0`}>
+                <item.icon className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{item.title}</p>
@@ -115,20 +115,20 @@ export function AppSidebar({ user }: AppSidebarProps) {
           ))}
         </div>
         
-        <div className="space-y-2 mt-6">
+        <div className="space-y-1 mt-6">
           <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3">Events</h3>
           {eventItems.map((item) => (
             <Link
               key={item.title}
               to={item.url}
-              className={`w-full flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-left ${
+              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
                 isActive(item.url) 
-                  ? `bg-${item.color.split('-')[1]}-50 dark:bg-${item.color.split('-')[1]}-900/20 border-l-4 border-${item.color.split('-')[1]}-500` 
+                  ? `bg-${item.color.split('-')[1]}-50 dark:bg-${item.color.split('-')[1]}-900/20 border-l-3 border-${item.color.split('-')[1]}-500` 
                   : ''
               }`}
             >
-              <div className={`w-10 h-10 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center mr-3 flex-shrink-0`}>
-                <item.icon className="w-5 h-5 text-white" />
+              <div className={`w-8 h-8 bg-gradient-to-r ${item.color} rounded-md flex items-center justify-center mr-2 flex-shrink-0`}>
+                <item.icon className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{item.title}</p>
