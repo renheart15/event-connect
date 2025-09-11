@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import DashboardStats from '@/components/DashboardStats';
 import EventCard from '@/components/EventCard';
 import ParticipantReports from '@/components/ParticipantReports';
-import LocationAlertsWidget from '@/components/LocationAlertsWidget';
 import EventExportDialog from '@/components/EventExportDialog';
 import EventSettings from '@/components/EventSettings';
 import FeedbackFormBuilder from '@/components/FeedbackFormBuilder';
@@ -532,7 +531,7 @@ const OrganizerDashboard = () => {
             {stats && <DashboardStats stats={stats} />}
           </div>
           <div className="lg:col-span-1">
-            <LocationAlertsWidget />
+            {/* Location alerts are now in the notification bell dropdown */}
           </div>
         </div>
 

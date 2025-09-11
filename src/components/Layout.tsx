@@ -3,8 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from './ui/sidebar';
 import ProfileDropdown from './ProfileDropdown';
-import { Bell } from 'lucide-react';
-import { Button } from './ui/button';
+import NotificationDropdown from './NotificationDropdown';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -47,11 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="relative p-2" title="Notifications">
-              <Bell className="h-5 w-5" />
-              {/* Optional notification badge */}
-              {/* <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full"></span> */}
-            </Button>
+            <NotificationDropdown />
             <ProfileDropdown />
           </div>
         </header>
