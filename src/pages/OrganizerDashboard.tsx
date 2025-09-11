@@ -532,9 +532,9 @@ const OrganizerDashboard = () => {
 
 
         {/* Actions Section */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <Link to="/create-event" className="sm:flex-1">
-            <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200">
+        <div className="flex flex-wrap gap-3">
+          <Link to="/create-event">
+            <Button className="rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200">
               <Plus className="w-4 h-4 mr-2" />
               Create New Event
             </Button>
@@ -542,7 +542,7 @@ const OrganizerDashboard = () => {
           <Button 
             variant="outline" 
             onClick={() => setIsExportDialogOpen(true)}
-            className="sm:flex-1 w-full hover:bg-accent transition-colors"
+            className="rounded-xl hover:bg-accent transition-colors"
           >
             Export Reports
           </Button>
@@ -565,7 +565,7 @@ const OrganizerDashboard = () => {
             <Button
               variant="outline"
               onClick={() => setShowAllEvents(!showAllEvents)}
-              className="hover:bg-accent transition-colors whitespace-nowrap"
+              className="rounded-xl hover:bg-accent transition-colors whitespace-nowrap"
             >
               {showAllEvents ? (
                 <>
@@ -600,7 +600,7 @@ const OrganizerDashboard = () => {
                 </p>
                 <div className="flex gap-3">
                   <Link to="/create-event">
-                    <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                    <Button className="rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                       <Plus className="w-4 h-4 mr-2" />
                       Create Event
                     </Button>
@@ -609,7 +609,7 @@ const OrganizerDashboard = () => {
                     <Button 
                       variant="outline" 
                       onClick={() => setShowAllEvents(true)}
-                      className="hover:bg-accent"
+                      className="rounded-xl hover:bg-accent"
                     >
                       <Eye className="w-4 h-4 mr-2" />
                       View All Events
