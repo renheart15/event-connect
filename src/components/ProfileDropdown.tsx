@@ -72,8 +72,8 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
 
   // Adjust positioning based on whether it's a public page or has sidebar
   const positionClasses = isPublicPage 
-    ? "fixed top-4 left-4 z-50" 
-    : "fixed top-4 left-4 z-50";
+    ? "fixed top-4 right-4 z-50" 
+    : "fixed top-4 right-4 z-50";
 
   return (
     <div className={`${positionClasses} ${className}`}>
@@ -86,7 +86,7 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
             </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem onClick={handleProfile} className="cursor-pointer">
             <User className="mr-2 h-4 w-4" />
             Profile

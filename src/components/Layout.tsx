@@ -38,7 +38,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <SidebarInset className="min-h-screen">
         <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b">
           <SidebarTrigger className="-ml-1" />
-          <div className="flex items-center gap-2 ml-14">
+          <div className="flex items-center gap-2 ml-2">
             <h1 className="text-lg font-semibold">Event Connect</h1>
           </div>
         </header>
