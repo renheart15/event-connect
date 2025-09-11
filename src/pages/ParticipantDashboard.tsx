@@ -8,6 +8,7 @@ import { API_CONFIG } from '@/config';
 import { useParticipantLocationUpdater } from '@/hooks/useLocationTracking';
 import ParticipantNotifications from '@/components/ParticipantNotifications';
 import FeedbackFormView from '@/components/FeedbackFormView';
+import ProfileDropdown from '@/components/ProfileDropdown';
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -3193,7 +3194,8 @@ const ParticipantDashboard = () => {
   }
 
   return (
-    <div className="w-full h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 select-none touch-manipulation max-w-full overflow-x-hidden overflow-y-hidden">
+    <div className="w-full h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 select-none touch-manipulation max-w-full overflow-x-hidden overflow-y-hidden relative">
+      <ProfileDropdown />
       {/* Offline Indicator */}
       {!isOnline && (
         <div className="fixed top-0 left-0 right-0 bg-red-500 text-white text-center py-1 text-xs z-40">

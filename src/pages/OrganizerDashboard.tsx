@@ -22,6 +22,7 @@ import GeofenceMap from '@/components/GeofenceMap';
 // import EmailSettings from '@/components/EmailSettings';
 import { exportEventSummary, exportDetailedEventReport } from '@/utils/reportUtils';
 import { useToast } from '@/hooks/use-toast';
+import ProfileDropdown from '@/components/ProfileDropdown';
 
 const OrganizerDashboard = () => {
   const { toast } = useToast();
@@ -524,7 +525,8 @@ const OrganizerDashboard = () => {
   }
 
   return (
-    <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+    <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 relative">
+      <ProfileDropdown />
       <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Stats Section */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
 import AutoLocationPermission from "./components/AutoLocationPermission";
 import ErrorBoundary from "./components/ErrorBoundary";
-import ProfileDropdown from "./components/ProfileDropdown";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -34,7 +33,6 @@ const App = () => (
         <Sonner />
         <AutoLocationPermission />
         <BrowserRouter>
-          <ProfileDropdown />
           <Layout>
             <Routes>
               <Route path="/" element={<Index />} />

@@ -9,6 +9,7 @@ import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, Tr
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import LocationStatusDisplay from '@/components/LocationStatusDisplay';
+import ProfileDropdown from '@/components/ProfileDropdown';
 
 const EventMonitor = () => {
   const { eventId } = useParams();
@@ -338,7 +339,8 @@ const EventMonitor = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 relative">
+      <ProfileDropdown />
       
       {/* Header */}
       <header className="bg-white shadow-sm border-b">

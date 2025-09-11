@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import GeofenceMap from '@/components/GeofenceMap';
+import ProfileDropdown from '@/components/ProfileDropdown';
 
 const CreateEvent = () => {
   const navigate = useNavigate();
@@ -153,7 +154,8 @@ const CreateEvent = () => {
   };
 
   return (
-    <div className="min-h-full bg-gray-50">
+    <div className="min-h-full bg-gray-50 relative">
+      <ProfileDropdown />
       <div className="bg-white border-b px-6 py-4 mb-6">
         <div className="flex justify-between items-center">
           <div>
