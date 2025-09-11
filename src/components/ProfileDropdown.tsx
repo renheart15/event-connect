@@ -62,13 +62,6 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
     return null;
   }
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase())
-      .join('')
-      .slice(0, 2);
-  };
 
   // For embedded use in headers - no absolute positioning needed
   return (
@@ -78,7 +71,7 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
           <Avatar className="h-10 w-10 cursor-pointer hover:ring-2 hover:ring-primary transition-all">
             <AvatarImage src={user.profilePicture} alt={user.name} />
             <AvatarFallback className="bg-primary text-primary-foreground">
-              {getInitials(user.name)}
+              <User className="h-5 w-5" />
             </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
