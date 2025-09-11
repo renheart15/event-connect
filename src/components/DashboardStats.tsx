@@ -26,7 +26,7 @@ const StatCard = ({ title, value, change, icon, iconColor }: StatCardProps) => {
               {change && (
                 <Badge 
                   variant={change.positive ? "default" : "secondary"}
-                  className={`text-xs ${change.positive ? 'bg-green-100 text-green-700 hover:bg-green-100' : 'bg-red-100 text-red-700 hover:bg-red-100'}`}
+                  className={`text-xs ${change.positive ? 'bg-purple-100 text-purple-700 hover:bg-purple-100' : 'bg-gray-100 text-gray-700 hover:bg-gray-100'}`}
                 >
                   {change.positive ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
                   {change.value}
@@ -59,29 +59,29 @@ const DashboardStats = ({ stats }: DashboardStatsProps) => {
         title="Total Events"
         value={stats.totalEvents}
         change={{ value: "+12%", positive: true }}
-        icon={<div className="w-6 h-6 bg-blue-500 rounded-lg"></div>}
-        iconColor="bg-blue-500"
+        icon={<div className="w-6 h-6 bg-purple-500 rounded-lg"></div>}
+        iconColor="bg-purple-500"
       />
       <StatCard
         title="Active Events"
         value={stats.activeEvents}
         change={{ value: "+5%", positive: true }}
-        icon={<div className="w-6 h-6 bg-green-500 rounded-lg"></div>}
-        iconColor="bg-green-500"
+        icon={<div className="w-6 h-6 bg-purple-600 rounded-lg"></div>}
+        iconColor="bg-purple-600"
       />
       <StatCard
         title="Total Participants"
         value={stats.totalParticipants}
         change={{ value: "+18%", positive: true }}
-        icon={<div className="w-6 h-6 bg-purple-500 rounded-lg"></div>}
-        iconColor="bg-purple-500"
+        icon={<div className="w-6 h-6 bg-purple-700 rounded-lg"></div>}
+        iconColor="bg-purple-700"
       />
       <StatCard
         title="Currently Present"
         value={stats.currentlyPresent}
         change={{ value: "-2%", positive: false }}
-        icon={<div className="w-6 h-6 bg-orange-500 rounded-lg"></div>}
-        iconColor="bg-orange-500"
+        icon={<div className="w-6 h-6 bg-black rounded-lg"></div>}
+        iconColor="bg-black"
       />
     </div>
   );
