@@ -46,6 +46,10 @@ const attendanceLogSchema = new mongoose.Schema({
     trim: true,
     maxlength: [200, 'Notes cannot be more than 200 characters']
   },
+  hiddenFromParticipant: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

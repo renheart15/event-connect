@@ -15,7 +15,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   
   // Routes that should not show the sidebar
   const noSidebarRoutes = ['/', '/login', '/register', '/participant-dashboard'];
-  const showSidebar = !noSidebarRoutes.includes(location.pathname);
+  const showSidebar = !noSidebarRoutes.includes(location.pathname) && !location.pathname.startsWith('/join/');
 
   useEffect(() => {
     // Load user from localStorage

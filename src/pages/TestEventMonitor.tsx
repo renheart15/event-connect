@@ -34,7 +34,7 @@ const TestEventMonitor = () => {
             <div className="flex items-center space-x-4">
               <div className="text-right">
                 <p className="text-sm text-gray-600">Current Time</p>
-                <p className="font-mono text-lg">{currentTime.toLocaleTimeString()}</p>
+                <p className="font-mono text-lg">{currentTime.toLocaleTimeString('en-US', { hour12: true })}</p>
               </div>
             </div>
           </div>

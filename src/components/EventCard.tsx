@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, MapPin, Users, Monitor, Mail, Settings, QrCode, MessageSquare, FileText } from 'lucide-react';
+import { Calendar, MapPin, Users, Monitor, Mail, Settings, QrCode, MessageSquare, FileText, Send } from 'lucide-react';
 import QRCodeDisplay from '@/components/QRCodeDisplay';
 import GeofenceMap from '@/components/GeofenceMap';
 import { toast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ interface EventCardProps {
   onGeofenceUpdate: (eventId: string, center: [number, number], radius: number) => void;
   onFeedbackClick: (eventId: string) => void;
   onDeleteClick: (eventId: string, isCompleted: boolean) => void;
+  onPublishClick: (eventId: string) => void;
 }
 
 const EventCard = ({ 
@@ -27,7 +28,8 @@ const EventCard = ({
   onSettingsClick, 
   onGeofenceUpdate, 
   onFeedbackClick, 
-  onDeleteClick 
+  onDeleteClick,
+  onPublishClick
 }: EventCardProps) => {
   const isUpcoming = event.status === 'upcoming';
   const isActive = event.status === 'active';
@@ -171,20 +173,30 @@ const EventCard = ({
               </div>
               <div className="flex items-center space-x-1">
                 <MapPin className="w-4 h-4" />
-                <span>{event.location}</span>
+                <span>{event.location?.address || event.location}</span>
               </div>
             </div>
           </div>
           {(isActive || isUpcoming) && (
-            <Button
-              variant="ghost"
-              className="text-muted-foreground hover:text-primary mr-2 text-blue-700"
-              onClick={handleEditFormClick}
-              disabled={checkingForm}
-            >
-              <Edit className="w-4 h-4" />
-              {getEditButtonText()}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                className="text-muted-foreground hover:text-primary text-blue-700"
+                onClick={handleEditFormClick}
+                disabled={checkingForm}
+              >
+                <Edit className="w-4 h-4" />
+                {getEditButtonText()}
+              </Button>
+              <Button
+                variant="ghost"
+                className={`text-muted-foreground ${event.published ? 'text-green-600 hover:text-green-700' : 'hover:text-green-600'}`}
+                onClick={() => onPublishClick(event.id)}
+              >
+                <Send className="w-4 h-4" />
+                {event.published ? 'Unpublish' : 'Publish'}
+              </Button>
+            </div>
           )}
         </div>
       </CardHeader>

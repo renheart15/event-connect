@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Settings, Save, Trash2, Calendar, MapPin, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { API_CONFIG } from '@/config';
 
 interface Event {
   id: string;
@@ -36,6 +37,7 @@ interface Event {
   maxTimeOutside?: number;
   startTime?: string; // <-- added
   endTime?: string;   // <-- added
+  published?: boolean;
   geofence: {
     center: [number, number];
     radius: number;
@@ -62,8 +64,8 @@ const EventSettings = ({ event, isOpen, onClose, onEventUpdate, onEventDelete }:
     endTime: event.endTime || '',
   });
 
-  const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -100,7 +102,7 @@ const EventSettings = ({ event, isOpen, onClose, onEventUpdate, onEventDelete }:
     }
 
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const res = await fetch(`${API_CONFIG.API_BASE}/events/${event.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -122,7 +124,7 @@ const EventSettings = ({ event, isOpen, onClose, onEventUpdate, onEventDelete }:
       if (!res.ok) throw new Error(result.message || 'Failed to update event');
 
       // 🔁 Optionally update backend status
-      await fetch(`http://localhost:8080/api/events/${event.id}/status`, {
+      await fetch(`${API_CONFIG.API_BASE}/events/${event.id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -158,16 +160,31 @@ const EventSettings = ({ event, isOpen, onClose, onEventUpdate, onEventDelete }:
     setIsDeleting(true);
 
     try {
-      const res = await fetch(`/api/events/${event.id}`, {
+      const token = localStorage.getItem('token');
+      
+      const url = `${API_CONFIG.API_BASE}/events/${event.id}`;
+
+      const res = await fetch(url, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
 
-      const result = await res.json();
+      let result;
+      const responseText = await res.text();
+      
+      if (responseText) {
+        result = JSON.parse(responseText);
+      } else {
+        result = { message: `Empty response with status ${res.status}` };
+      }
 
-      if (!res.ok) throw new Error(result.message || 'Failed to delete event');
+      if (!res.ok) {
+        throw new Error(result.message || `Failed to delete event: ${res.status}`);
+      }
+
 
       if (onEventDelete) {
         onEventDelete(event.id);
@@ -176,19 +193,20 @@ const EventSettings = ({ event, isOpen, onClose, onEventUpdate, onEventDelete }:
       toast({
         title: 'Event Deleted',
         description: 'The event has been permanently deleted.',
-        variant: 'destructive',
       });
-
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
 
       setShowDeleteConfirm(false);
       onClose();
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+
     } catch (error: any) {
+      console.error('🔥 Delete error:', error);
       toast({
         title: 'Deletion Failed',
-        description: error.message,
+        description: error.message || 'An error occurred while deleting the event.',
         variant: 'destructive',
       });
     } finally {
@@ -197,6 +215,7 @@ const EventSettings = ({ event, isOpen, onClose, onEventUpdate, onEventDelete }:
   };
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
@@ -372,35 +391,41 @@ const EventSettings = ({ event, isOpen, onClose, onEventUpdate, onEventDelete }:
           </div>
         </div>
 
-        {/* Delete Confirmation Dialog */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg max-w-md mx-4">
-              <h3 className="text-lg font-semibold mb-2">Delete Event</h3>
-              <p className="text-gray-600 mb-4">
-                Are you sure you want to delete "{event.title}"? This action cannot be undone.
-              </p>
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowDeleteConfirm(false)}
-                  disabled={isDeleting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? 'Deleting...' : 'Delete'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
+
+    {/* Delete Confirmation Dialog */}
+    <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete Event</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete "{event.title}"? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex gap-2 justify-end mt-4">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowDeleteConfirm(false);
+            }}
+            disabled={isDeleting}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              handleDelete();
+            }}
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };
 

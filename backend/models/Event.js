@@ -96,6 +96,10 @@ const eventSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  published: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

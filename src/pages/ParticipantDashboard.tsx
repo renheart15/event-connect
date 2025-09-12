@@ -2,13 +2,12 @@ import React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { QrCode, Camera, Upload, Menu, Zap, Loader2, X, Flashlight, MapPin, AlertTriangle, CheckCircle, User, Settings, LogOut, RefreshCw, MessageSquare, Building2, Copy, UserPlus } from 'lucide-react';
+import { QrCode, Camera, Upload, Menu, Zap, Loader2, X, Flashlight, MapPin, AlertTriangle, CheckCircle, User, Settings, LogOut, RefreshCw, MessageSquare, Building2, Copy, UserPlus, Globe, Calendar, Clock } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import { useParticipantLocationUpdater } from '@/hooks/useLocationTracking';
 import ParticipantNotifications from '@/components/ParticipantNotifications';
 import FeedbackFormView from '@/components/FeedbackFormView';
-import ProfileDropdown from '@/components/ProfileDropdown';
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -34,7 +33,8 @@ const ParticipantDashboard = () => {
   const [activeView, setActiveView] = useState(() => {
     // Persist active view in localStorage
     return localStorage.getItem('participantActiveView') || 'active';
-  }); // 'upcoming', 'active', 'completed', 'profile', 'settings', 'organization'
+  }); // 'upcoming', 'active', 'completed', 'public', 'profile', 'settings', 'organization'
+  const [publicEvents, setPublicEvents] = useState([]);
   const [facingMode, setFacingMode] = useState('environment'); // 'user' for front, 'environment' for back
   const [selectedFeedbackEvent, setSelectedFeedbackEvent] = useState<any>(null);
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
@@ -49,6 +49,19 @@ const ParticipantDashboard = () => {
   // Multi-organization support
   const [userOrganizations, setUserOrganizations] = useState<any[]>([]);
   const [activeOrganization, setActiveOrganization] = useState<any>(null);
+  
+  // Event record modal state
+  const [selectedEventRecord, setSelectedEventRecord] = useState<any>(null);
+  const [showEventRecordModal, setShowEventRecordModal] = useState(false);
+  
+  // Clear completed events state
+  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
+  const [isClearingEvents, setIsClearingEvents] = useState(false);
+  
+  // Individual event deletion state
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<any>(null);
+  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -59,6 +72,320 @@ const ParticipantDashboard = () => {
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const token = localStorage.getItem('token');
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    window.location.href = '/';
+  };
+
+  // Helper function to format time difference in a readable way
+  const formatTimeDifference = (milliseconds: number) => {
+    const totalSeconds = Math.floor(Math.abs(milliseconds) / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      if (minutes > 0) {
+        return `${hours}h ${minutes}m`;
+      }
+      return `${hours}h`;
+    } else if (minutes > 0) {
+      if (seconds > 0 && minutes < 2) {
+        return `${minutes}m ${seconds}s`;
+      }
+      return `${minutes}m`;
+    } else {
+      return `${seconds}s`;
+    }
+  };
+
+  // Helper function to determine if participant was late or on time
+  const getAttendanceStatus = (attendance: any) => {
+    if (!attendance.event.date || !attendance.checkInTime) {
+      return { status: 'unknown', message: 'Unknown', color: 'text-gray-500 dark:text-gray-400' };
+    }
+
+    const eventDate = new Date(attendance.event.date);
+    const checkInTime = new Date(attendance.checkInTime);
+    
+    // If event has startTime, use it; otherwise use event date
+    let eventStartTime = eventDate;
+    if (attendance.event.startTime) {
+      const [hours, minutes] = attendance.event.startTime.split(':');
+      eventStartTime = new Date(eventDate);
+      eventStartTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    }
+    
+    // Allow 30 minutes before event start for early check-in
+    const earlyCheckInTime = new Date(eventStartTime.getTime() - 30 * 60 * 1000);
+    
+    // Consider late if checked in more than 15 minutes after start time
+    const lateThreshold = new Date(eventStartTime.getTime() + 15 * 60 * 1000);
+    
+    const timeDifference = checkInTime.getTime() - eventStartTime.getTime();
+    
+    if (checkInTime < earlyCheckInTime) {
+      const timeEarly = formatTimeDifference(earlyCheckInTime.getTime() - checkInTime.getTime());
+      return { 
+        status: 'very-early', 
+        message: `${timeEarly} too early`,
+        color: 'text-blue-600 dark:text-blue-400'
+      };
+    } else if (checkInTime <= eventStartTime) {
+      if (Math.abs(timeDifference) < 60000) { // Less than 1 minute
+        return { 
+          status: 'on-time', 
+          message: 'On time',
+          color: 'text-green-600 dark:text-green-400'
+        };
+      } else {
+        const timeEarly = formatTimeDifference(-timeDifference);
+        return { 
+          status: 'on-time', 
+          message: `${timeEarly} early`,
+          color: 'text-green-600 dark:text-green-400'
+        };
+      }
+    } else if (checkInTime <= lateThreshold) {
+      const timeLate = formatTimeDifference(timeDifference);
+      return { 
+        status: 'slightly-late', 
+        message: `${timeLate} late`,
+        color: 'text-yellow-600 dark:text-yellow-400'
+      };
+    } else {
+      const timeLate = formatTimeDifference(timeDifference);
+      return { 
+        status: 'late', 
+        message: `${timeLate} late`,
+        color: 'text-red-600 dark:text-red-400'
+      };
+    }
+  };
+
+  // Helper function to check attendance availability and get timing info
+  const getAttendanceAvailability = (event: any) => {
+    if (!event.date) {
+      return { 
+        available: false, 
+        reason: 'Event date not available',
+        opensAt: null 
+      };
+    }
+
+    const now = new Date();
+    const eventDate = new Date(event.date);
+    
+    // If event has startTime, use it; otherwise use event date
+    let eventStartTime = eventDate;
+    if (event.startTime) {
+      const [hours, minutes] = event.startTime.split(':');
+      eventStartTime = new Date(eventDate);
+      eventStartTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    }
+    
+    // Attendance opens 1 hour before event start
+    const attendanceOpenTime = new Date(eventStartTime.getTime() - 60 * 60 * 1000);
+    
+    // Check if event has already ended
+    const eventEndTime = event.endTime ? (() => {
+      const [hours, minutes] = event.endTime.split(':');
+      const endTime = new Date(eventDate);
+      endTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      return endTime;
+    })() : new Date(eventStartTime.getTime() + 3 * 60 * 60 * 1000); // Default 3 hours if no end time
+
+    if (now > eventEndTime) {
+      return {
+        available: false,
+        reason: 'Event has ended',
+        opensAt: null
+      };
+    }
+
+    if (now < attendanceOpenTime) {
+      const timeUntilOpen = attendanceOpenTime.getTime() - now.getTime();
+      const timeUntilOpenFormatted = formatTimeDifference(timeUntilOpen);
+      
+      return {
+        available: false,
+        reason: `Attendance opens ${timeUntilOpenFormatted} before event start`,
+        opensAt: attendanceOpenTime,
+        opensAtFormatted: attendanceOpenTime.toLocaleString(),
+        timeUntilOpen: timeUntilOpenFormatted
+      };
+    }
+
+    return {
+      available: true,
+      reason: 'Attendance is open',
+      opensAt: attendanceOpenTime
+    };
+  };
+
+  // Helper function to calculate distance between two coordinates using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371000; // Earth's radius in meters
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180;
+    const Δλ = (lon2-lon1) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c; // Distance in meters
+  };
+
+  // Helper function to validate if user is within geofence
+  const validateGeofence = (event: any, userLocation: any) => {
+    if (!event.location?.coordinates?.coordinates || !userLocation) {
+      return {
+        valid: false,
+        reason: 'Location data unavailable',
+        distance: null
+      };
+    }
+
+    const eventCoords = event.location.coordinates.coordinates;
+    const eventLat = eventCoords[1]; // Latitude is second in GeoJSON format
+    const eventLng = eventCoords[0]; // Longitude is first in GeoJSON format
+    
+    const userLat = userLocation.latitude;
+    const userLng = userLocation.longitude;
+
+    const distance = calculateDistance(userLat, userLng, eventLat, eventLng);
+    const geofenceRadius = event.geofenceRadius || 100; // Default 100 meters if not set
+
+    if (distance <= geofenceRadius) {
+      return {
+        valid: true,
+        reason: 'Within geofence area',
+        distance: Math.round(distance),
+        allowedRadius: geofenceRadius
+      };
+    } else {
+      const distanceOutside = Math.round(distance - geofenceRadius);
+      return {
+        valid: false,
+        reason: `You are ${Math.round(distance)}m from the event location. You need to be within ${geofenceRadius}m to check in.`,
+        distance: Math.round(distance),
+        allowedRadius: geofenceRadius,
+        distanceOutside
+      };
+    }
+  };
+
+  // Function to clear all completed events
+  const handleClearCompletedEvents = async () => {
+    if (!token) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to clear events",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsClearingEvents(true);
+    setShowClearConfirmation(false);
+
+    try {
+      const response = await fetch(`${API_CONFIG.API_BASE}/attendance/my/completed`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Filter out completed events from local state
+        const updatedAttendance = myAttendance.filter(attendance => 
+          !attendance.checkOutTime || attendance.status !== 'checked-out'
+        );
+        setMyAttendance(updatedAttendance);
+
+        toast({
+          title: "Events Cleared",
+          description: `Successfully cleared ${result.data?.clearedCount || 'all'} completed events`,
+        });
+      } else {
+        throw new Error(result.message || 'Failed to clear completed events');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Clear Failed",
+        description: error.message || "Failed to clear completed events",
+        variant: "destructive",
+      });
+    } finally {
+      setIsClearingEvents(false);
+    }
+  };
+
+  // Function to delete individual completed event
+  const handleDeleteCompletedEvent = async () => {
+    if (!eventToDelete || !token) {
+      toast({
+        title: "Error",
+        description: "Unable to delete event",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDeletingEvent(true);
+    setShowDeleteConfirmation(false);
+
+    try {
+      const response = await fetch(`${API_CONFIG.API_BASE}/attendance/${eventToDelete._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove the deleted event from local state
+        const updatedAttendance = myAttendance.filter(attendance => 
+          attendance._id !== eventToDelete._id
+        );
+        setMyAttendance(updatedAttendance);
+
+        toast({
+          title: "Event Deleted",
+          description: `Successfully removed "${eventToDelete.event.title}" from your records`,
+        });
+      } else {
+        throw new Error(result.message || 'Failed to delete event');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete event",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingEvent(false);
+      setEventToDelete(null);
+    }
+  };
+
+  // Function to initiate individual event deletion
+  const confirmDeleteEvent = (attendance: any) => {
+    setEventToDelete(attendance);
+    setShowDeleteConfirmation(true);
+  };
   
   // Function to update active view and persist it
   const updateActiveView = (view: string) => {
@@ -86,7 +413,6 @@ const ParticipantDashboard = () => {
       if (Capacitor.isNativePlatform()) {
         // Check current permission status
         const permissions = await Geolocation.checkPermissions();
-        console.log('Location permissions status:', permissions);
         
         if (permissions.location === 'granted') {
           setLocationPermissionStatus('granted');
@@ -97,7 +423,6 @@ const ParticipantDashboard = () => {
         } else {
           // Request permissions
           const requestResult = await Geolocation.requestPermissions();
-          console.log('Location permission request result:', requestResult);
           
           if (requestResult.location === 'granted') {
             setLocationPermissionStatus('granted');
@@ -113,7 +438,6 @@ const ParticipantDashboard = () => {
         return true;
       }
     } catch (error) {
-      console.error('Error checking location permissions:', error);
       setLocationPermissionStatus('denied');
       return false;
     }
@@ -164,7 +488,6 @@ const ParticipantDashboard = () => {
         };
       }
     } catch (error: any) {
-      console.error('Error getting location:', error);
       
       let errorMessage = "Failed to get your location.";
       if (error.code === 1) {
@@ -277,10 +600,8 @@ const ParticipantDashboard = () => {
           const scanHistoryData = await scanHistoryResponse.json();
           setScanHistory(scanHistoryData.data.scanHistory);
         } else {
-          console.log('Scan history not available, using empty array');
         }
       } catch (error) {
-        console.error('Error fetching participant data:', error);
         toast({
           title: "Error",
           description: "Failed to load your events. Please try again.",
@@ -337,7 +658,6 @@ const ParticipantDashboard = () => {
           }
         }
       } catch (error) {
-        console.error('Error fetching organizations:', error);
         setUserOrganizations([]);
         setActiveOrganization(null);
         setUserOrganization(null);
@@ -358,7 +678,7 @@ const ParticipantDashboard = () => {
       // Stop location tracking if active
       if (locationWatchId) {
         if (Capacitor.isNativePlatform()) {
-          Geolocation.clearWatch({ id: locationWatchId as any }).catch(console.error);
+          Geolocation.clearWatch({ id: locationWatchId as any }).catch(() => {});
         } else {
           navigator.geolocation.clearWatch(locationWatchId);
         }
@@ -405,7 +725,6 @@ const ParticipantDashboard = () => {
         const result = await response.json();
         
         if (result.success && result.data.totalParticipantsCheckedOut > 0) {
-          console.log('Auto-checkout completed:', result.data);
           
           // Show notification if current user was auto-checked out
           if (result.data.totalParticipantsCheckedOut > 0) {
@@ -438,7 +757,6 @@ const ParticipantDashboard = () => {
                 setMyAttendance(attendanceData.data.attendanceLogs);
               }
             } catch (error) {
-              console.error('Error refreshing data after auto-checkout:', error);
             }
           };
 
@@ -446,7 +764,6 @@ const ParticipantDashboard = () => {
         }
       } catch (error) {
         // Silently log errors to avoid spamming user with network issues
-        console.error('Auto-checkout check failed:', error);
       }
     };
 
@@ -499,7 +816,6 @@ const ParticipantDashboard = () => {
           // Allow check-in 30 minutes before start time
           const checkInStartTime = new Date(eventStartTime.getTime() - 30 * 60 * 1000);
           
-          console.log(`Event ${event.title}: now=${now.toLocaleString()}, checkInStart=${checkInStartTime.toLocaleString()}, start=${eventStartTime.toLocaleString()}, end=${eventEndTime.toLocaleString()}, eventStatus=${event.status}, invitationStatus=${invitation.status}`);
           
           // Don't include completed events in monitoring
           if (event.status === 'completed') {
@@ -521,7 +837,6 @@ const ParticipantDashboard = () => {
         }
       });
 
-      console.log('Active invited events for monitoring:', activeInvitedEvents.length);
 
       if (activeInvitedEvents.length > 0 && !locationWatchId) {
         // Check location permissions
@@ -536,7 +851,6 @@ const ParticipantDashboard = () => {
         }
 
         // Start location monitoring for automatic check-in
-        console.log('Starting automatic location monitoring for invited events');
         
         if (Capacitor.isNativePlatform()) {
           const watchId = await Geolocation.watchPosition({
@@ -564,7 +878,6 @@ const ParticipantDashboard = () => {
                 await checkAutoCheckIn(position.coords, activeInvitedEvents);
               },
               (error) => {
-                console.error('Auto-monitoring location error:', error);
               },
               {
                 enableHighAccuracy: true,
@@ -601,7 +914,6 @@ const ParticipantDashboard = () => {
         const locationData = invitation.event.location;
         if (locationData?.coordinates?.coordinates && Array.isArray(locationData.coordinates.coordinates)) {
           const [eventLng, eventLat] = locationData.coordinates.coordinates;
-          console.log(`Event ${invitation.event.title} coordinates:`, { eventLng, eventLat });
           
           const distance = calculateDistance(
             coords.latitude,
@@ -612,19 +924,15 @@ const ParticipantDashboard = () => {
 
           const geofenceRadius = invitation.event.geofenceRadius || 100; // Default 100 meters
           
-          console.log(`Distance to ${invitation.event.title}: ${distance}m (threshold: ${geofenceRadius}m)`);
           
           if (distance <= geofenceRadius) {
-            console.log(`Auto check-in triggered for ${invitation.event.title}`);
             
             // Perform automatic check-in
             await performAutoCheckIn(invitation.event, coords);
           }
         } else {
-          console.log(`Event ${invitation.event.title} has no valid coordinates:`, locationData);
         }
       } catch (error) {
-        console.error('Error in auto check-in:', error);
       }
     }
   };
@@ -636,7 +944,6 @@ const ParticipantDashboard = () => {
       const invitation = myInvitations.find(inv => inv.event._id === event._id);
       
       if (!invitation) {
-        console.error('No invitation found for auto check-in');
         return;
       }
       
@@ -648,7 +955,6 @@ const ParticipantDashboard = () => {
         code: invitation.invitationCode
       });
       
-      console.log('Auto check-in QR data:', qrData);
       
       const response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin`, {
         method: 'POST',
@@ -692,27 +998,9 @@ const ParticipantDashboard = () => {
           setMyAttendance(attendanceData.data.attendanceLogs);
         }
       } else {
-        console.error('Auto check-in failed:', result.message);
       }
     } catch (error) {
-      console.error('Auto check-in error:', error);
     }
-  };
-
-  // Helper function to calculate distance between two coordinates
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371e3; // Earth's radius in meters
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180;
-    const Δλ = (lon2-lon1) * Math.PI/180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c;
   };
 
   // Check for automatic check-out when events end
@@ -729,7 +1017,6 @@ const ParticipantDashboard = () => {
 
         // Check if event has ended
         if (now > eventEndTime) {
-          console.log(`Auto check-out triggered for ${attendance.event.title}`);
           
           try {
             const response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkout`, {
@@ -769,7 +1056,6 @@ const ParticipantDashboard = () => {
               }
             }
           } catch (error) {
-            console.error('Auto check-out error:', error);
           }
         }
       }
@@ -840,11 +1126,9 @@ const ParticipantDashboard = () => {
           throw new Error('Camera API not supported');
         }
         
-        console.log('Starting web camera...');
         await startWebCamera();
       }
     } catch (error) {
-      console.error('Error accessing camera:', error);
       setScanningStatus('Camera access failed - ' + error.message);
       
       toast({
@@ -874,10 +1158,8 @@ const ParticipantDashboard = () => {
         const capabilities = track.getCapabilities();
         if ((capabilities as any).torch) {
           setFlashSupported(true);
-          console.log('Flash/torch is supported');
         }
       } catch (error) {
-        console.log('Rear camera with flash not available, trying basic rear camera');
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: { 
@@ -887,7 +1169,6 @@ const ParticipantDashboard = () => {
             }
           });
         } catch (rearError) {
-          console.log('Rear camera not available, trying front camera');
           // Fallback to any available camera
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -909,8 +1190,7 @@ const ParticipantDashboard = () => {
           const capabilities = track.getCapabilities();
           if ((capabilities as any).torch) {
             setFlashSupported(true);
-            console.log('Flash/torch is supported');
-          }
+            }
         }
         
         // Wait for video metadata to load
@@ -920,18 +1200,15 @@ const ParticipantDashboard = () => {
             setIsCameraActive(true);
             startScanningInterval();
           }).catch(playError => {
-            console.error('Error playing video:', playError);
             setScanningStatus('Camera playback failed');
           });
         };
         
         video.onerror = (videoError) => {
-          console.error('Video error:', videoError);
           setScanningStatus('Camera display error');
         };
       }
     } catch (error) {
-      console.error('Camera access error:', error);
       await retryWithBasicConstraints();
     }
   };
@@ -973,7 +1250,6 @@ const ParticipantDashboard = () => {
 
       img.src = dataUrl;
     } catch (error) {
-      console.error('Error processing QR from image:', error);
       toast({
         title: "Processing Error",
         description: "Failed to process the image for QR code detection",
@@ -984,7 +1260,6 @@ const ParticipantDashboard = () => {
 
   const retryWithBasicConstraints = async () => {
     try {
-      console.log('Trying basic camera constraints');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: {
           width: 320,
@@ -1002,13 +1277,11 @@ const ParticipantDashboard = () => {
             setIsCameraActive(true);
             startScanningInterval();
           }).catch(error => {
-            console.error('Basic camera play error:', error);
             setScanningStatus('Camera playback failed');
           });
         };
       }
     } catch (error) {
-      console.error('Basic camera constraints failed:', error);
       setScanningStatus('Camera unavailable - Check permissions');
       
       // Show more helpful error message
@@ -1048,7 +1321,6 @@ const ParticipantDashboard = () => {
         description: `Camera flash has been turned ${newFlashState ? 'on' : 'off'}`,
       });
     } catch (error) {
-      console.error('Error toggling flash:', error);
       toast({
         title: "Flash error",
         description: "Failed to toggle flash",
@@ -1076,7 +1348,6 @@ const ParticipantDashboard = () => {
           advanced: [{ torch: false } as any]
         } as any);
       } catch (error) {
-        console.log('Error turning off flash:', error);
       }
     }
     
@@ -1129,7 +1400,6 @@ const ParticipantDashboard = () => {
       try {
         const qrData = detectQRCodeFromImageData(imageData);
         if (qrData) {
-          console.log('QR Code found:', qrData);
           setScanningStatus('QR Code detected!');
           handleQRCodeDetected(qrData);
         } else {
@@ -1144,7 +1414,6 @@ const ParticipantDashboard = () => {
           setScanningStatus(randomStatus);
         }
       } catch (error) {
-        console.error('QR scan error:', error);
         setScanningStatus('Scanning error - retrying...');
       }
     }
@@ -1166,17 +1435,14 @@ const ParticipantDashboard = () => {
         try {
           const code = jsQR(imageData.data, imageData.width, imageData.height, options);
           if (code && code.data.trim().length > 0) {
-            console.log('QR Code detected with options:', options, 'Data:', code.data);
             return code.data.trim();
           }
         } catch (optionError) {
-          console.debug('QR detection failed with options:', options, optionError);
         }
       }
       
       return null;
     } catch (error) {
-      console.error('QR detection error:', error);
       return null;
     }
   };
@@ -1197,57 +1463,108 @@ const ParticipantDashboard = () => {
         eventData = JSON.parse(qrData);
         if (eventData.invitationId && eventData.eventId) {
           
-          // Get location for event check-in
+          // First, fetch event details to check timing
           try {
-            const location = await getCurrentLocationSafely();
-            if (!location) {
-              throw new Error('Location access required for event check-in');
+            const eventResponse = await fetch(`${API_CONFIG.API_BASE}/events/${eventData.eventId}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (!eventResponse.ok) {
+              throw new Error('Failed to fetch event details');
             }
 
-            try {
-              const response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  qrData,
-                  location
-                })
-              });
+            const eventDetails = await eventResponse.json();
+            const event = eventDetails.data.event;
 
-              const result = await response.json();
-              
-              if (result.success) {
+            // Check if attendance is available
+            const availability = getAttendanceAvailability(event);
+            
+            if (!availability.available) {
+              if (availability.opensAt) {
                 toast({
-                  title: "Check-in Successful!",
-                  description: `Welcome to ${result.data.event.title}`,
+                  title: "Attendance Not Yet Open",
+                  description: `Attendance opens at ${availability.opensAtFormatted}. Please try again in ${availability.timeUntilOpen}.`,
+                  variant: "destructive",
                 });
-                
-                // Start location tracking for this event
-                if (result.data.attendanceLog && result.data.attendanceLog._id) {
-                  await startLocationWatching(result.data.event._id, result.data.attendanceLog._id);
-                }
-                
-                // Refresh scan history from database
-                await refreshScanHistory();
               } else {
-                throw new Error(result.message);
+                toast({
+                  title: "Attendance Unavailable",
+                  description: availability.reason,
+                  variant: "destructive",
+                });
               }
-            } catch (error) {
+              return;
+            }
+
+            // Get location for event check-in
+            try {
+              const location = await getCurrentLocationSafely();
+              if (!location) {
+                throw new Error('Location access required for event check-in');
+              }
+
+              // Validate geofence
+              const geofenceCheck = validateGeofence(event, location);
+              if (!geofenceCheck.valid) {
+                toast({
+                  title: "Outside Event Location",
+                  description: geofenceCheck.reason,
+                  variant: "destructive",
+                });
+                return;
+              }
+
+              try {
+                const response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    qrData,
+                    location
+                  })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                  toast({
+                    title: "Check-in Successful!",
+                    description: `Welcome to ${result.data.event.title}`,
+                  });
+                  
+                  // Start location tracking for this event
+                  if (result.data.attendanceLog && result.data.attendanceLog._id) {
+                    await startLocationWatching(result.data.event._id, result.data.attendanceLog._id);
+                  }
+                  
+                  // Refresh scan history from database
+                  await refreshScanHistory();
+                } else {
+                  throw new Error(result.message);
+                }
+              } catch (error) {
+                toast({
+                  title: "Check-in Failed",
+                  description: error.message || "Failed to check in to event",
+                  variant: "destructive",
+                });
+              }
+            } catch (locationError) {
               toast({
-                title: "Check-in Failed",
-                description: error.message || "Failed to check in to event",
+                title: "Location Required",
+                description: "Please enable location access for event check-in",
                 variant: "destructive",
               });
-              
-              // Note: Failed scans might not be stored in database
-              // Consider adding a separate failed scans tracking if needed
             }
-          } catch (locationError) {
+          } catch (eventFetchError) {
             toast({
-              title: "Location Required",
-              description: "Please enable location access for event check-in",
+              title: "Event Details Error",
+              description: "Could not verify event timing. Please try again.",
               variant: "destructive",
             });
           }
@@ -1367,11 +1684,42 @@ const ParticipantDashboard = () => {
       const eventData = await eventResponse.json();
       const event = eventData.data.event;
 
+      // Check if attendance is available
+      const availability = getAttendanceAvailability(event);
+      
+      if (!availability.available) {
+        if (availability.opensAt) {
+          toast({
+            title: "Attendance Not Yet Open",
+            description: `Attendance for "${event.title}" opens at ${availability.opensAtFormatted}. Please try again in ${availability.timeUntilOpen}.`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Attendance Unavailable",
+            description: availability.reason,
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
       // Get user location for check-in
       try {
         const location = await getCurrentLocationSafely();
         if (!location) {
           throw new Error('Location access required for event check-in');
+        }
+
+        // Validate geofence
+        const geofenceCheck = validateGeofence(event, location);
+        if (!geofenceCheck.valid) {
+          toast({
+            title: "Outside Event Location",
+            description: geofenceCheck.reason,
+            variant: "destructive",
+          });
+          return;
         }
 
           // Find user's invitation for this event
@@ -1609,6 +1957,99 @@ const ParticipantDashboard = () => {
     // Fallback to just the date
     return new Date(event.date).toLocaleDateString();
   };
+
+  // Fetch public events
+  const fetchPublicEvents = async () => {
+    try {
+      const response = await fetch(`${API_CONFIG.API_BASE}/events/public`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setPublicEvents(result.data.events || []);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch public events",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch public events",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle joining public event
+  const handleJoinPublicEvent = async (eventCode: string) => {
+    try {
+      
+      if (!token) {
+        toast({
+          title: "Authentication required",
+          description: "Please log in to join events",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsJoining(true);
+      const response = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ eventCode })
+      });
+
+      
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: `Successfully joined event: ${eventCode}`,
+          variant: "default",
+        });
+        
+        // Refresh data by reloading the page or triggering a reload
+        window.location.reload();
+        
+        // Switch to active events view
+        updateActiveView('active');
+      } else {
+        throw new Error(result.message || 'Failed to join event');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to join event",
+        variant: "destructive",
+      });
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  // Format time helper (make it available globally in component)
+  const formatTime = (timeString?: string) => {
+    if (!timeString) return '';
+    const [hours, minutes] = timeString.split(':');
+    const hour24 = parseInt(hours);
+    const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+    const ampm = hour24 >= 12 ? 'PM' : 'AM';
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  // Load public events when view changes to public
+  useEffect(() => {
+    if (activeView === 'public') {
+      fetchPublicEvents();
+    }
+  }, [activeView]);
 
   // Render content based on active view
   const renderMainContent = () => {
@@ -1945,7 +2386,25 @@ const ParticipantDashboard = () => {
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Completed Events</h2>
-            <span className="text-sm text-gray-500 dark:text-gray-400">{completedEvents.length} events</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500 dark:text-gray-400">{completedEvents.length} events</span>
+              {completedEvents.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowClearConfirmation(true)}
+                  disabled={isClearingEvents}
+                  className="flex items-center gap-2 text-red-600 hover:text-red-700 border-red-300 hover:border-red-400 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:border-red-600 dark:hover:border-red-500 dark:hover:bg-red-950/20"
+                >
+                  {isClearingEvents ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <X className="w-4 h-4" />
+                  )}
+                  Clear All
+                </Button>
+              )}
+            </div>
           </div>
           
           {completedEvents.length === 0 ? (
@@ -1955,58 +2414,377 @@ const ParticipantDashboard = () => {
               <p className="text-sm">Events you check out from will appear here</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {completedEvents.map((attendance) => (
-                <div key={attendance._id} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 dark:text-white">{attendance.event.title}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{attendance.event.description}</p>
-                      
-                      <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300">
-                          ✓ Completed
-                        </span>
-                        <span className="ml-2">
-                          Duration: {formatDuration(attendance.checkInTime, attendance.checkOutTime)}
-                        </span>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              
+              {/* Table Rows */}
+              <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                {completedEvents.map((attendance) => (
+                  <button
+                    key={attendance._id}
+                    className="grid grid-cols-2 p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group w-full"
+                    onClick={() => {
+                      setSelectedEventRecord(attendance);
+                      setShowEventRecordModal(true);
+                    }}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors truncate">
+                        {attendance.event.title}
+                      </span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                        {attendance.event.location?.address || attendance.event.location}
+                      </span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        {new Date(attendance.event.date).toLocaleDateString()} • {formatDuration(attendance.checkInTime, attendance.checkOutTime)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-end">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          confirmDeleteEvent(attendance);
+                        }}
+                        className="p-1 rounded text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/20 transition-colors"
+                        title="Delete event record"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Clear Completed Events Confirmation Dialog */}
+          {showClearConfirmation && (
+            <Dialog open={showClearConfirmation} onOpenChange={setShowClearConfirmation}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+                      <X className="w-5 h-5 text-white" />
+                    </div>
+                    Clear All Completed Events
+                  </DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to clear all completed events? This action cannot be undone and will permanently remove all your completed event records.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowClearConfirmation(false)}
+                    disabled={isClearingEvents}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleClearCompletedEvents}
+                    disabled={isClearingEvents}
+                    className="flex-1 flex items-center gap-2"
+                  >
+                    {isClearingEvents ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <X className="w-4 h-4" />
+                    )}
+                    {isClearingEvents ? 'Clearing...' : 'Clear All'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+          
+          {/* Individual Event Delete Confirmation Dialog */}
+          {showDeleteConfirmation && eventToDelete && (
+            <Dialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+                      <X className="w-5 h-5 text-white" />
+                    </div>
+                    Delete Event Record
+                  </DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete the record for "{eventToDelete.event.title}"? This action cannot be undone and will permanently remove this event from your attendance history.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-4">
+                  <div className="text-sm space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Event:</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{eventToDelete.event.title}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Date:</span>
+                      <span className="text-gray-900 dark:text-white">{new Date(eventToDelete.event.date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Duration:</span>
+                      <span className="text-gray-900 dark:text-white">{formatDuration(eventToDelete.checkInTime, eventToDelete.checkOutTime)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowDeleteConfirmation(false);
+                      setEventToDelete(null);
+                    }}
+                    disabled={isDeletingEvent}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteCompletedEvent}
+                    disabled={isDeletingEvent}
+                    className="flex-1 flex items-center gap-2"
+                  >
+                    {isDeletingEvent ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <X className="w-4 h-4" />
+                    )}
+                    {isDeletingEvent ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+          
+          {/* Event Record Details Modal */}
+          {showEventRecordModal && selectedEventRecord && (
+            <Dialog open={showEventRecordModal} onOpenChange={setShowEventRecordModal}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-white" />
+                    </div>
+                    {selectedEventRecord.event.title}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Your attendance record for this completed event
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-6">
+                  {/* Event Information */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Event Date</label>
+                        <p className="text-gray-900 dark:text-white">
+                          {new Date(selectedEventRecord.event.date).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </p>
                       </div>
-                      
-                      <div className="space-y-1 mt-3 text-xs text-gray-500 dark:text-gray-400">
-                        <div className="flex items-center">
-                          <span className="font-medium">Check in:</span>
-                          <span className="ml-2">{new Date(attendance.checkInTime).toLocaleString()}</span>
-                        </div>
-                        {attendance.checkOutTime && (
-                          <div className="flex items-center">
-                            <span className="font-medium">Check out:</span>
-                            <span className="ml-2">{new Date(attendance.checkOutTime).toLocaleString()}</span>
-                          </div>
-                        )}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Location</label>
+                        <p className="text-gray-900 dark:text-white">
+                          {selectedEventRecord.event.location?.address || selectedEventRecord.event.location || 'N/A'}
+                        </p>
                       </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 mt-3">
-                        <Button
-                          onClick={() => handleOpenFeedbackForm(attendance.event._id, attendance.event.title)}
-                          disabled={isFeedbackButtonDisabled(attendance.event._id)}
-                          variant="outline"
-                          size="sm"
-                          className={`flex items-center gap-2 text-xs ${
-                            isFeedbackButtonDisabled(attendance.event._id) 
-                              ? 'opacity-50 cursor-not-allowed' 
-                              : ''
-                          }`}
-                          title={getFeedbackButtonTooltip(attendance.event._id)}
-                        >
-                          <MessageSquare className="w-3 h-3" />
-                          Feedback
-                        </Button>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Organizer</label>
+                        <p className="text-gray-900 dark:text-white">
+                          {selectedEventRecord.event.organizer?.name || selectedEventRecord.event.organizer || 'N/A'}
+                        </p>
                       </div>
                     </div>
                     
-                    <div className="w-10 h-10 bg-gradient-to-r from-gray-500 to-gray-600 rounded-lg flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-white" />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Check-in Time</label>
+                        <p className="text-gray-900 dark:text-white font-mono">
+                          {new Date(selectedEventRecord.checkInTime).toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Check-out Time</label>
+                        <p className="text-gray-900 dark:text-white font-mono">
+                          {selectedEventRecord.checkOutTime 
+                            ? new Date(selectedEventRecord.checkOutTime).toLocaleString()
+                            : 'Still checked in'
+                          }
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Duration</label>
+                        <p className="text-green-600 dark:text-green-400 font-semibold">
+                          {formatDuration(selectedEventRecord.checkInTime, selectedEventRecord.checkOutTime)}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Attendance Status</label>
+                        {(() => {
+                          const attendanceStatus = getAttendanceStatus(selectedEventRecord);
+                          return (
+                            <p className={`font-semibold ${attendanceStatus.color}`}>
+                              {attendanceStatus.message}
+                            </p>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Event Description */}
+                  {selectedEventRecord.event.description && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                      <p className="mt-1 text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                        {selectedEventRecord.event.description}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Location Details */}
+                  {selectedEventRecord.checkInLocation && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Check-in Location</label>
+                      <div className="mt-1 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Coordinates: {selectedEventRecord.checkInLocation.latitude?.toFixed(6)}, {selectedEventRecord.checkInLocation.longitude?.toFixed(6)}
+                        </p>
+                        {selectedEventRecord.checkInLocation.accuracy && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Accuracy: ±{selectedEventRecord.checkInLocation.accuracy}m
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Status Badge */}
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                        ✓ Completed
+                      </span>
+                      {selectedEventRecord.autoCheckOut && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+                          Auto Check-out
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Action Button */}
+                    <Button
+                      onClick={() => handleOpenFeedbackForm(selectedEventRecord.event._id, selectedEventRecord.event.title)}
+                      disabled={isFeedbackButtonDisabled(selectedEventRecord.event._id)}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                      title={getFeedbackButtonTooltip(selectedEventRecord.event._id)}
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Feedback
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      );
+    }
+
+    if (activeView === 'public') {
+      return (
+        <div className="p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Browse Events</h2>
+            <Button 
+              onClick={fetchPublicEvents}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </Button>
+          </div>
+          
+          {publicEvents.length === 0 ? (
+            <div className="text-center text-gray-500 dark:text-gray-400 py-12">
+              <Globe className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg mb-2">No public events found</p>
+              <p className="text-sm">Check back later for new events to join</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {publicEvents.map((event) => (
+                <div key={event._id} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{event.title}</h3>
+                      {event.description && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{event.description}</p>
+                      )}
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 text-xs text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center">
+                          <Calendar className="w-3 h-3 mr-1" />
+                          <span>{new Date(event.date).toLocaleDateString()}</span>
+                        </div>
+                        {(event.startTime || event.endTime) && (
+                          <div className="flex items-center">
+                            <Clock className="w-3 h-3 mr-1" />
+                            <span>
+                              {event.startTime && formatTime(event.startTime)}
+                              {event.startTime && event.endTime && ' - '}
+                              {event.endTime && formatTime(event.endTime)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center">
+                          <MapPin className="w-3 h-3 mr-1" />
+                          <span>{event.location?.address || 'Location TBA'}</span>
+                        </div>
+                        <div className="flex items-center">
+                          <User className="w-3 h-3 mr-1" />
+                          <span>{event.organizer?.name || 'Event Organizer'}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between mt-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono bg-gray-100 dark:bg-gray-900/20 px-2 py-1 rounded text-gray-700 dark:text-gray-300">
+                            {event.eventCode}
+                          </span>
+                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                            event.status === 'active' 
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                          }`}>
+                            {event.status === 'active' ? 'Active' : 'Upcoming'}
+                          </span>
+                        </div>
+                        <Button
+                          onClick={() => handleJoinPublicEvent(event.eventCode)}
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          <QrCode className="w-3 h-3 mr-1" />
+                          Join
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2673,7 +3451,6 @@ const ParticipantDashboard = () => {
               };
             }
           } catch (error) {
-            console.error(`Error checking feedback form for event ${eventId}:`, error);
             return {
               eventId,
               exists: false,
@@ -2690,7 +3467,6 @@ const ParticipantDashboard = () => {
 
       setFeedbackFormsStatus(prev => ({ ...prev, ...statusMap }));
     } catch (error) {
-      console.error('Error checking feedback forms status:', error);
     }
   };
 
@@ -2816,7 +3592,6 @@ const ParticipantDashboard = () => {
         setScanHistory(data.data.scanHistory);
       }
     } catch (error) {
-      console.error('Error refreshing scan history:', error);
     }
   };
 
@@ -2835,9 +3610,7 @@ const ParticipantDashboard = () => {
       }
 
       // Initialize location tracking on server
-      console.log('Starting location tracking for:', { eventId, userId: user._id, attendanceLogId });
       await startLocationTracking(eventId, user._id, attendanceLogId);
-      console.log('Location tracking initialized successfully');
       
       toast({
         title: "Location Tracking Started",
@@ -2852,20 +3625,13 @@ const ParticipantDashboard = () => {
           timeout: 10000
         }, (position) => {
           if (position) {
-            console.log('Native location update:', { 
-              eventId, 
-              userId: user._id, 
-              lat: position.coords.latitude, 
-              lng: position.coords.longitude,
-              accuracy: position.coords.accuracy 
-            });
             updateLocation(
               eventId,
               user._id,
               position.coords.latitude,
               position.coords.longitude,
               position.coords.accuracy
-            ).catch(console.error);
+            ).catch(() => {});
           }
         });
         setLocationWatchId(watchId as any);
@@ -2874,23 +3640,15 @@ const ParticipantDashboard = () => {
         if (navigator.geolocation) {
           const watchId = navigator.geolocation.watchPosition(
             (position) => {
-              console.log('Location update:', { 
-                eventId, 
-                userId: user._id, 
-                lat: position.coords.latitude, 
-                lng: position.coords.longitude,
-                accuracy: position.coords.accuracy 
-              });
               updateLocation(
                 eventId,
                 user._id,
                 position.coords.latitude,
                 position.coords.longitude,
                 position.coords.accuracy
-              ).catch(console.error);
+              ).catch(() => {});
             },
             (error) => {
-              console.error('Location watch error:', error);
               toast({
                 title: "Location Error",
                 description: "Unable to track location. Please check permissions.",
@@ -2912,7 +3670,6 @@ const ParticipantDashboard = () => {
         description: "Your location is now being tracked for this event.",
       });
     } catch (error) {
-      console.error('Error starting location tracking:', error);
       toast({
         title: "Location Tracking Failed",
         description: "Failed to start location tracking. Please try again.",
@@ -2943,7 +3700,6 @@ const ParticipantDashboard = () => {
         description: "Location tracking has been disabled for this event.",
       });
     } catch (error) {
-      console.error('Error stopping location tracking:', error);
     }
   };
 
@@ -2964,7 +3720,6 @@ const ParticipantDashboard = () => {
         setCurrentLocationStatus(data.data);
       }
     } catch (error) {
-      console.error('Error fetching location status:', error);
     }
   };
 
@@ -2992,7 +3747,6 @@ const ParticipantDashboard = () => {
         }
       }
     } catch (error) {
-      console.log('Haptic feedback not available');
     }
   };
 
@@ -3027,7 +3781,6 @@ const ParticipantDashboard = () => {
         });
       }
     } catch (error) {
-      console.error('Error leaving organization:', error);
       toast({
         title: 'Error',
         description: 'Failed to leave organization. Please try again.',
@@ -3080,7 +3833,6 @@ const ParticipantDashboard = () => {
         });
       }
     } catch (error) {
-      console.error('Error switching organization:', error);
       toast({
         title: 'Error',
         description: 'Failed to switch organization',
@@ -3142,7 +3894,6 @@ const ParticipantDashboard = () => {
         });
       }
     } catch (error) {
-      console.error('Error joining organization:', error);
       toast({
         title: 'Error',
         description: 'Failed to join organization. Please try again.',
@@ -3195,7 +3946,6 @@ const ParticipantDashboard = () => {
 
   return (
     <div className="w-full h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 select-none touch-manipulation max-w-full overflow-x-hidden overflow-y-hidden relative">
-      <ProfileDropdown />
       {/* Offline Indicator */}
       {!isOnline && (
         <div className="fixed top-0 left-0 right-0 bg-red-500 text-white text-center py-1 text-xs z-40">
@@ -3257,12 +4007,12 @@ const ParticipantDashboard = () => {
             {/* Upcoming Events */}
             <button 
               onClick={() => { updateActiveView('upcoming'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 sm:p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-left ${
-                activeView === 'upcoming' ? 'bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500' : ''
+              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
+                activeView === 'upcoming' ? 'bg-orange-50 dark:bg-orange-900/20 border-l-3 border-orange-500' : ''
               }`}
             >
-              <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
-                <QrCode className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
+                <QrCode className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Invitations</p>
@@ -3273,12 +4023,12 @@ const ParticipantDashboard = () => {
             {/* Active Events */}
             <button 
               onClick={() => { updateActiveView('active'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 sm:p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-left ${
-                activeView === 'active' ? 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500' : ''
+              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
+                activeView === 'active' ? 'bg-green-50 dark:bg-green-900/20 border-l-3 border-green-500' : ''
               }`}
             >
-              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
-                <QrCode className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
+                <QrCode className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Currently Attending</p>
@@ -3289,102 +4039,108 @@ const ParticipantDashboard = () => {
             {/* Completed Events */}
             <button 
               onClick={() => { updateActiveView('completed'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 sm:p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-left ${
-                activeView === 'completed' ? 'bg-gray-50 dark:bg-gray-900/20 border-l-4 border-gray-500' : ''
+              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
+                activeView === 'completed' ? 'bg-gray-50 dark:bg-gray-900/20 border-l-3 border-gray-500' : ''
               }`}
             >
-              <div className="w-10 h-10 bg-gradient-to-r from-gray-500 to-gray-600 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 bg-gradient-to-r from-gray-500 to-gray-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
+                <CheckCircle className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Completed Events</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Events you have completed</p>
               </div>
             </button>
+            
+            {/* Browse Public Events */}
+            <button 
+              onClick={() => { updateActiveView('public'); setShowHistoryDropdown(false); }}
+              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
+                activeView === 'public' ? 'bg-blue-50 dark:bg-blue-900/20 border-l-3 border-blue-500' : ''
+              }`}
+            >
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
+                <Globe className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Browse Events</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Discover public events</p>
+              </div>
+            </button>
           </div>
           
-          {/* Separator */}
-          <div className="border-t border-gray-200 dark:border-gray-700 my-4"></div>
-          
           {/* Account Section */}
-          <div className="space-y-2">
+          <div className="space-y-1 mt-6">
             <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3">Account</h3>
             
             {/* Profile */}
             <button 
               onClick={() => { updateActiveView('profile'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 sm:p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-left ${
-                activeView === 'profile' ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
+              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
+                activeView === 'profile' ? 'bg-purple-50 dark:bg-purple-900/20 border-l-3 border-purple-500' : ''
               }`}
             >
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
-                <User className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-purple-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
+                <User className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Profile</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">View and edit your profile</p>
-              </div>
-            </button>
-            
-            {/* Organization */}
-            <button 
-              onClick={() => { updateActiveView('organization'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 sm:p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-left ${
-                activeView === 'organization' ? 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500' : ''
-              }`}
-            >
-              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
-                <Building2 className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Organization</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">View members and organization info</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Your account information</p>
               </div>
             </button>
             
             {/* Settings */}
             <button 
               onClick={() => { updateActiveView('settings'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 sm:p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-left ${
-                activeView === 'settings' ? 'bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500' : ''
+              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
+                activeView === 'settings' ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-3 border-indigo-500' : ''
               }`}
             >
-              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
-                <Settings className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
+                <Settings className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Settings</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">App preferences and options</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">App preferences</p>
               </div>
             </button>
             
-            {/* Logout */}
+            {/* Organization */}
             <button 
-              onClick={() => {
-                localStorage.removeItem('user');
-                localStorage.removeItem('token');
-                window.location.href = '/';
-              }}
-              className="w-full flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors text-left"
+              onClick={() => { updateActiveView('organization'); setShowHistoryDropdown(false); }}
+              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
+                activeView === 'organization' ? 'bg-cyan-50 dark:bg-cyan-900/20 border-l-3 border-cyan-500' : ''
+              }`}
             >
-              <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
-                <LogOut className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 bg-gradient-to-r from-cyan-500 to-cyan-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
+                <Building2 className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Logout</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Sign out of your account</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Organization</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Manage organization</p>
               </div>
             </button>
-            </div>
+          </div>
           </div>
         </div>
 
         {/* Sidebar Footer - Fixed */}
         <div className="flex-shrink-0 p-3 sm:p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div className="text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {`${scanHistory.length} scan${scanHistory.length !== 1 ? 's' : ''} recorded`}
-            </p>
+          <div className="space-y-3">
+            {/* Logout Button */}
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center p-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </button>
+            
+            <div className="text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {`${scanHistory.length} scan${scanHistory.length !== 1 ? 's' : ''} recorded`}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -3531,7 +4287,7 @@ const ParticipantDashboard = () => {
                   
                   {currentLocationStatus.lastLocationUpdate && (
                     <p className="text-xs text-gray-500 dark:text-gray-500">
-                      Last update: {new Date(currentLocationStatus.lastLocationUpdate).toLocaleTimeString()}
+                      Last update: {new Date(currentLocationStatus.lastLocationUpdate).toLocaleTimeString('en-US', { hour12: true })}
                     </p>
                   )}
                 </div>

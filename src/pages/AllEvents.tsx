@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from "axios";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,16 +14,28 @@ interface Event {
   id: string;
   _id: string;
   title: string;
-  description: string;
+  description?: string;
   date: string;
-  startTime: string;
-  endTime: string;
-  location: string;
+  startTime?: string;
+  endTime?: string;
+  location: {
+    address: string;
+    coordinates: {
+      type: 'Point';
+      coordinates: [number, number];
+    };
+  };
   status: 'upcoming' | 'active' | 'completed';
   totalParticipants: number;
   checkedIn: number;
   currentlyPresent: number;
   eventCode: string;
+  maxTimeOutside?: number;
+  published?: boolean;
+  geofence: {
+    center: [number, number];
+    radius: number;
+  };
 }
 
 const AllEvents = () => {
@@ -59,7 +71,13 @@ const AllEvents = () => {
           const processed = result.data.events.map((e: any) => ({
             ...e,
             id: e._id,
-            location: e.location?.address || 'Unknown',
+            location: e.location || {
+              address: 'Unknown',
+              coordinates: {
+                type: 'Point',
+                coordinates: [0, 0]
+              }
+            },
             totalParticipants: e.totalParticipants || 0,
             checkedIn: e.checkedIn || 0,
             currentlyPresent: e.currentlyPresent || 0,
@@ -202,7 +220,13 @@ const AllEvents = () => {
               ? {
                   ...event,
                   geofence: { center, radius },
-                  location: newAddress
+                  location: {
+                    address: newAddress,
+                    coordinates: {
+                      type: 'Point',
+                      coordinates: [center[1], center[0]]
+                    }
+                  }
                 }
               : event
           )
@@ -249,6 +273,62 @@ const AllEvents = () => {
       description: "Event has been deleted successfully.",
       variant: "destructive",
     });
+  };
+
+  const handlePublishClick = async (eventId: string) => {
+    try {
+      const event = events.find(e => e.id === eventId);
+      if (!event) {
+        toast({
+          title: "Error",
+          description: "Event not found.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Toggle the published status
+      const newPublishedStatus = !event.published;
+      
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/events/${eventId}/publish`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          published: newPublishedStatus
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to update publish status');
+      }
+
+      // Update the local state
+      setEvents(prevEvents =>
+        prevEvents.map(e =>
+          e.id === eventId
+            ? { ...e, published: newPublishedStatus }
+            : e
+        )
+      );
+
+      toast({
+        title: newPublishedStatus ? "Event Published" : "Event Unpublished",
+        description: `"${event.title}" has been ${newPublishedStatus ? 'published' : 'unpublished'} successfully.`,
+      });
+    } catch (error: any) {
+      console.error('Error updating publish status:', error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update publish status. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -372,6 +452,7 @@ const AllEvents = () => {
                 onGeofenceUpdate={handleGeofenceUpdate}
                 onFeedbackClick={handleFeedbackClick}
                 onDeleteClick={handleDeleteClick}
+                onPublishClick={handlePublishClick}
               />
             ))}
           </div>

@@ -264,7 +264,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     <div>
                       <p className="font-medium text-gray-700">Last Update</p>
                       <p className="text-gray-600">
-                        {new Date(status.lastLocationUpdate).toLocaleTimeString()}
+                        {new Date(status.lastLocationUpdate).toLocaleTimeString('en-US', { hour12: true })}
                       </p>
                     </div>
                   </div>
@@ -280,7 +280,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       </div>
                       {status.outsideTimer.startTime && (
                         <p className="text-sm text-orange-600 mt-1">
-                          Started at: {new Date(status.outsideTimer.startTime).toLocaleTimeString()}
+                          Started at: {new Date(status.outsideTimer.startTime).toLocaleTimeString('en-US', { hour12: true })}
                         </p>
                       )}
                     </div>
@@ -307,7 +307,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                                   {alert.type === 'returned' && 'Returned to Premises'}
                                 </span>
                                 <span className="text-xs text-red-500">
-                                  {new Date(alert.timestamp).toLocaleTimeString()}
+                                  {new Date(alert.timestamp).toLocaleTimeString('en-US', { hour12: true })}
                                 </span>
                               </div>
                               <Button

@@ -233,6 +233,89 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/events/public
+// @desc    Get all published events for public viewing
+// @access  Public (no auth required)
+router.get('/public', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    // Only get published events that are active
+    const query = {
+      published: true,
+      isActive: true
+    };
+
+    const total = await Event.countDocuments(query);
+
+    const events = await Event.find(query)
+      .populate('organizer', 'name email')
+      .sort({ date: 1 }) // Sort by date ascending (nearest first)
+      .skip(skip)
+      .limit(limit);
+
+    // Calculate attendance statistics for public display
+    const eventsWithStats = [];
+    
+    for (let event of events) {
+      // Auto-update status only if statusMode is 'auto'
+      if (event.statusMode === 'auto') {
+        const expectedStatus = computeStatus(event.date, event.startTime, event.endTime);
+        if (expectedStatus !== event.status) {
+          event.status = expectedStatus;
+          await event.save();
+        }
+      }
+
+      // Only include upcoming or active events (not completed)
+      const currentStatus = event.statusMode === 'auto' 
+        ? computeStatus(event.date, event.startTime, event.endTime)
+        : event.status;
+      
+      if (currentStatus === 'completed') {
+        continue; // Skip completed events
+      }
+
+      let eventData = event.toObject();
+      eventData.status = currentStatus; // Ensure status is set correctly
+      
+      // Get total invitations for public display
+      try {
+        const totalInvitations = await Invitation.countDocuments({ event: event._id });
+        eventData.totalParticipants = totalInvitations;
+      } catch (error) {
+        console.error('Error calculating public event stats:', error);
+        eventData.totalParticipants = 0;
+      }
+      
+      eventsWithStats.push(eventData);
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        events: eventsWithStats,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(total / limit),
+          totalEvents: total,
+          hasNextPage: page < Math.ceil(total / limit),
+          hasPreviousPage: page > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get public events error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get public events',
+      error: error.message
+    });
+  }
+});
+
 // @route   GET /api/events/:id
 // @desc    Get single event
 // @access  Private
@@ -433,31 +516,97 @@ router.put('/:id', auth, requireOrganizer, [
 // @desc    Delete event
 // @access  Private (Organizer only - own events)
 router.delete('/:id', auth, requireOrganizer, async (req, res) => {
+  console.log('🔴 DELETE route hit - Event ID:', req.params.id);
+  console.log('🔴 User ID:', req.user?._id);
+  console.log('🔴 User role:', req.user?.role);
+  
   try {
     const event = await Event.findOne({ _id: req.params.id, organizer: req.user._id });
+    console.log('🔴 Found event:', event ? 'YES' : 'NO');
+    
+    if (event) {
+      console.log('🔴 Event organizer:', event.organizer);
+      console.log('🔴 Matches user:', event.organizer.toString() === req.user._id.toString());
+    }
 
     if (!event) {
+      console.log('🔴 Event not found or access denied');
       return res.status(404).json({
         success: false,
         message: 'Event not found or access denied'
       });
     }
 
+    console.log('🔴 Starting deletion process...');
+    
     // Delete related invitations and attendance logs
-    await Invitation.deleteMany({ event: req.params.id });
-    await AttendanceLog.deleteMany({ event: req.params.id });
-    await Event.findByIdAndDelete(req.params.id);
+    const deletedInvitations = await Invitation.deleteMany({ event: req.params.id });
+    console.log('🔴 Deleted invitations:', deletedInvitations.deletedCount);
+    
+    const deletedAttendance = await AttendanceLog.deleteMany({ event: req.params.id });
+    console.log('🔴 Deleted attendance logs:', deletedAttendance.deletedCount);
+    
+    const deletedEvent = await Event.findByIdAndDelete(req.params.id);
+    console.log('🔴 Deleted event:', deletedEvent ? 'YES' : 'NO');
 
+    console.log('🔴 Event deletion successful');
     res.json({
       success: true,
       message: 'Event deleted successfully'
     });
   } catch (error) {
-    console.error('Event deletion error:', error);
+    console.error('🔥 Event deletion error:', error);
     res.status(500).json({
       success: false,
       message: 'Event deletion failed',
       error: error.message
+    });
+  }
+});
+
+// @route   PATCH /api/events/:id/publish
+// @desc    Toggle publish status of an event
+// @access  Private (Organizer only - own events)
+router.patch('/:id/publish', auth, requireOrganizer, async (req, res) => {
+  const { published } = req.body;
+
+  if (typeof published !== 'boolean') {
+    return res.status(400).json({
+      success: false,
+      message: 'Published field must be a boolean value',
+    });
+  }
+
+  console.log(`[Publish Update] Setting published: "${published}" for event ID: ${req.params.id}`);
+
+  try {
+    const event = await Event.findOneAndUpdate(
+      { _id: req.params.id, organizer: req.user._id },
+      { published },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found or access denied',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Event ${published ? 'published' : 'unpublished'} successfully`,
+      data: { event },
+    });
+  } catch (error) {
+    console.error('[Publish Update Error]:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update event publish status',
+      error: error.message,
     });
   }
 });
@@ -509,6 +658,7 @@ router.patch('/:id/status', auth, requireOrganizer, async (req, res) => {
     });
   }
 });
+
 
 // @route   GET /api/events/code/:eventCode
 // @desc    Find event by event code

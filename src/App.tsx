@@ -16,12 +16,14 @@ import CreateRegistrationForm from "./pages/CreateRegistrationForm";
 import EditRegistrationForm from "./pages/EditRegistrationForm";
 import EventMonitor from "./pages/EventMonitor";
 import AllEvents from "./pages/AllEvents";
+import PublicEvents from "./pages/PublicEvents";
 import Invitations from "./pages/Invitations";
 import SendInvitations from "./pages/SendInvitations";
 import InvitationSummary from "./pages/InvitationSummary";
 import InvitationView from "./pages/InvitationView";
 import OrganizationManagement from "./pages/OrganizationManagement";
 import NotFound from "./pages/NotFound";
+import JoinEvent from "./pages/JoinEvent";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +43,7 @@ const App = () => (
               <Route path="/organizer-dashboard" element={<OrganizerDashboard />} />
               <Route path="/organization" element={<OrganizationManagement />} />
               <Route path="/all-events" element={<AllEvents />} />
+              <Route path="/public-events" element={<PublicEvents />} />
               <Route path="/invitations" element={<Invitations />} />
               <Route path="/send-invitations" element={<SendInvitations />} />
               <Route path="/invitation-summary" element={<InvitationSummary />} />
@@ -57,6 +60,7 @@ const App = () => (
               <Route path="/create-event" element={<CreateEvent />} />
               <Route path="/event/:eventId/monitor" element={<EventMonitor />} />
               <Route path="/event-monitor" element={<EventMonitor />} />
+              <Route path="/join/:eventCode" element={<JoinEvent />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Layout>

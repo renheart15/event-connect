@@ -65,8 +65,8 @@ const EventMonitor = () => {
         name: log.participant.name,
         email: log.participant.email,
         status: log.status === 'checked-in' ? 'present' : 'left-early',
-        checkInTime: new Date(log.checkInTime).toLocaleTimeString(),
-        checkOutTime: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString() : null,
+        checkInTime: new Date(log.checkInTime).toLocaleTimeString('en-US', { hour12: true }),
+        checkOutTime: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('en-US', { hour12: true }) : null,
         duration: log.duration || 0,
         lastSeen: getTimeAgo(log.lastLocationUpdate || log.checkInTime)
       }));
@@ -159,6 +159,58 @@ const EventMonitor = () => {
     }
   }, [eventId, navigate]);
 
+  // Fetch available events for selection
+  const fetchAvailableEvents = useCallback(async () => {
+    try {
+      setLoadingEvents(true);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLoadingEvents(false);
+        navigate('/login?role=organizer');
+        return;
+      }
+
+      const response = await fetch(`${API_CONFIG.API_BASE}/events?status=active`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        console.error('Failed to fetch events: HTTP', response.status);
+        setAvailableEvents([]);
+        setLoadingEvents(false);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        const events = data.data?.events || data.data || [];
+        // Filter to only show active events for monitoring
+        const activeEvents = events.filter(event => 
+          event.status === 'active' || event.status === 'ongoing'
+        );
+        setAvailableEvents(activeEvents);
+      } else {
+        console.error('API returned error:', data.message);
+        setAvailableEvents([]);
+      }
+      setLoadingEvents(false);
+    } catch (error) {
+      console.error('Failed to fetch events:', error);
+      setLoadingEvents(false);
+    }
+  }, [navigate]);
+
+  // Helper function to format time from HH:MM to 12-hour format
+  const formatTime = (timeString: string) => {
+    if (!timeString) return '';
+    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
   // Helper function to calculate time ago
   const getTimeAgo = (timestamp) => {
     const now = new Date();
@@ -176,6 +228,7 @@ const EventMonitor = () => {
     // Check if eventId exists
     if (!eventId) {
       // If no eventId, fetch available events for selection instead of redirecting
+      setLoading(false); // Important: Set loading to false when no eventId
       fetchAvailableEvents();
       return;
     }
@@ -200,32 +253,6 @@ const EventMonitor = () => {
     };
   }, [eventId, navigate, fetchEventData, fetchAttendanceData, fetchAvailableEvents]);
 
-  // Fetch available events for selection
-  const fetchAvailableEvents = useCallback(async () => {
-    try {
-      setLoadingEvents(true);
-      const token = localStorage.getItem('token');
-      if (!token) {
-        navigate('/login?role=organizer');
-        return;
-      }
-
-      const response = await fetch(`${API_CONFIG.API_BASE}/events`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setAvailableEvents(data.data || []);
-      }
-      setLoadingEvents(false);
-    } catch (error) {
-      console.error('Failed to fetch events:', error);
-      setLoadingEvents(false);
-    }
-  }, [navigate]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -266,8 +293,8 @@ const EventMonitor = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Select Event to Monitor</h1>
-                <p className="text-sm text-gray-600">Choose an event to start live monitoring</p>
+                <h1 className="text-2xl font-bold text-gray-900">Select Active Event to Monitor</h1>
+                <p className="text-sm text-gray-600">Choose an active event to start live attendance monitoring</p>
               </div>
               <Link to="/organizer-dashboard">
                 <Button variant="outline">Back to Dashboard</Button>
@@ -281,10 +308,10 @@ const EventMonitor = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="w-5 h-5" />
-                Available Events
+                Active Events
               </CardTitle>
               <CardDescription>
-                Select an event to start real-time monitoring
+                Select an active event to start real-time attendance monitoring
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -303,7 +330,7 @@ const EventMonitor = () => {
                             </div>
                             <div className="flex items-center gap-1">
                               <Clock className="w-4 h-4" />
-                              {new Date(event.date).toLocaleDateString()} at {event.startTime}
+                              {new Date(event.date).toLocaleDateString()} at {formatTime(event.startTime)}
                             </div>
                           </div>
                         </div>
@@ -321,11 +348,11 @@ const EventMonitor = () => {
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg mb-2">No Events Found</p>
-                  <p className="text-sm mb-4">You haven't created any events yet.</p>
+                  <p className="text-lg mb-2">No Active Events Found</p>
+                  <p className="text-sm mb-4">You don't have any active events to monitor.</p>
                   <Link to="/create-event">
                     <Button>
-                      Create Your First Event
+                      Create New Event
                     </Button>
                   </Link>
                 </div>
@@ -351,7 +378,7 @@ const EventMonitor = () => {
             <div className="flex items-center space-x-4">
               <div className="text-right">
                 <p className="text-sm text-gray-600">Current Time</p>
-                <p className="font-mono text-lg">{currentTime.toLocaleTimeString()}</p>
+                <p className="font-mono text-lg">{currentTime.toLocaleTimeString('en-US', { hour12: true })}</p>
               </div>
               
               {/* Connection Status */}
@@ -368,7 +395,7 @@ const EventMonitor = () => {
                   </div>
                 )}
                 <div className="text-xs text-gray-500">
-                  Last update: {lastUpdate.toLocaleTimeString()}
+                  Last update: {lastUpdate.toLocaleTimeString('en-US', { hour12: true })}
                 </div>
               </div>
 
@@ -465,7 +492,7 @@ const EventMonitor = () => {
                     </div>
                     <div>
                       <p className="font-medium text-gray-900">Time</p>
-                      <p className="text-gray-600">{eventData.startTime} - {eventData.endTime}</p>
+                      <p className="text-gray-600">{formatTime(eventData.startTime)} - {formatTime(eventData.endTime)}</p>
                     </div>
                     <div>
                       <p className="font-medium text-gray-900">Location</p>

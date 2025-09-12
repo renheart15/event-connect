@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Eye, Filter, MoreHorizontal, Edit, Mail, Calendar, MapPin, Users, Settings, FileText, MessageSquare, Trash, QrCode, Map } from 'lucide-react';
+import { Plus, Eye, Filter, MoreHorizontal, Edit, Mail, Calendar, MapPin, Users, Settings, FileText, MessageSquare, Trash, QrCode, Map, Send } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -21,6 +21,7 @@ import GeofenceMap from '@/components/GeofenceMap';
 // import EmailSettings from '@/components/EmailSettings';
 import { exportEventSummary, exportDetailedEventReport } from '@/utils/reportUtils';
 import { useToast } from '@/hooks/use-toast';
+import { API_CONFIG } from '@/config';
 
 const OrganizerDashboard = () => {
   const { toast } = useToast();
@@ -212,7 +213,6 @@ const OrganizerDashboard = () => {
     return () => clearInterval(intervalId);
   }, [toast]);
 
-  // When deleting completed event
   const handleDeleteClick = async (eventId: string, isCompleted: boolean) => {
     if (isCompleted) {
       // hide from UI permanently until reload
@@ -486,6 +486,62 @@ const OrganizerDashboard = () => {
     });
   };
 
+  const handlePublishEvent = async (eventId: string) => {
+    try {
+      const event = events.find(e => e.id === eventId);
+      if (!event) {
+        toast({
+          title: "Error",
+          description: "Event not found.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Toggle the published status
+      const newPublishedStatus = !event.published;
+      
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_CONFIG.API_BASE}/events/${eventId}/publish`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          published: newPublishedStatus
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to update publish status');
+      }
+
+      // Update the local state
+      setEvents(prevEvents =>
+        prevEvents.map(e =>
+          e.id === eventId
+            ? { ...e, published: newPublishedStatus }
+            : e
+        )
+      );
+
+      toast({
+        title: newPublishedStatus ? "Event Published" : "Event Unpublished",
+        description: `"${event.title}" has been ${newPublishedStatus ? 'published' : 'unpublished'} successfully.`,
+      });
+    } catch (error: any) {
+      console.error('Error updating publish status:', error);
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update publish status. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const selectedEvent = events.find(event => event.id === selectedEventForReports);
   const selectedEventForSettingsData = events.find(event => event.id === selectedEventForSettings);
   const selectedEventForFeedbackData = events.find(event => event.id === selectedEventForFeedback);
@@ -743,16 +799,13 @@ const OrganizerDashboard = () => {
                                       <Settings className="w-4 h-4 mr-2" />
                                       Settings
                                     </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handlePublishEvent(event.id)}>
+                                      <Send className="w-4 h-4 mr-2" />
+                                      {event.published ? 'Unpublish' : 'Publish'}
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => openFeedbackDialog(event.id)}>
                                       <MessageSquare className="w-4 h-4 mr-2" />
                                       Feedback
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem 
-                                      onClick={() => handleDeleteClick(event.id, false)}
-                                      className="text-red-600"
-                                    >
-                                      <Trash className="w-4 h-4 mr-2" />
-                                      Delete
                                     </DropdownMenuItem>
                                   </>
                                 )}
@@ -822,16 +875,18 @@ const OrganizerDashboard = () => {
 
         {selectedEventForGeofenceData && (
           <Dialog open={isGeofenceDialogOpen} onOpenChange={closeGeofenceDialog}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Geofence - {selectedEventForGeofenceData.title}</DialogTitle>
               </DialogHeader>
-              <GeofenceMap
-                eventId={selectedEventForGeofenceData.id}
-                initialCenter={selectedEventForGeofenceData.geofence?.center || [0, 0]}
-                initialRadius={selectedEventForGeofenceData.geofence?.radius || 100}
-                onGeofenceUpdate={(center, radius) => handleGeofenceUpdate(selectedEventForGeofenceData.id, center, radius)}
-              />
+              <div className="max-h-[70vh] overflow-y-auto">
+                <GeofenceMap
+                  eventId={selectedEventForGeofenceData.id}
+                  initialCenter={selectedEventForGeofenceData.geofence?.center || [0, 0]}
+                  initialRadius={selectedEventForGeofenceData.geofence?.radius || 100}
+                  onGeofenceUpdate={(center, radius) => handleGeofenceUpdate(selectedEventForGeofenceData.id, center, radius)}
+                />
+              </div>
             </DialogContent>
           </Dialog>
         )}

@@ -8,6 +8,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User, Settings, LogOut } from 'lucide-react';
+import Profile from './Profile';
+import SettingsComponent from './Settings';
 
 interface User {
   id: string;
@@ -22,6 +24,8 @@ interface ProfileDropdownProps {
 
 const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -48,13 +52,11 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
   };
 
   const handleProfile = () => {
-    // Navigate to profile page (you may need to create this route)
-    console.log("Navigate to profile");
+    setShowProfile(true);
   };
 
   const handleSettings = () => {
-    // Navigate to settings page (you may need to create this route)
-    console.log("Navigate to settings");
+    setShowSettings(true);
   };
 
   // Don't render if no user is logged in
@@ -90,6 +92,12 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Profile Dialog */}
+      <Profile isOpen={showProfile} onClose={() => setShowProfile(false)} />
+      
+      {/* Settings Dialog */}
+      <SettingsComponent isOpen={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   );
 };

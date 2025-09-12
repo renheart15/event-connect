@@ -290,8 +290,18 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
 // @access  Private (Participant only)
 router.get('/my', auth, async (req, res) => {
   try {
-    const attendanceLogs = await AttendanceLog.find({ participant: req.user._id })
-      .populate('event', 'title date location eventCode')
+    const attendanceLogs = await AttendanceLog.find({ 
+      participant: req.user._id,
+      hiddenFromParticipant: { $ne: true }
+    })
+      .populate({
+        path: 'event',
+        select: 'title date location eventCode organizer description',
+        populate: {
+          path: 'organizer',
+          select: 'name email'
+        }
+      })
       .populate('invitation', 'invitationCode')
       .sort({ checkInTime: -1 });
 
@@ -446,6 +456,216 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Auto-checkout failed',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/attendance/join
+// @desc    Join an event by event code
+// @access  Private
+router.post('/join', auth, [
+  body('eventCode').notEmpty().withMessage('Event code is required')
+], async (req, res) => {
+  try {
+    console.log('=== JOIN EVENT REQUEST ===');
+    console.log('User ID:', req.user?._id);
+    console.log('User role:', req.user?.role);
+    console.log('Request body:', req.body);
+    
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { eventCode } = req.body;
+    const userId = req.user._id;
+
+    console.log('Looking for event with code:', eventCode.toUpperCase());
+    
+    // Find the event by event code
+    const event = await Event.findOne({ 
+      eventCode: eventCode.toUpperCase(),
+      isActive: true,
+      published: true 
+    });
+
+    console.log('Event found:', !!event);
+    if (event) {
+      console.log('Event details:', {
+        id: event._id,
+        title: event.title,
+        published: event.published,
+        isActive: event.isActive
+      });
+    }
+
+    if (!event) {
+      console.log('Event not found or not available');
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found or not available for joining'
+      });
+    }
+
+    // Check if user already has an invitation for this event
+    const existingInvitation = await Invitation.findOne({
+      event: event._id,
+      participant: userId
+    });
+
+    console.log('Existing invitation found:', !!existingInvitation);
+
+    if (existingInvitation) {
+      console.log('User already invited to this event');
+      return res.status(400).json({
+        success: false,
+        message: 'You are already invited to this event'
+      });
+    }
+
+    console.log('Creating new invitation...');
+    console.log('User details:', req.user);
+    
+    // Set expiration date (e.g., 30 days from now)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+    
+    // Generate QR code data
+    const invitationCode = require('crypto').randomBytes(16).toString('hex').toUpperCase();
+    const qrCodeData = JSON.stringify({
+      invitationId: null, // Will be set after saving
+      eventId: event._id,
+      participantId: userId,
+      code: invitationCode
+    });
+    
+    // Create a new invitation for the participant
+    const invitation = new Invitation({
+      event: event._id,
+      participant: userId,
+      participantEmail: req.user.email,
+      participantName: req.user.name,
+      organizer: event.organizer,
+      status: 'accepted', // Automatically accept when joining via public events
+      rsvpDate: new Date(),
+      expiresAt: expiresAt,
+      qrCodeData: qrCodeData,
+      invitationCode: invitationCode
+    });
+
+    await invitation.save();
+    console.log('Invitation created successfully:', invitation._id);
+    
+    // Update QR code data with the actual invitation ID
+    const updatedQrCodeData = JSON.stringify({
+      invitationId: invitation._id,
+      eventId: event._id,
+      participantId: userId,
+      code: invitationCode
+    });
+    
+    invitation.qrCodeData = updatedQrCodeData;
+    await invitation.save();
+
+    // Return success response
+    res.json({
+      success: true,
+      message: 'Successfully joined the event',
+      data: {
+        invitation: invitation,
+        event: {
+          _id: event._id,
+          title: event.title,
+          eventCode: event.eventCode,
+          date: event.date,
+          startTime: event.startTime,
+          endTime: event.endTime,
+          location: event.location
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Join event error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to join event',
+      error: error.message
+    });
+  }
+});
+
+// @route   DELETE /api/attendance/my/completed
+// @desc    Hide all completed attendance records from participant view
+// @access  Private (Participant only)
+router.delete('/my/completed', auth, async (req, res) => {
+  try {
+    const result = await AttendanceLog.updateMany(
+      { 
+        participant: req.user._id,
+        checkOutTime: { $exists: true },
+        hiddenFromParticipant: { $ne: true }
+      },
+      { 
+        hiddenFromParticipant: true 
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'Completed events cleared from your view successfully',
+      data: {
+        clearedCount: result.modifiedCount
+      }
+    });
+  } catch (error) {
+    console.error('Hide completed events error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear completed events from view',
+      error: error.message
+    });
+  }
+});
+
+// @route   DELETE /api/attendance/:id
+// @desc    Hide individual attendance record from participant view
+// @access  Private (Participant only)
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const attendanceLog = await AttendanceLog.findOne({ 
+      _id: req.params.id,
+      participant: req.user._id,
+      checkOutTime: { $exists: true }, // Only allow hiding of completed events
+      hiddenFromParticipant: { $ne: true } // Only if not already hidden
+    });
+
+    if (!attendanceLog) {
+      return res.status(404).json({
+        success: false,
+        message: 'Completed attendance record not found or access denied'
+      });
+    }
+
+    await AttendanceLog.findByIdAndUpdate(req.params.id, { 
+      hiddenFromParticipant: true 
+    });
+
+    res.json({
+      success: true,
+      message: 'Attendance record removed from your view successfully'
+    });
+  } catch (error) {
+    console.error('Hide attendance record error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove attendance record from view',
       error: error.message
     });
   }

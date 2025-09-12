@@ -257,8 +257,8 @@ const GeofenceMap = ({
     }
     
     toast({
-      title: "Geofence Saved",
-      description: `Geofence updated with radius of ${radius}m at coordinates ${center[0].toFixed(4)}, ${center[1].toFixed(4)}`,
+      title: "Location Applied",
+      description: `Geofence set with radius of ${radius}m at coordinates ${center[0].toFixed(4)}, ${center[1].toFixed(4)}`,
     });
   };
 
@@ -283,8 +283,8 @@ const GeofenceMap = ({
           }
 
           toast({
-            title: "Location Updated",
-            description: "Geofence centered at your current location",
+            title: "Location Set",
+            description: "Map centered at your current location",
           });
         },
         (error) => {
@@ -382,6 +382,7 @@ const GeofenceMap = ({
                     onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                   />
                   <Button 
+                    type="button"
                     onClick={handleSearch} 
                     disabled={isSearching}
                     size="sm"
@@ -418,12 +419,12 @@ const GeofenceMap = ({
             />
             
             <div className="flex gap-2">
-              <Button onClick={handleUseCurrentLocation} variant="outline" className="flex items-center gap-2">
+              <Button type="button" onClick={handleUseCurrentLocation} variant="outline" className="flex items-center gap-2">
                 <Locate className="w-4 h-4" />
                 Use My Location
               </Button>
               {showSaveButton !== false && (
-                <Button onClick={handleSaveGeofence} className="flex items-center gap-2">
+                <Button type="button" onClick={handleSaveGeofence} className="flex items-center gap-2">
                   <Save className="w-4 h-4" />
                   Save Geofence
                 </Button>
