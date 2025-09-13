@@ -1,8 +1,10 @@
 import React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { QrCode, Camera, Upload, Menu, Zap, Loader2, X, Flashlight, MapPin, AlertTriangle, CheckCircle, User, Settings, LogOut, RefreshCw, MessageSquare, Building2, Copy, UserPlus, Globe, Calendar, Clock } from 'lucide-react';
+import { QrCode, Camera, Upload, Menu, Zap, Loader2, X, Flashlight, MapPin, AlertTriangle, CheckCircle, User, Settings, LogOut, RefreshCw, MessageSquare, Building2, Copy, UserPlus, Globe, Calendar, Clock, Edit, Save, Lock, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import { useParticipantLocationUpdater } from '@/hooks/useLocationTracking';
@@ -67,6 +69,29 @@ const ParticipantDashboard = () => {
   const [isClearingEvents, setIsClearingEvents] = useState(false);
   
   // Individual event deletion state
+
+  // Profile editing state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editableProfile, setEditableProfile] = useState({
+    name: '',
+    email: ''
+  });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  // Change password modal state
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<any>(null);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
@@ -79,6 +104,11 @@ const ParticipantDashboard = () => {
   const streamRef = useRef<MediaStream | null>(null);
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  // Initialize userProfile state
+  useEffect(() => {
+    setUserProfile(user);
+  }, []);
   const token = localStorage.getItem('token');
 
   const handleLogout = () => {
@@ -2156,6 +2186,211 @@ const ParticipantDashboard = () => {
     );
   };
 
+  // Handle profile editing
+  const handleEditProfile = () => {
+    const currentUser = userProfile || user;
+    setEditableProfile({
+      name: currentUser.name || '',
+      email: currentUser.email || ''
+    });
+    setIsEditingProfile(true);
+  };
+
+  const handleCancelProfileEdit = () => {
+    setIsEditingProfile(false);
+    setEditableProfile({ name: '', email: '' });
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editableProfile.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!editableProfile.email.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Email is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const response = await fetch(`${API_CONFIG.API_BASE}/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editableProfile.name,
+          email: editableProfile.email
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Update user state
+        const updatedUser = { ...user, ...editableProfile };
+        setUserProfile(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+
+        setIsEditingProfile(false);
+        toast({
+          title: "Profile Updated",
+          description: "Your profile has been successfully updated.",
+        });
+
+        // Trigger refresh
+        window.dispatchEvent(new CustomEvent('userUpdated'));
+
+        // Reload the page to ensure all components have the updated user data
+        window.location.reload();
+      } else {
+        throw new Error(result.message || 'Failed to update profile');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleProfileInputChange = (field: string, value: string) => {
+    setEditableProfile(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Change password handlers
+  const handleOpenChangePassword = () => {
+    setPasswordForm({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setShowPasswords({
+      current: false,
+      new: false,
+      confirm: false
+    });
+    setShowChangePasswordModal(true);
+  };
+
+  const handleCloseChangePassword = () => {
+    setShowChangePasswordModal(false);
+    setPasswordForm({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setShowPasswords({
+      current: false,
+      new: false,
+      confirm: false
+    });
+  };
+
+  const handlePasswordInputChange = (field: string, value: string) => {
+    setPasswordForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const togglePasswordVisibility = (field: string) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [field]: !prev[field]
+    }));
+  };
+
+  const handleChangePassword = async () => {
+    // Validation
+    if (!passwordForm.currentPassword) {
+      toast({
+        title: "Validation Error",
+        description: "Current password is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!passwordForm.newPassword) {
+      toast({
+        title: "Validation Error",
+        description: "New password is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      toast({
+        title: "Validation Error",
+        description: "New password must be at least 6 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast({
+        title: "Validation Error",
+        description: "Passwords do not match",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const response = await fetch(`${API_CONFIG.API_BASE}/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Password Changed",
+          description: "Your password has been successfully updated.",
+        });
+        handleCloseChangePassword();
+      } else {
+        throw new Error(result.message || 'Failed to change password');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Change Password Failed",
+        description: error.message || "Failed to change password. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   // Format time helper (make it available globally in component)
   const formatTime = (timeString?: string) => {
     if (!timeString) return '';
@@ -2943,10 +3178,9 @@ const ParticipantDashboard = () => {
                 <User className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{user.name || 'User'}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{(userProfile || user).name || 'User'}</h3>
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300 mt-1">
-                  {user.role || 'Participant'}
+                  {(userProfile || user).role || 'Participant'}
                 </span>
               </div>
             </div>
@@ -2954,57 +3188,93 @@ const ParticipantDashboard = () => {
             {/* Profile Details */}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  value={user.name || ''}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
-                <input
-                  type="email"
-                  value={user.email || ''}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Type</label>
-                <input
-                  type="text"
-                  value={user.role || 'Participant'}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              
-              {user.lastLogin && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Login</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Full Name</label>
+                {isEditingProfile ? (
                   <input
                     type="text"
-                    value={new Date(user.lastLogin).toLocaleString()}
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={editableProfile.name}
+                    onChange={(e) => handleProfileInputChange('name', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter your full name"
                   />
+                ) : (
+                  <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600">
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      {(userProfile || user).name || 'Not provided'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email Address</label>
+                {isEditingProfile ? (
+                  <input
+                    type="email"
+                    value={editableProfile.email}
+                    onChange={(e) => handleProfileInputChange('email', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter your email address"
+                  />
+                ) : (
+                  <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-md border border-gray-200 dark:border-gray-600">
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      {(userProfile || user).email || 'Not provided'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {(userProfile || user).lastLogin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Last Login</label>
+                  <span className="text-gray-900 dark:text-white font-medium">
+                    {new Date((userProfile || user).lastLogin).toLocaleString()}
+                  </span>
                 </div>
               )}
             </div>
             
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row sm:space-x-3 space-y-3 sm:space-y-0 mt-6">
-              <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-base font-semibold transition-colors">
-                Edit Profile
-              </button>
-              <button className="flex-1 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-6 py-3 rounded-lg text-base font-semibold transition-colors">
-                Change Password
-              </button>
-            </div>
+            {isEditingProfile ? (
+              <div className="flex flex-col sm:flex-row sm:space-x-3 space-y-3 sm:space-y-0 mt-6">
+                <Button
+                  onClick={handleSaveProfile}
+                  disabled={isSavingProfile}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg text-base font-semibold transition-colors"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {isSavingProfile ? 'Saving...' : 'Save Changes'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleCancelProfileEdit}
+                  disabled={isSavingProfile}
+                  className="flex-1 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-6 py-3 rounded-lg text-base font-semibold transition-colors"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row sm:space-x-3 space-y-3 sm:space-y-0 mt-6">
+                <Button
+                  onClick={handleEditProfile}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-base font-semibold transition-colors"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Profile
+                </Button>
+                <Button
+                  onClick={handleOpenChangePassword}
+                  variant="outline"
+                  className="flex-1 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-6 py-3 rounded-lg text-base font-semibold transition-colors"
+                >
+                  <Lock className="w-4 h-4 mr-2" />
+                  Change Password
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -4634,6 +4904,121 @@ const ParticipantDashboard = () => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Modal */}
+      <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
+        <DialogContent className="mx-4 sm:mx-auto sm:max-w-md max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              Change Password
+            </DialogTitle>
+            <DialogDescription>
+              Enter your current password and choose a new one.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={(e) => { e.preventDefault(); handleChangePassword(); }} className="space-y-4">
+            <div>
+              <Label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Current Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="currentPassword"
+                  type={showPasswords.current ? "text" : "password"}
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                  placeholder="Enter current password"
+                  className="pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords({...showPasswords, current: !showPasswords.current})}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                New Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showPasswords.new ? "text" : "password"}
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                  placeholder="Enter new password (minimum 6 characters)"
+                  className="pr-10"
+                  minLength={6}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords({...showPasswords, new: !showPasswords.new})}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Confirm New Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showPasswords.confirm ? "text" : "password"}
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                  placeholder="Confirm new password"
+                  className="pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords({...showPasswords, confirm: !showPasswords.confirm})}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseChangePassword}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isChangingPassword}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {isChangingPassword ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Changing...
+                  </>
+                ) : (
+                  'Change Password'
+                )}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 

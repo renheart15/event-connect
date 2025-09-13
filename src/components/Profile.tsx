@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { User, Edit, Save, X, Upload, Camera, Trash2, Crop, RotateCw, Building2, Users } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { User, Edit, Save, X, Upload, Camera, Trash2, Crop, RotateCw, Building2, Users, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 
@@ -61,6 +61,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const { toast } = useToast();
+
+  // Change password state
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -564,6 +578,110 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
     fileInputRef.current?.click();
   };
 
+  // Change password handlers
+  const handleOpenChangePassword = () => {
+    setPasswordForm({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setShowPasswords({
+      current: false,
+      new: false,
+      confirm: false
+    });
+    setShowChangePasswordModal(true);
+  };
+
+  const handleCloseChangePassword = () => {
+    setShowChangePasswordModal(false);
+    setPasswordForm({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setShowPasswords({
+      current: false,
+      new: false,
+      confirm: false
+    });
+  };
+
+  const handleChangePassword = async () => {
+    // Validation
+    if (!passwordForm.currentPassword) {
+      toast({
+        title: "Validation Error",
+        description: "Current password is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!passwordForm.newPassword) {
+      toast({
+        title: "Validation Error",
+        description: "New password is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      toast({
+        title: "Validation Error",
+        description: "New password must be at least 6 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast({
+        title: "Validation Error",
+        description: "Passwords do not match",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_CONFIG.API_BASE}/auth/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Password Changed",
+          description: "Your password has been successfully updated.",
+        });
+        handleCloseChangePassword();
+      } else {
+        throw new Error(result.message || 'Failed to change password');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Change Password Failed",
+        description: error.message || "Failed to change password. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   if (!user) return null;
 
   return (
@@ -997,7 +1115,153 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
             </CardContent>
           </Card>
 
+          {/* Account Security */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Lock className="w-5 h-5" />
+                Account Security
+              </CardTitle>
+              <CardDescription>Manage your password and security settings</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white">Password</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Change your account password
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleOpenChangePassword}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Lock className="w-4 h-4" />
+                    Change Password
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
         </div>
+
+        {/* Change Password Modal */}
+        <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
+          <DialogContent className="mx-4 sm:mx-auto sm:max-w-md max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Lock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                Change Password
+              </DialogTitle>
+              <DialogDescription>
+                Enter your current password and choose a new one.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleChangePassword(); }} className="space-y-4">
+              <div>
+                <Label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Current Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="currentPassword"
+                    type={showPasswords.current ? "text" : "password"}
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                    placeholder="Enter current password"
+                    className="pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords({...showPasswords, current: !showPasswords.current})}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  New Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="newPassword"
+                    type={showPasswords.new ? "text" : "password"}
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                    placeholder="Enter new password (minimum 6 characters)"
+                    className="pr-10"
+                    minLength={6}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords({...showPasswords, new: !showPasswords.new})}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Confirm New Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showPasswords.confirm ? "text" : "password"}
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                    placeholder="Confirm new password"
+                    className="pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords({...showPasswords, confirm: !showPasswords.confirm})}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCloseChangePassword}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isChangingPassword ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Changing...
+                    </>
+                  ) : (
+                    'Change Password'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

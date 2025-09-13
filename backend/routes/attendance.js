@@ -620,24 +620,6 @@ router.post('/join', auth, [
       throw attendanceError; // Re-throw other errors to be caught by outer catch
     }
 
-    // Return success response
-    res.json({
-      success: true,
-      message: 'Successfully joined the event',
-      data: {
-        attendanceRecord: attendanceRecord,
-        event: {
-          _id: event._id,
-          title: event.title,
-          eventCode: event.eventCode,
-          date: event.date,
-          startTime: event.startTime,
-          endTime: event.endTime,
-          location: event.location
-        }
-      }
-    });
-
   } catch (error) {
     console.error('Join event error:', error);
     res.status(500).json({

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { Sun, Moon } from 'lucide-react';
 import { AppSidebar } from './AppSidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from './ui/sidebar';
+import { Button } from './ui/button';
 import ProfileDropdown from './ProfileDropdown';
 import NotificationDropdown from './NotificationDropdown';
 
@@ -12,10 +14,15 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
   const location = useLocation();
-  
+
   // Routes that should not show the sidebar
   const noSidebarRoutes = ['/', '/login', '/register', '/participant-dashboard'];
   const showSidebar = !noSidebarRoutes.includes(location.pathname) && !location.pathname.startsWith('/join/');
+
+  // Dark mode state
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return document.documentElement.classList.contains('dark');
+  });
 
   useEffect(() => {
     // Load user from localStorage
@@ -28,6 +35,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       }
     }
   }, []);
+
+  const toggleTheme = () => {
+    const newDarkMode = !isDarkMode;
+    setIsDarkMode(newDarkMode);
+
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  };
 
   if (!showSidebar) {
     // Return children without sidebar for public pages
@@ -46,6 +66,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleTheme}
+              className="rounded-lg"
+            >
+              {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
             <NotificationDropdown />
             <ProfileDropdown />
           </div>

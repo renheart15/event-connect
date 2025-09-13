@@ -276,10 +276,10 @@ const EventMonitor = () => {
 
   if (loading || loadingEvents) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">{!eventId ? 'Loading events...' : 'Loading event monitor...'}</p>
+          <p className="text-gray-600 dark:text-gray-400">{!eventId ? 'Loading events...' : 'Loading event monitor...'}</p>
         </div>
       </div>
     );
@@ -288,13 +288,13 @@ const EventMonitor = () => {
   // Show event selection when no eventId is provided
   if (!eventId) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm border-b">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Select Active Event to Monitor</h1>
-                <p className="text-sm text-gray-600">Choose an active event to start live attendance monitoring</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Select Active Event to Monitor</h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Choose an active event to start live attendance monitoring</p>
               </div>
               <Link to="/organizer-dashboard">
                 <Button variant="outline">Back to Dashboard</Button>
@@ -318,11 +318,11 @@ const EventMonitor = () => {
               {availableEvents.length > 0 ? (
                 <div className="grid gap-4">
                   {availableEvents.map((event) => (
-                    <div key={event._id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div key={event._id} className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg">{event.title}</h3>
-                          <p className="text-gray-600 text-sm mb-2">{event.description}</p>
+                          <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">{event.description}</p>
                           <div className="flex items-center gap-4 text-sm text-gray-500">
                             <div className="flex items-center gap-1">
                               <MapPin className="w-4 h-4" />
@@ -365,19 +365,19 @@ const EventMonitor = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Live Event Monitor</h1>
-              <p className="text-sm text-gray-600">{eventData?.title || 'Loading...'}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Live Event Monitor</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{eventData?.title || 'Loading...'}</p>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-right">
-                <p className="text-sm text-gray-600">Current Time</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Current Time</p>
                 <p className="font-mono text-lg">{currentTime.toLocaleTimeString('en-US', { hour12: true })}</p>
               </div>
               
@@ -440,7 +440,7 @@ const EventMonitor = () => {
                 <CardContent className="pt-4">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-green-600">{stats.totalCheckedIn}</p>
-                    <p className="text-xs text-gray-600">Total Checked In</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Total Checked In</p>
                   </div>
                 </CardContent>
               </Card>
@@ -449,7 +449,7 @@ const EventMonitor = () => {
                 <CardContent className="pt-4">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-blue-600">{stats.currentlyPresent}</p>
-                    <p className="text-xs text-gray-600">Currently Present</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Currently Present</p>
                   </div>
                 </CardContent>
               </Card>
@@ -457,8 +457,8 @@ const EventMonitor = () => {
               <Card>
                 <CardContent className="pt-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-gray-600">{stats.totalCheckedOut}</p>
-                    <p className="text-xs text-gray-600">Checked Out</p>
+                    <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">{stats.totalCheckedOut}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Checked Out</p>
                   </div>
                 </CardContent>
               </Card>
@@ -469,7 +469,7 @@ const EventMonitor = () => {
                     <p className="text-2xl font-bold text-purple-600">
                       {Math.round(stats.averageDuration / 60) || 0}min
                     </p>
-                    <p className="text-xs text-gray-600">Avg Duration</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Avg Duration</p>
                   </div>
                 </CardContent>
               </Card>
@@ -487,16 +487,16 @@ const EventMonitor = () => {
                 <CardContent>
                   <div className="grid md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <p className="font-medium text-gray-900">Date</p>
-                      <p className="text-gray-600">{new Date(eventData.date).toLocaleDateString()}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">Date</p>
+                      <p className="text-gray-600 dark:text-gray-400">{new Date(eventData.date).toLocaleDateString()}</p>
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">Time</p>
-                      <p className="text-gray-600">{formatTime(eventData.startTime)} - {formatTime(eventData.endTime)}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">Time</p>
+                      <p className="text-gray-600 dark:text-gray-400">{formatTime(eventData.startTime)} - {formatTime(eventData.endTime)}</p>
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">Location</p>
-                      <p className="text-gray-600">{eventData.location?.address || eventData.location || 'Location not specified'}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">Location</p>
+                      <p className="text-gray-600 dark:text-gray-400">{eventData.location?.address || eventData.location || 'Location not specified'}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -514,11 +514,11 @@ const EventMonitor = () => {
               <CardContent>
                 <div className="space-y-3">
                   {participants && participants.length > 0 ? participants.map((participant) => (
-                    <div key={participant.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                    <div key={participant.id} className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800">
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <h3 className="font-semibold">{participant.name}</h3>
-                          <p className="text-sm text-gray-600">{participant.email}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">{participant.email}</p>
                         </div>
                         <Badge variant={getStatusColor(participant.status)} className="flex items-center gap-1">
                           {getStatusIcon(participant.status)}
@@ -526,7 +526,7 @@ const EventMonitor = () => {
                         </Badge>
                       </div>
                       
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 dark:text-gray-400">
                         <div>
                           <p className="font-medium">Check-in</p>
                           <p>{participant.checkInTime}</p>
@@ -573,17 +573,17 @@ const EventMonitor = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                    <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                       <span className="text-sm font-medium">Peak Attendance</span>
                       <span className="text-lg font-bold text-green-600">{stats.currentlyPresent}</span>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                    <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                       <span className="text-sm font-medium">Check-in Rate</span>
                       <span className="text-lg font-bold text-blue-600">
                         {stats.totalCheckedIn > 0 ? Math.round((stats.totalCheckedIn / 60) * 100) / 100 : 0}/min
                       </span>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+                    <div className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                       <span className="text-sm font-medium">Retention Rate</span>
                       <span className="text-lg font-bold text-purple-600">
                         {stats.totalCheckedIn > 0 ? Math.round((stats.currentlyPresent / stats.totalCheckedIn) * 100) : 0}%
@@ -639,27 +639,27 @@ const EventMonitor = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-gray-900">{participants.length}</p>
-                    <p className="text-sm text-gray-600">Total Participants</p>
+                  <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{participants.length}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Total Participants</p>
                   </div>
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                     <p className="text-2xl font-bold text-green-600">
                       {participants.filter(p => p.status === 'present').length}
                     </p>
-                    <p className="text-sm text-gray-600">Currently Present</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Currently Present</p>
                   </div>
-                  <div className="text-center p-4 bg-orange-50 rounded-lg">
+                  <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
                     <p className="text-2xl font-bold text-orange-600">
                       {participants.filter(p => p.status === 'left-early').length}
                     </p>
-                    <p className="text-sm text-gray-600">Left Early</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Left Early</p>
                   </div>
-                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                     <p className="text-2xl font-bold text-blue-600">
                       {participants.length > 0 ? Math.round(participants.reduce((acc, p) => acc + p.duration, 0) / participants.length / 60) : 0}
                     </p>
-                    <p className="text-sm text-gray-600">Avg Duration (min)</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Avg Duration (min)</p>
                   </div>
                 </div>
               </CardContent>

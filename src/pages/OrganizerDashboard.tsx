@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Eye, Filter, MoreHorizontal, Edit, Mail, Calendar, MapPin, Users, Settings, FileText, MessageSquare, Trash, QrCode, Map, Send } from 'lucide-react';
+import { Plus, Eye, Filter, MoreHorizontal, Edit, Mail, Calendar, MapPin, Users, Settings, FileText, MessageSquare, Trash, QrCode, Map, Send, User, LogOut, Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -18,6 +18,7 @@ import FeedbackFormBuilder from '@/components/FeedbackFormBuilder';
 import FeedbackFormManager from '@/components/FeedbackFormManager';
 import QRCodeDisplay from '@/components/QRCodeDisplay';
 import GeofenceMap from '@/components/GeofenceMap';
+import Profile from '@/components/Profile';
 // import EmailSettings from '@/components/EmailSettings';
 import { exportEventSummary, exportDetailedEventReport } from '@/utils/reportUtils';
 import { useToast } from '@/hooks/use-toast';
@@ -38,6 +39,7 @@ const OrganizerDashboard = () => {
   const [user, setUser] = useState<any>(null);
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   // Check for system-wide dark mode
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -579,13 +581,28 @@ const OrganizerDashboard = () => {
   }
 
   return (
-    <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+    <div className="bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 min-h-screen">
+      {/* Header Section */}
+      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Organizer Dashboard
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Welcome back, {user?.name || 'Organizer'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="container mx-auto px-6 py-8 space-y-8">
         {/* Stats Section */}
         <div>
           {stats && <DashboardStats stats={stats} />}
         </div>
-
 
         {/* Actions Section */}
         <div className="flex flex-col sm:flex-row gap-4">
@@ -891,6 +908,11 @@ const OrganizerDashboard = () => {
           </Dialog>
         )}
 
+        {/* Profile Modal */}
+        <Profile
+          isOpen={showProfile}
+          onClose={() => setShowProfile(false)}
+        />
 
         {/* <EmailSettings
           isOpen={isEmailSettingsOpen}

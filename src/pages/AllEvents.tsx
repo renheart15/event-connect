@@ -333,10 +333,10 @@ const AllEvents = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] bg-gray-50 flex items-center justify-center">
+      <div className="min-h-[60vh] bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading events...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading events...</p>
         </div>
       </div>
     );
@@ -344,15 +344,15 @@ const AllEvents = () => {
 
   if (error) {
     return (
-      <div className="min-h-[60vh] bg-gray-50 flex items-center justify-center">
+      <div className="min-h-[60vh] bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Something went wrong</h3>
-          <p className="text-gray-600 mb-4">{error}</p>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Something went wrong</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <Button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700 text-white">
             Refresh Page
           </Button>
@@ -362,12 +362,12 @@ const AllEvents = () => {
   }
 
   return (
-    <div className="bg-gray-50">
-      <div className="bg-white border-b px-6 py-4 mb-6">
+    <div className="bg-gray-50 dark:bg-gray-900">
+      <div className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 mb-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">All Events</h1>
-            <p className="text-gray-600 mt-1">View and manage all your events</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">All Events</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">View and manage all your events</p>
           </div>
           <Button
             variant="outline"
@@ -393,10 +393,10 @@ const AllEvents = () => {
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {showAllEvents ? 'All Events' : 'Active & Upcoming Events'}
               </h2>
-              <p className="text-gray-600 text-sm">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
                 {showAllEvents 
                   ? `Showing ${displayedEvents.length} of ${events.length} events (sorted by date)` 
                   : `${displayedEvents.length} active and upcoming events`
@@ -409,13 +409,13 @@ const AllEvents = () => {
         {displayedEvents.length === 0 ? (
           <Card className="border-dashed border-2 border-gray-300">
             <CardContent className="flex flex-col items-center justify-center py-12">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
                 <Calendar className="w-8 h-8 text-gray-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                 {showAllEvents ? 'No events found' : 'No active or upcoming events'}
               </h3>
-              <p className="text-gray-600 text-center mb-6">
+              <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
                 {showAllEvents 
                   ? 'You haven\'t created any events yet.'
                   : 'All your events are completed. Create a new event or view all events.'
