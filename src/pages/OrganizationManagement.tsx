@@ -186,6 +186,7 @@ const OrganizationManagement = () => {
     }
   };
 
+
   const generateRandomCode = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';

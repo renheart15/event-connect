@@ -4,40 +4,54 @@ const User = require('../models/User');
 
 const auth = async (req, res, next) => {
   try {
-    let token;
+    let user = null;
 
-    // Get token from header
+    // Check for session-based authentication first
+    if (req.session && req.session.userId) {
+      user = await User.findById(req.session.userId)
+        .select('-password')
+        .populate('organization', 'name organizationCode');
+      if (user && user.isActive) {
+        req.user = user;
+        return next();
+      }
+    }
+
+    // Fallback to JWT authentication for backward compatibility
+    let token;
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
     }
 
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access token is missing or invalid'
-      });
+    if (token) {
+      try {
+        // Verify token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Get user from token
+        user = await User.findById(decoded.id)
+          .select('-password')
+          .populate('organization', 'name organizationCode');
+        
+        if (user && user.isActive) {
+          req.user = user;
+          return next();
+        }
+      } catch (jwtError) {
+        console.error('JWT verification failed:', jwtError);
+      }
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Get user from token
-    const user = await User.findById(decoded.id).select('-password');
-    
-    if (!user || !user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found or inactive'
-      });
-    }
-
-    req.user = user;
-    next();
+    // No valid authentication found
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required. Please log in.'
+    });
   } catch (error) {
     console.error('Auth middleware error:', error);
     return res.status(401).json({
       success: false,
-      message: 'Access token is invalid'
+      message: 'Authentication failed'
     });
   }
 };

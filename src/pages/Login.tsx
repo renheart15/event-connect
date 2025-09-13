@@ -35,6 +35,7 @@ const Login = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies for session
         body: JSON.stringify({ email, password })
       });
 

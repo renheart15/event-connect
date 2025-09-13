@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { User, Edit, Save, X, Upload, Camera, Trash2, Crop, RotateCw } from 'lucide-react';
+import { User, Edit, Save, X, Upload, Camera, Trash2, Crop, RotateCw, Building2, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 
@@ -22,12 +22,34 @@ interface UserProfile {
   profilePicture?: string;
   bio?: string;
   phone?: string;
-  organization?: string;
+  organization?: {
+    _id: string;
+    name: string;
+    organizationCode: string;
+  } | string;
   role?: string;
 }
 
+interface UserOrganization {
+  _id: string;
+  name: string;
+  description?: string;
+  organizationCode: string;
+  owner: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  memberCount: number;
+  userRole: 'owner' | 'admin' | 'member';
+  joinedAt: string;
+}
+
+
 const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([]);
+  const [isLoadingOrganizations, setIsLoadingOrganizations] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -43,8 +65,131 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen) {
       loadUserProfile();
+      fetchLatestUserData();
+      fetchUserOrganizations();
     }
   }, [isOpen]);
+
+  const fetchLatestUserData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(`${API_CONFIG.API_BASE}/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const freshUser = result.data.user;
+        
+        // Normalize the user data
+        const normalizedUser = {
+          ...freshUser,
+          id: freshUser.id || freshUser._id
+        };
+        
+        // Update localStorage with fresh data
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
+        
+        // Update state
+        setUser(normalizedUser);
+        const editFormData = {
+          ...normalizedUser,
+          organization: getOrganizationForEdit(normalizedUser.organization)
+        };
+        setEditForm(editFormData);
+        
+        // Notify other components
+        window.dispatchEvent(new CustomEvent('userUpdated'));
+      }
+    } catch (error) {
+      console.log('Failed to fetch latest user data:', error);
+    }
+  };
+
+  const fetchUserOrganizations = async () => {
+    setIsLoadingOrganizations(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      // Fetch owned organizations
+      const ownedResponse = await fetch(`${API_CONFIG.API_BASE}/organizations/owned`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+      });
+
+      // Fetch joined organization
+      const joinedResponse = await fetch(`${API_CONFIG.API_BASE}/organizations/my`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+      });
+
+      const allOrganizations: UserOrganization[] = [];
+
+      // Process owned organizations
+      if (ownedResponse.ok) {
+        const ownedResult = await ownedResponse.json();
+        if (ownedResult.success && ownedResult.data) {
+          ownedResult.data.forEach((org: any) => {
+            allOrganizations.push({
+              _id: org._id,
+              name: org.name,
+              description: org.description,
+              organizationCode: org.organizationCode,
+              owner: org.owner,
+              memberCount: org.memberCount,
+              userRole: 'owner',
+              joinedAt: org.createdAt
+            });
+          });
+        }
+      }
+
+      // Process joined organization (if different from owned)
+      if (joinedResponse.ok) {
+        const joinedResult = await joinedResponse.json();
+        if (joinedResult.success && joinedResult.data) {
+          const joinedOrg = joinedResult.data;
+          // Only add if not already in owned organizations
+          if (!allOrganizations.some(org => org._id === joinedOrg._id)) {
+            const userMember = joinedOrg.members?.find((member: any) => member.user._id === user?.id);
+            allOrganizations.push({
+              _id: joinedOrg._id,
+              name: joinedOrg.name,
+              description: joinedOrg.description,
+              organizationCode: joinedOrg.organizationCode,
+              owner: joinedOrg.owner,
+              memberCount: joinedOrg.memberCount,
+              userRole: userMember?.role || 'member',
+              joinedAt: userMember?.joinedAt || joinedOrg.createdAt
+            });
+          }
+        }
+      }
+
+      setUserOrganizations(allOrganizations);
+    } catch (error) {
+      console.log('Failed to fetch user organizations:', error);
+    } finally {
+      setIsLoadingOrganizations(false);
+    }
+  };
+
 
   const loadUserProfile = () => {
     // Load user from localStorage
@@ -52,8 +197,20 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
     if (userData) {
       try {
         const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
-        setEditForm(parsedUser);
+        // Ensure id field is consistent
+        const normalizedUser = {
+          ...parsedUser,
+          id: parsedUser.id || parsedUser._id
+        };
+        
+        // Create edit form with organization name for editing
+        const editFormData = {
+          ...normalizedUser,
+          organization: getOrganizationForEdit(normalizedUser.organization)
+        };
+        
+        setUser(normalizedUser);
+        setEditForm(editFormData);
       } catch (error) {
         console.error("Error parsing user data:", error);
       }
@@ -67,56 +224,117 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
     }));
   };
 
+  const getOrganizationName = (org: UserProfile['organization']): string => {
+    if (!org) return 'Not provided';
+    if (typeof org === 'string') {
+      // If it looks like a MongoDB ObjectId (24 hex characters), show a fallback
+      if (org.match(/^[0-9a-fA-F]{24}$/)) {
+        return 'Organization (ID: ' + org.substring(0, 8) + '...)';
+      }
+      return org;
+    }
+    return org.name || 'Not provided';
+  };
+
+  const getOrganizationForEdit = (org: UserProfile['organization']): string => {
+    if (!org) return '';
+    if (typeof org === 'string') {
+      // If it looks like a MongoDB ObjectId, return empty for editing
+      if (org.match(/^[0-9a-fA-F]{24}$/)) {
+        return '';
+      }
+      return org;
+    }
+    return org.name || '';
+  };
+
+  const validateForm = () => {
+    if (!editForm.name || editForm.name.trim().length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Name is required",
+        variant: "destructive",
+      });
+      return false;
+    }
+    if (!editForm.email || editForm.email.trim().length === 0) {
+      toast({
+        title: "Validation Error", 
+        description: "Email is required",
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
+
   const handleSave = async () => {
     if (!user) return;
+    
+    // Validate form before saving
+    if (!validateForm()) {
+      return;
+    }
     
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
       
+      // Prepare update data - only send changed fields
+      const updateData = {
+        name: editForm.name,
+        email: editForm.email,
+        bio: editForm.bio,
+        phone: editForm.phone,
+        organization: editForm.organization,
+        profilePicture: editForm.profilePicture
+      };
+      
       // Make API call to update profile
-      const response = await fetch(`${API_CONFIG.API_BASE}/users/profile`, {
+      const response = await fetch(`${API_CONFIG.API_BASE}/auth/profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(editForm)
+        credentials: 'include', // Include cookies for session
+        body: JSON.stringify(updateData)
       });
 
       if (response.ok) {
-        const updatedUser = await response.json();
+        const result = await response.json();
         
-        // Update localStorage
-        localStorage.setItem('user', JSON.stringify(updatedUser.data || editForm));
+        // Use server response if available, otherwise merge with existing user data
+        const finalUserData = result.data?.user || { ...user, ...updateData };
         
-        setUser(editForm as UserProfile);
+        // Ensure consistent id field
+        const normalizedUserData = {
+          ...finalUserData,
+          id: finalUserData.id || finalUserData._id
+        };
+        
+        localStorage.setItem('user', JSON.stringify(normalizedUserData));
+        setUser(normalizedUserData as UserProfile);
+        setEditForm(normalizedUserData);
         setIsEditing(false);
+        
+        // Dispatch custom event to notify other components
+        window.dispatchEvent(new CustomEvent('userUpdated'));
         
         toast({
           title: "Profile Updated",
           description: "Your profile has been successfully updated.",
         });
       } else {
-        // If API call fails, still update local storage for demo purposes
-        localStorage.setItem('user', JSON.stringify(editForm));
-        setUser(editForm as UserProfile);
-        setIsEditing(false);
-        
-        toast({
-          title: "Profile Updated",
-          description: "Your profile has been successfully updated locally.",
-        });
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update profile');
       }
     } catch (error) {
-      // Update locally if API fails
-      localStorage.setItem('user', JSON.stringify(editForm));
-      setUser(editForm as UserProfile);
-      setIsEditing(false);
-      
+      console.error('Profile update error:', error);
       toast({
-        title: "Profile Updated",
-        description: "Your profile has been updated locally.",
+        title: "Update Failed",
+        description: error.message || "Failed to update profile. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setSaving(false);
@@ -124,7 +342,13 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
   };
 
   const handleCancel = () => {
-    setEditForm(user || {});
+    if (user) {
+      const editFormData = {
+        ...user,
+        organization: getOrganizationForEdit(user.organization)
+      };
+      setEditForm(editFormData);
+    }
     setIsEditing(false);
   };
 
@@ -238,6 +462,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
+          credentials: 'include', // Include cookies for session
           body: formData
         });
 
@@ -257,6 +482,25 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
       setUser(updatedUser as UserProfile);
       setEditForm(updatedEditForm);
       localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      // Also update the backend profile
+      try {
+        const token = localStorage.getItem('token');
+        await fetch(`${API_CONFIG.API_BASE}/auth/profile`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({ profilePicture: updatedUser.profilePicture })
+        });
+      } catch (error) {
+        console.log('Failed to update profile picture on server:', error);
+      }
+
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('userUpdated'));
 
       // Close cropper
       setShowCropper(false);
@@ -283,13 +527,32 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
     setCropData({ x: 0, y: 0, size: 200 });
   };
 
-  const handleRemovePhoto = () => {
+  const handleRemovePhoto = async () => {
     const updatedUser = { ...user, profilePicture: undefined };
     const updatedEditForm = { ...editForm, profilePicture: undefined };
     
     setUser(updatedUser as UserProfile);
     setEditForm(updatedEditForm);
     localStorage.setItem('user', JSON.stringify(updatedUser));
+
+    // Also update the backend profile
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_CONFIG.API_BASE}/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ profilePicture: null })
+      });
+    } catch (error) {
+      console.log('Failed to remove profile picture on server:', error);
+    }
+
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new CustomEvent('userUpdated'));
 
     toast({
       title: "Photo Removed",
@@ -668,17 +931,38 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
                     <p className="p-2 bg-muted rounded-md">{user.phone || 'Not provided'}</p>
                   )}
                 </div>
-                <div>
-                  <Label htmlFor="organization">Organization</Label>
+                <div className="md:col-span-2">
+                  <Label htmlFor="organizations">Organizations</Label>
                   {isEditing ? (
                     <Input
                       id="organization"
-                      value={editForm.organization || ''}
+                      value={getOrganizationForEdit(editForm.organization)}
                       onChange={(e) => handleInputChange('organization', e.target.value)}
-                      placeholder="Enter your organization"
+                      placeholder="Enter your organization name"
                     />
                   ) : (
-                    <p className="p-2 bg-muted rounded-md">{user.organization || 'Not provided'}</p>
+                    <div className="space-y-2">
+                      {isLoadingOrganizations ? (
+                        <div className="p-2 bg-muted rounded-md flex items-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                          Loading organizations...
+                        </div>
+                      ) : userOrganizations.length === 0 ? (
+                        <div className="p-2 bg-muted rounded-md flex items-center text-muted-foreground">
+                          <Building2 className="w-4 h-4 mr-2" />
+                          No organizations
+                        </div>
+                      ) : (
+                        <div className="p-2 bg-muted rounded-md">
+                          {userOrganizations.map((org, index) => (
+                            <span key={org._id}>
+                              {org.name}
+                              {index < userOrganizations.length - 1 && ', '}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -712,6 +996,7 @@ const Profile: React.FC<ProfileProps> = ({ isOpen, onClose }) => {
               )}
             </CardContent>
           </Card>
+
         </div>
       </DialogContent>
     </Dialog>

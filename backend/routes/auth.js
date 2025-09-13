@@ -161,8 +161,10 @@ router.post('/login', [
 
     const { email, password } = req.body;
 
-    // Find user and include password
-    const user = await User.findOne({ email, isActive: true }).select('+password');
+    // Find user and include password, populate organization
+    const user = await User.findOne({ email, isActive: true })
+      .select('+password')
+      .populate('organization', 'name organizationCode');
     
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({
@@ -175,7 +177,11 @@ router.post('/login', [
     user.lastLogin = new Date();
     await user.save();
 
-    // Generate token
+    // Create session
+    req.session.userId = user._id;
+    req.session.userRole = user.role;
+
+    // Generate token for backward compatibility
     const token = generateToken(user._id);
 
     res.json({
@@ -187,9 +193,14 @@ router.post('/login', [
           name: user.name,
           email: user.email,
           role: user.role,
+          bio: user.bio,
+          phone: user.phone,
+          profilePicture: user.profilePicture,
+          organization: user.organization,
           lastLogin: user.lastLogin
         },
-        token
+        token,
+        sessionId: req.sessionID
       }
     });
   } catch (error) {
@@ -228,7 +239,11 @@ router.get('/me', auth, async (req, res) => {
 // @access  Private
 router.put('/profile', auth, [
   body('name').optional().trim().notEmpty().withMessage('Name cannot be empty'),
-  body('email').optional().isEmail().normalizeEmail().withMessage('Valid email is required')
+  body('email').optional().isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('bio').optional().trim().isLength({ max: 500 }).withMessage('Bio cannot be more than 500 characters'),
+  body('phone').optional().trim().isLength({ max: 20 }).withMessage('Phone number cannot be more than 20 characters'),
+  body('profilePicture').optional().isString().withMessage('Profile picture must be a valid string'),
+  body('organization').optional().isString().withMessage('Organization must be a valid string')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -240,7 +255,7 @@ router.put('/profile', auth, [
       });
     }
 
-    const { name, email } = req.body;
+    const { name, email, bio, phone, profilePicture, organization } = req.body;
     const updateData = {};
 
     if (name) updateData.name = name;
@@ -255,12 +270,16 @@ router.put('/profile', auth, [
       }
       updateData.email = email;
     }
+    if (bio !== undefined) updateData.bio = bio;
+    if (phone !== undefined) updateData.phone = phone;
+    if (profilePicture !== undefined) updateData.profilePicture = profilePicture;
+    if (organization !== undefined) updateData.organization = organization;
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
       updateData,
       { new: true, runValidators: true }
-    );
+    ).populate('organization', 'name organizationCode');
 
     res.json({
       success: true,
@@ -274,6 +293,39 @@ router.put('/profile', auth, [
     res.status(500).json({
       success: false,
       message: 'Profile update failed',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/auth/logout
+// @desc    Logout user and destroy session
+// @access  Private
+router.post('/logout', auth, async (req, res) => {
+  try {
+    // Destroy the session
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Session destroy error:', err);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to logout properly'
+        });
+      }
+
+      // Clear the session cookie
+      res.clearCookie('connect.sid');
+      
+      res.json({
+        success: true,
+        message: 'Logout successful'
+      });
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Logout failed',
       error: error.message
     });
   }

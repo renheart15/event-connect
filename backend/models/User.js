@@ -27,6 +27,20 @@ const userSchema = new mongoose.Schema({
     enum: ['organizer', 'participant'],
     required: [true, 'Role is required']
   },
+  bio: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Bio cannot be more than 500 characters']
+  },
+  phone: {
+    type: String,
+    trim: true,
+    maxlength: [20, 'Phone number cannot be more than 20 characters']
+  },
+  profilePicture: {
+    type: String,
+    trim: true
+  },
   isActive: {
     type: Boolean,
     default: true

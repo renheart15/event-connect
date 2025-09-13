@@ -24,6 +24,7 @@ import InvitationView from "./pages/InvitationView";
 import OrganizationManagement from "./pages/OrganizationManagement";
 import NotFound from "./pages/NotFound";
 import JoinEvent from "./pages/JoinEvent";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -40,26 +41,74 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/organizer-dashboard" element={<OrganizerDashboard />} />
-              <Route path="/organization" element={<OrganizationManagement />} />
-              <Route path="/all-events" element={<AllEvents />} />
+              <Route path="/organizer-dashboard" element={
+                <ProtectedRoute requiredRole="organizer">
+                  <OrganizerDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/organization" element={
+                <ProtectedRoute requiredRole="organizer">
+                  <OrganizationManagement />
+                </ProtectedRoute>
+              } />
+              <Route path="/all-events" element={
+                <ProtectedRoute requiredRole="organizer">
+                  <AllEvents />
+                </ProtectedRoute>
+              } />
               <Route path="/public-events" element={<PublicEvents />} />
-              <Route path="/invitations" element={<Invitations />} />
-              <Route path="/send-invitations" element={<SendInvitations />} />
-              <Route path="/invitation-summary" element={<InvitationSummary />} />
+              <Route path="/invitations" element={
+                <ProtectedRoute>
+                  <Invitations />
+                </ProtectedRoute>
+              } />
+              <Route path="/send-invitations" element={
+                <ProtectedRoute requiredRole="organizer">
+                  <SendInvitations />
+                </ProtectedRoute>
+              } />
+              <Route path="/invitation-summary" element={
+                <ProtectedRoute requiredRole="organizer">
+                  <InvitationSummary />
+                </ProtectedRoute>
+              } />
               <Route path="/invitation/:code" element={<InvitationView />} />
               <Route
                 path="/events/:eventId/registration/create"
-                element={<CreateRegistrationForm />}
+                element={
+                  <ProtectedRoute requiredRole="organizer">
+                    <CreateRegistrationForm />
+                  </ProtectedRoute>
+                }
               />
               <Route
                 path="/registration-forms/:formId/edit"
-                element={<EditRegistrationForm />}
+                element={
+                  <ProtectedRoute requiredRole="organizer">
+                    <EditRegistrationForm />
+                  </ProtectedRoute>
+                }
               />
-              <Route path="/participant-dashboard" element={<ParticipantDashboard />} />
-              <Route path="/create-event" element={<CreateEvent />} />
-              <Route path="/event/:eventId/monitor" element={<EventMonitor />} />
-              <Route path="/event-monitor" element={<EventMonitor />} />
+              <Route path="/participant-dashboard" element={
+                <ProtectedRoute requiredRole="participant">
+                  <ParticipantDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/create-event" element={
+                <ProtectedRoute requiredRole="organizer">
+                  <CreateEvent />
+                </ProtectedRoute>
+              } />
+              <Route path="/event/:eventId/monitor" element={
+                <ProtectedRoute requiredRole="organizer">
+                  <EventMonitor />
+                </ProtectedRoute>
+              } />
+              <Route path="/event-monitor" element={
+                <ProtectedRoute requiredRole="organizer">
+                  <EventMonitor />
+                </ProtectedRoute>
+              } />
               <Route path="/join/:eventCode" element={<JoinEvent />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

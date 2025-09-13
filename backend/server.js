@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
 require('dotenv').config();
 
 // Import routes
@@ -29,8 +31,25 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: true, // Allow all origins for mobile development
+  origin: ['http://localhost:8080', 'http://localhost:3000'], // Specific origins for credentials
   credentials: true
+}));
+
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'fallback-session-secret-for-development',
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI,
+    touchAfter: 24 * 3600 // lazy session update after 24 hours
+  }),
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    httpOnly: true, // XSS protection
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+  }
 }));
 
 // Rate limiting - more generous for real-time monitoring
@@ -54,7 +73,6 @@ app.use((req, res, next) => {
 });
 
 // Body parsing middleware
-app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

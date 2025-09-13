@@ -122,6 +122,32 @@ router.get('/my', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/organizations
+// @desc    Get all organizations (for display purposes)
+// @access  Private
+router.get('/', auth, async (req, res) => {
+  try {
+    // Find all active organizations with basic info
+    const organizations = await Organization.find({ isActive: true })
+      .populate('owner', 'name email')
+      .select('name description organizationCode owner memberCount createdAt')
+      .sort({ createdAt: -1 })
+      .limit(50); // Limit to prevent too much data
+
+    res.json({
+      success: true,
+      data: organizations
+    });
+  } catch (error) {
+    console.error('Get all organizations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get organizations',
+      error: error.message
+    });
+  }
+});
+
 // @route   GET /api/organizations/owned
 // @desc    Get all organizations owned by the user
 // @access  Private (Organizer only)
