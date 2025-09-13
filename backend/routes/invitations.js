@@ -7,6 +7,7 @@ const User = require('../models/User');
 const Invitation = require('../models/Invitation');
 const AttendanceLog = require('../models/AttendanceLog');
 const { auth, requireOrganizer } = require('../middleware/auth');
+const { updateSingleEventStatus } = require('../utils/updateEventStatuses');
 
 const router = express.Router();
 
@@ -333,6 +334,9 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
       });
     }
 
+    // Update event status
+    await updateSingleEventStatus(event._id);
+
     const invitations = await Invitation.find({ event: req.params.eventId })
       .populate('participant', 'name email')
       .populate('event', 'title date')
@@ -387,6 +391,9 @@ router.get('/code/:code', async (req, res) => {
         message: 'Invitation not found or has expired'
       });
     }
+
+    // Update event status
+    await updateSingleEventStatus(invitation.event._id);
 
     // Check if participant has a real account (not just auto-created)
     const participant = invitation.participant;
@@ -470,9 +477,14 @@ router.get('/my', auth, async (req, res) => {
       })
       .sort({ sentAt: -1 });
 
-    // Add attendance information to each invitation
+    // Add attendance information and update status for each invitation
     const invitationsWithAttendance = await Promise.all(
       invitations.map(async (invitation) => {
+        // Update event status
+        if (invitation.event && invitation.event._id) {
+          await updateSingleEventStatus(invitation.event._id);
+        }
+        
         const attendanceRecord = await AttendanceLog.findOne({
           invitation: invitation._id,
           participant: req.user._id

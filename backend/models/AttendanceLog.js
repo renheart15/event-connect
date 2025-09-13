@@ -15,11 +15,11 @@ const attendanceLogSchema = new mongoose.Schema({
   invitation: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Invitation',
-    required: [true, 'Invitation is required']
+    required: false // Optional for public events without invitations
   },
   checkInTime: {
     type: Date,
-    required: [true, 'Check-in time is required']
+    required: false // Optional - set when actually checking in
   },
   checkOutTime: {
     type: Date
@@ -34,8 +34,8 @@ const attendanceLogSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['checked-in', 'checked-out'],
-    default: 'checked-in'
+    enum: ['registered', 'checked-in', 'checked-out'],
+    default: 'registered'
   },
   duration: {
     type: Number, // in minutes

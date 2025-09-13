@@ -4,7 +4,10 @@ const { body, validationResult } = require('express-validator');
 const Event = require('../models/Event');
 const Invitation = require('../models/Invitation');
 const AttendanceLog = require('../models/AttendanceLog');
+const RegistrationForm = require('../models/RegistrationForm');
+const RegistrationResponse = require('../models/RegistrationResponse');
 const { auth, requireOrganizer } = require('../middleware/auth');
+const { updateSingleEventStatus } = require('../utils/updateEventStatuses');
 
 const router = express.Router();
 
@@ -45,6 +48,11 @@ router.post('/checkin', [
     const invitation = await Invitation.findById(invitationId)
       .populate('event')
       .populate('participant');
+
+    // Update event status if invitation found
+    if (invitation && invitation.event) {
+      await updateSingleEventStatus(invitation.event._id);
+    }
 
     if (!invitation) {
       return res.status(404).json({
@@ -495,6 +503,11 @@ router.post('/join', auth, [
       published: true 
     });
 
+    // Update event status if found
+    if (event) {
+      await updateSingleEventStatus(event._id);
+    }
+
     console.log('Event found:', !!event);
     if (event) {
       console.log('Event details:', {
@@ -513,72 +526,106 @@ router.post('/join', auth, [
       });
     }
 
-    // Check if user already has an invitation for this event
-    const existingInvitation = await Invitation.findOne({
+    // Check if user already has an attendance record for this event
+    const existingAttendance = await AttendanceLog.findOne({
       event: event._id,
       participant: userId
     });
 
-    console.log('Existing invitation found:', !!existingInvitation);
+    console.log('Existing attendance found:', !!existingAttendance);
 
-    if (existingInvitation) {
-      console.log('User already invited to this event');
+    if (existingAttendance) {
+      console.log('User already joined this event');
       return res.status(400).json({
         success: false,
-        message: 'You are already invited to this event'
+        message: 'You have already joined this event'
       });
     }
 
-    console.log('Creating new invitation...');
-    console.log('User details:', req.user);
-    
-    // Set expiration date (e.g., 30 days from now)
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
-    
-    // Generate QR code data
-    const invitationCode = require('crypto').randomBytes(16).toString('hex').toUpperCase();
-    const qrCodeData = JSON.stringify({
-      invitationId: null, // Will be set after saving
-      eventId: event._id,
-      participantId: userId,
-      code: invitationCode
-    });
-    
-    // Create a new invitation for the participant
-    const invitation = new Invitation({
+    // Check if event has a registration form that needs to be filled
+    const registrationForm = await RegistrationForm.findOne({
       event: event._id,
-      participant: userId,
-      participantEmail: req.user.email,
-      participantName: req.user.name,
-      organizer: event.organizer,
-      status: 'accepted', // Automatically accept when joining via public events
-      rsvpDate: new Date(),
-      expiresAt: expiresAt,
-      qrCodeData: qrCodeData,
-      invitationCode: invitationCode
+      isActive: true
     });
 
-    await invitation.save();
-    console.log('Invitation created successfully:', invitation._id);
-    
-    // Update QR code data with the actual invitation ID
-    const updatedQrCodeData = JSON.stringify({
-      invitationId: invitation._id,
-      eventId: event._id,
-      participantId: userId,
-      code: invitationCode
-    });
-    
-    invitation.qrCodeData = updatedQrCodeData;
-    await invitation.save();
+    if (registrationForm) {
+      // Check if participant has already submitted registration
+      const existingResponse = await RegistrationResponse.findOne({
+        registrationForm: registrationForm._id,
+        participant: userId
+      });
+
+      if (!existingResponse) {
+        console.log('Registration form required but not submitted');
+        return res.status(400).json({
+          success: false,
+          message: 'Registration form must be completed before joining this event',
+          requiresRegistration: true,
+          registrationForm: {
+            _id: registrationForm._id,
+            title: registrationForm.title,
+            description: registrationForm.description,
+            fields: registrationForm.fields
+          }
+        });
+      }
+
+      console.log('Registration form completed, proceeding with attendance record');
+    }
+
+    console.log('Creating direct attendance record...');
+    console.log('User details:', req.user);
+
+    // Create attendance record directly (no invitation needed for public events)
+    try {
+      const attendanceRecord = new AttendanceLog({
+        event: event._id,
+        participant: userId,
+        status: 'registered' // Just registered, not checked in yet
+        // checkInTime and invitation will be null/undefined (optional fields)
+      });
+
+      await attendanceRecord.save();
+      console.log('Attendance record created successfully:', attendanceRecord._id);
+
+      // Return success response
+      res.json({
+        success: true,
+        message: 'Successfully joined the event',
+        data: {
+          attendanceRecord: attendanceRecord,
+          event: {
+            _id: event._id,
+            title: event.title,
+            eventCode: event.eventCode,
+            date: event.date,
+            startTime: event.startTime,
+            endTime: event.endTime,
+            location: event.location
+          }
+        }
+      });
+
+    } catch (attendanceError) {
+      console.error('Error creating attendance record:', attendanceError);
+
+      // Check if it's a duplicate key error (user already joined)
+      if (attendanceError.code === 11000) {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already joined this event'
+        });
+      }
+
+      throw attendanceError; // Re-throw other errors to be caught by outer catch
+    }
 
     // Return success response
     res.json({
       success: true,
       message: 'Successfully joined the event',
       data: {
-        invitation: invitation,
+        attendanceRecord: attendanceRecord,
         event: {
           _id: event._id,
           title: event.title,
@@ -596,6 +643,80 @@ router.post('/join', auth, [
     res.status(500).json({
       success: false,
       message: 'Failed to join event',
+      error: error.message
+    });
+  }
+});
+
+// @route   DELETE /api/attendance/leave
+// @desc    Leave/cancel an event by event code
+// @access  Private
+router.delete('/leave', auth, [
+  body('eventCode').notEmpty().withMessage('Event code is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { eventCode } = req.body;
+    const userId = req.user._id;
+
+    console.log('=== LEAVE EVENT REQUEST ===');
+    console.log('User ID:', userId);
+    console.log('Event Code:', eventCode);
+
+    // Find the event by event code
+    const event = await Event.findOne({
+      eventCode: eventCode.toUpperCase(),
+      isActive: true,
+      published: true
+    });
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found or not available'
+      });
+    }
+
+    // Find the user's attendance record for this event
+    const attendanceRecord = await AttendanceLog.findOne({
+      event: event._id,
+      participant: userId
+    });
+
+    if (!attendanceRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'You are not registered for this event'
+      });
+    }
+
+    // Delete the attendance record (this removes them from the event)
+    await AttendanceLog.findByIdAndDelete(attendanceRecord._id);
+
+    console.log('Successfully removed participant from event');
+
+    res.json({
+      success: true,
+      message: 'Successfully left the event',
+      data: {
+        eventCode: event.eventCode,
+        eventTitle: event.title
+      }
+    });
+
+  } catch (error) {
+    console.error('Leave event error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to leave event',
       error: error.message
     });
   }

@@ -8,6 +8,7 @@ import { API_CONFIG } from '@/config';
 import { useParticipantLocationUpdater } from '@/hooks/useLocationTracking';
 import ParticipantNotifications from '@/components/ParticipantNotifications';
 import FeedbackFormView from '@/components/FeedbackFormView';
+import RegistrationFormModal from '@/components/RegistrationFormModal';
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -48,6 +49,13 @@ const ParticipantDashboard = () => {
   
   // Multi-organization support
   const [userOrganizations, setUserOrganizations] = useState<any[]>([]);
+
+  // Registration form modal state
+  const [showRegistrationForm, setShowRegistrationForm] = useState(false);
+  const [pendingEventCode, setPendingEventCode] = useState('');
+  const [pendingEventTitle, setPendingEventTitle] = useState('');
+  const [pendingEventId, setPendingEventId] = useState('');
+  const [registrationFormData, setRegistrationFormData] = useState<any>(null);
   const [activeOrganization, setActiveOrganization] = useState<any>(null);
   
   // Event record modal state
@@ -1983,9 +1991,9 @@ const ParticipantDashboard = () => {
   };
 
   // Handle joining public event
-  const handleJoinPublicEvent = async (eventCode: string) => {
+  const handleJoinPublicEvent = async (eventCode: string, eventTitle?: string, eventId?: string) => {
     try {
-      
+
       if (!token) {
         toast({
           title: "Authentication required",
@@ -2005,21 +2013,28 @@ const ParticipantDashboard = () => {
         body: JSON.stringify({ eventCode })
       });
 
-      
+
       const result = await response.json();
 
       if (result.success) {
         toast({
           title: "Success",
-          description: `Successfully joined event: ${eventCode}`,
+          description: result.message || `Successfully joined event: ${eventCode}`,
           variant: "default",
         });
-        
+
         // Refresh data by reloading the page or triggering a reload
         window.location.reload();
-        
-        // Switch to active events view
-        updateActiveView('active');
+
+        // Stay on public events view to see the button change
+        updateActiveView('public');
+      } else if (result.requiresRegistration && result.registrationForm) {
+        // Show registration form modal
+        setPendingEventCode(eventCode);
+        setPendingEventTitle(eventTitle || 'Event');
+        setPendingEventId(eventId || '');
+        setRegistrationFormData(result.registrationForm);
+        setShowRegistrationForm(true);
       } else {
         throw new Error(result.message || 'Failed to join event');
       }
@@ -2032,6 +2047,113 @@ const ParticipantDashboard = () => {
     } finally {
       setIsJoining(false);
     }
+  };
+
+  // Handle successful registration form submission
+  const handleRegistrationSuccess = async () => {
+    setShowRegistrationForm(false);
+
+    // Now try to join the event again
+    try {
+      setIsJoining(true);
+      const response = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ eventCode: pendingEventCode })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: result.message || `Successfully joined event: ${pendingEventCode}`,
+          variant: "default",
+        });
+
+        // Clear pending data
+        setPendingEventCode('');
+        setPendingEventTitle('');
+        setPendingEventId('');
+        setRegistrationFormData(null);
+
+        // Refresh data by reloading the page or triggering a reload
+        window.location.reload();
+
+        // Stay on public events view to see the button change
+        updateActiveView('public');
+      } else {
+        throw new Error(result.message || 'Failed to join event after registration');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to join event after registration",
+        variant: "destructive",
+      });
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  // Handle leaving/canceling a public event
+  const handleLeavePublicEvent = async (eventCode: string, eventTitle?: string) => {
+    try {
+      if (!token) {
+        toast({
+          title: "Authentication required",
+          description: "Please log in to leave events",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsJoining(true);
+      const response = await fetch(`${API_CONFIG.API_BASE}/attendance/leave`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ eventCode })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Left Event",
+          description: result.message || `Successfully left event: ${eventCode}`,
+          variant: "default",
+        });
+
+        // Refresh data by reloading the page or triggering a reload
+        window.location.reload();
+
+        // Stay on public events view to see the button change
+        updateActiveView('public');
+      } else {
+        throw new Error(result.message || 'Failed to leave event');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to leave event",
+        variant: "destructive",
+      });
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  // Check if participant is already joined to an event
+  const isJoinedToEvent = (eventCode: string) => {
+    return myAttendance.some((attendance: any) =>
+      attendance.event?.eventCode === eventCode
+    );
   };
 
   // Format time helper (make it available globally in component)
@@ -2776,14 +2898,26 @@ const ParticipantDashboard = () => {
                             {event.status === 'active' ? 'Active' : 'Upcoming'}
                           </span>
                         </div>
-                        <Button
-                          onClick={() => handleJoinPublicEvent(event.eventCode)}
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          <QrCode className="w-3 h-3 mr-1" />
-                          Join
-                        </Button>
+                        {isJoinedToEvent(event.eventCode) ? (
+                          <Button
+                            onClick={() => handleLeavePublicEvent(event.eventCode, event.title)}
+                            size="sm"
+                            variant="destructive"
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            <X className="w-3 h-3 mr-1" />
+                            Cancel
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => handleJoinPublicEvent(event.eventCode, event.title, event._id)}
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <QrCode className="w-3 h-3 mr-1" />
+                            Join
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -4502,6 +4636,25 @@ const ParticipantDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Registration Form Modal */}
+      {showRegistrationForm && registrationFormData && (
+        <RegistrationFormModal
+          isOpen={showRegistrationForm}
+          onClose={() => {
+            setShowRegistrationForm(false);
+            setPendingEventCode('');
+            setPendingEventTitle('');
+            setPendingEventId('');
+            setRegistrationFormData(null);
+          }}
+          eventId={pendingEventId}
+          eventTitle={pendingEventTitle}
+          registrationForm={registrationFormData}
+          onSubmitSuccess={handleRegistrationSuccess}
+          token={token}
+        />
+      )}
     </div>
   );
 };

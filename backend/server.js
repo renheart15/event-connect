@@ -13,6 +13,7 @@ const eventRoutes = require('./routes/events');
 const attendanceRoutes = require('./routes/attendance');
 const invitationRoutes = require('./routes/invitations');
 const registrationFormRoutes = require('./routes/registrationForms');
+const registrationResponseRoutes = require('./routes/registrationResponses');
 const feedbackFormRoutes = require('./routes/feedbackForms'); // ✅ Added this line
 const userSettingsRoutes = require('./routes/userSettings');
 const locationTrackingRoutes = require('./routes/locationTracking');
@@ -21,7 +22,7 @@ const organizationsRoutes = require('./routes/organizations');
 const organizationMembershipRoutes = require('./routes/organizationMembership');
 
 // Import cron job
-const updateEventStatuses = require('./utils/updateEventStatuses');
+const { updateEventStatuses } = require('./utils/updateEventStatuses');
 
 const app = express();
 
@@ -100,6 +101,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/registration-forms', registrationFormRoutes);
+app.use('/api/registration-responses', registrationResponseRoutes);
 app.use('/api/feedback-forms', feedbackFormRoutes); // ✅ Added this line
 app.use('/api/user-settings', userSettingsRoutes);
 app.use('/api/location-tracking', locationTrackingRoutes);

@@ -6,7 +6,9 @@ const { body, validationResult } = require('express-validator');
 const Event = require('../models/Event');
 const AttendanceLog = require('../models/AttendanceLog');
 const Invitation = require('../models/Invitation');
+const RegistrationForm = require('../models/RegistrationForm');
 const { auth, requireOrganizer } = require('../middleware/auth');
+const { updateAllEventStatuses, updateSingleEventStatus, calculateEventStatus } = require('../utils/updateEventStatuses');
 
 const router = express.Router();
 
@@ -18,11 +20,10 @@ function computeStatus(date, startTime, endTime) {
   const [startHour, startMin] = startTime.split(':').map(Number);
   const [endHour, endMin] = endTime.split(':').map(Number);
 
-  const start = new Date(date);
-  start.setHours(startHour, startMin, 0, 0);
-
-  const end = new Date(date);
-  end.setHours(endHour, endMin, 0, 0);
+  // Create dates in local timezone to avoid UTC offset issues
+  const eventDate = new Date(date);
+  const start = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), startHour, startMin, 0, 0);
+  const end = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), endHour, endMin, 0, 0);
 
   if (now >= end) return 'completed';
   if (now >= start) return 'active';
@@ -135,6 +136,9 @@ router.post('/', auth, requireOrganizer, [
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
+    // Trigger immediate status update for all events before fetching
+    await updateAllEventStatuses();
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -238,6 +242,9 @@ router.get('/', auth, async (req, res) => {
 // @access  Public (no auth required)
 router.get('/public', async (req, res) => {
   try {
+    // Trigger immediate status update for all events before fetching
+    await updateAllEventStatuses();
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
@@ -321,6 +328,9 @@ router.get('/public', async (req, res) => {
 // @access  Private
 router.get('/:id', auth, async (req, res) => {
   try {
+    // Update this specific event's status first
+    await updateSingleEventStatus(req.params.id);
+    
     let event = await Event.findById(req.params.id).populate('organizer', 'name email');
 
     if (!event) {
@@ -493,6 +503,11 @@ router.put('/:id', auth, requireOrganizer, [
 
     await event.save();
 
+    console.log(`📝 Event "${event.title}" updated. Triggering force status update...`);
+    // Force status update after saving changes (especially for date/time changes)
+    await updateSingleEventStatus(event._id, true, event);
+
+    // Fetch the event again to ensure we have the latest status after forced update
     const updatedEvent = await Event.findById(event._id).populate('organizer', 'name email');
 
     res.json({
@@ -580,6 +595,23 @@ router.patch('/:id/publish', auth, requireOrganizer, async (req, res) => {
   console.log(`[Publish Update] Setting published: "${published}" for event ID: ${req.params.id}`);
 
   try {
+    // If trying to publish (set to true), check if registration form exists
+    if (published) {
+      const registrationForm = await RegistrationForm.findOne({
+        event: req.params.id,
+        isActive: true
+      });
+
+      if (!registrationForm) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot publish event without a registration form. Please create a registration form first.',
+        });
+      }
+
+      console.log(`[Publish Update] Registration form found for event ${req.params.id}, proceeding with publish`);
+    }
+
     const event = await Event.findOneAndUpdate(
       { _id: req.params.id, organizer: req.user._id },
       { published },
@@ -665,6 +697,9 @@ router.patch('/:id/status', auth, requireOrganizer, async (req, res) => {
 // @access  Private
 router.get('/code/:eventCode', auth, async (req, res) => {
   try {
+    // Trigger immediate status update for all events before searching
+    await updateAllEventStatuses();
+    
     const event = await Event.findOne({ 
       eventCode: req.params.eventCode.toUpperCase(),
       isActive: true 
@@ -703,6 +738,54 @@ router.get('/code/:eventCode', auth, async (req, res) => {
 router.get('/dev/fix-locations', async (req, res) => {
   await fixBrokenLocations();
   res.json({ success: true, message: 'Broken locations fixed' });
+});
+
+// @route   POST /api/events/update-statuses
+// @desc    Manually trigger status updates for all events
+// @access  Private
+router.post('/update-statuses', auth, async (req, res) => {
+  try {
+    const updatedCount = await updateAllEventStatuses();
+    res.json({
+      success: true,
+      message: `Updated ${updatedCount} event(s)`,
+      updatedCount
+    });
+  } catch (error) {
+    console.error('Manual status update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update event statuses',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/events/:id/update-status
+// @desc    Manually trigger status update for a specific event
+// @access  Private
+router.post('/:id/update-status', auth, async (req, res) => {
+  try {
+    const newStatus = await updateSingleEventStatus(req.params.id);
+    if (newStatus === null) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+    res.json({
+      success: true,
+      message: `Event status updated`,
+      status: newStatus
+    });
+  } catch (error) {
+    console.error('Single event status update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update event status',
+      error: error.message
+    });
+  }
 });
 
 module.exports = router;
