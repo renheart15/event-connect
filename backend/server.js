@@ -31,7 +31,12 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://localhost:3000'], // Specific origins for credentials
+  origin: [
+    'http://localhost:8080', 
+    'http://localhost:3000',
+    'https://www.event-connect.site',
+    'https://event-connect.site'
+  ], // Specific origins for credentials
   credentials: true
 }));
 
@@ -48,7 +53,7 @@ app.use(session({
     secure: process.env.NODE_ENV === 'production', // HTTPS only in production
     httpOnly: true, // XSS protection
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' // Allow cross-site cookies
   }
 }));
 
