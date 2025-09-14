@@ -5,6 +5,14 @@
     {
       "source": "/api/(.*)",
       "destination": "https://backend.event-connect.site/api/$1"
+    },
+    {
+      "source": "/assets/(.*)",
+      "destination": "/assets/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
