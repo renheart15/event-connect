@@ -16,13 +16,24 @@
     Content-Type = "application/javascript; charset=utf-8"
 
 [[headers]]
+  for = "*.mjs"
+  [headers.values]
+    Content-Type = "application/javascript; charset=utf-8"
+
+[[headers]]
   for = "*.css"
   [headers.values]
     Content-Type = "text/css; charset=utf-8"
 
 [[headers]]
-  for = "*.mjs"
+  for = "*.wasm"
   [headers.values]
-    Content-Type = "application/javascript; charset=utf-8"
+    Content-Type = "application/wasm"
+
+# Prevent static assets from being treated as HTML
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
 
 # SPA redirect rules are handled by _redirects file
