@@ -24,6 +24,7 @@ const ParticipantDashboard = () => {
   const [myInvitations, setMyInvitations] = useState([]);
   const [myAttendance, setMyAttendance] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -103,12 +104,25 @@ const ParticipantDashboard = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch (error) {
+      console.error('Error parsing user from localStorage:', error);
+      return {};
+    }
+  })();
 
   // Initialize userProfile state
   useEffect(() => {
-    setUserProfile(user);
+    try {
+      setUserProfile(user);
+    } catch (error) {
+      console.error('Error setting user profile:', error);
+      setHasError(true);
+    }
   }, []);
+
   const token = localStorage.getItem('token');
 
   const handleLogout = () => {
@@ -640,11 +654,17 @@ const ParticipantDashboard = () => {
         } else {
         }
       } catch (error) {
+        console.error('Error in fetchParticipantData:', error);
+        setHasError(true);
         toast({
           title: "Error",
           description: "Failed to load your events. Please try again.",
           variant: "destructive",
         });
+        // Set empty arrays as fallback to prevent app crash
+        setMyInvitations([]);
+        setMyAttendance([]);
+        setScanHistory([]);
       } finally {
         setIsLoading(false);
       }
