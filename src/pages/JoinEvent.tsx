@@ -77,23 +77,52 @@ const JoinEvent = () => {
   const confirmJoinEvent = async () => {
     setIsJoining(true);
     try {
-      // Here you can add any additional join event logic if needed
-      toast({
-        title: "Joining Event",
-        description: `You're joining "${event.title}"`,
+      const token = localStorage.getItem('token');
+
+      // First try to join the event
+      const response = await fetch('/api/attendance/join', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          eventCode: eventCode?.toUpperCase()
+        })
       });
 
-      // Redirect to participant dashboard with the event code
-      navigate(`/participant-dashboard?eventCode=${eventCode}`);
-    } catch (error) {
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Successfully Joined!",
+          description: `You've joined "${event.title}"`,
+        });
+
+        // Redirect to participant dashboard
+        navigate(`/participant-dashboard?eventCode=${eventCode}`);
+      } else if (result.requiresRegistration) {
+        // Event requires registration form to be filled first
+        toast({
+          title: "Registration Required",
+          description: "Please complete the registration form first.",
+        });
+
+        // Navigate to the registration form
+        navigate(`/registration-forms/${result.registrationForm._id}?eventCode=${eventCode}`);
+      } else {
+        throw new Error(result.message || 'Failed to join event');
+      }
+    } catch (error: any) {
       console.error('Error joining event:', error);
       toast({
         title: "Join Failed",
-        description: "Failed to join the event. Please try again.",
+        description: error.message || "Failed to join the event. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsJoining(false);
+      setShowJoinModal(false);
     }
   };
 
