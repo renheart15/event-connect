@@ -8,22 +8,24 @@
   "routes": [
     {
       "src": "/assets/(.*)",
-      "dest": "/assets/$1"
+      "dest": "/assets/$1",
+      "continue": false
     },
     {
       "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mjs|wasm))$",
-      "dest": "/$1"
+      "dest": "/$1",
+      "continue": false
     },
     {
-      "src": "/(login|register|participant-dashboard|organizer-dashboard|all-events|create-event|public-events|invitations|send-invitations|organization)",
+      "src": "^/(login|register|participant-dashboard|organizer-dashboard|all-events|create-event|public-events|invitations|send-invitations|organization)/?$",
       "dest": "/index.html"
     },
     {
-      "src": "/(invitation|events|registration-forms|event|join)/(.*)",
+      "src": "^/(invitation|events|registration-forms|event|join)/(.*)$",
       "dest": "/index.html"
     },
     {
-      "src": "/",
+      "src": "^/$",
       "dest": "/index.html"
     }
   ],
