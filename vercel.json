@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "app.js": {
+      "runtime": "@vercel/node@18"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -8,24 +13,22 @@
   "routes": [
     {
       "src": "/assets/(.*)",
-      "dest": "/assets/$1",
-      "continue": false
+      "dest": "/assets/$1"
     },
     {
-      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mjs|wasm))$",
-      "dest": "/$1",
-      "continue": false
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mjs|wasm|json|txt))$",
+      "dest": "/$1"
     },
     {
-      "src": "^/(login|register|participant-dashboard|organizer-dashboard|all-events|create-event|public-events|invitations|send-invitations|organization)/?$",
-      "dest": "/index.html"
+      "src": "/sw.js",
+      "dest": "/sw.js"
     },
     {
-      "src": "^/(invitation|events|registration-forms|event|join)/(.*)$",
-      "dest": "/index.html"
+      "src": "/manifest.json",
+      "dest": "/manifest.json"
     },
     {
-      "src": "^/$",
+      "src": "/(.*)",
       "dest": "/index.html"
     }
   ],
@@ -72,19 +75,6 @@
         {
           "key": "Content-Type",
           "value": "application/wasm"
-        }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
         }
       ]
     }
