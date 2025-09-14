@@ -1,19 +1,2 @@
 # API requests should go to the backend
 /api/* https://backend.event-connect.site/api/:splat 200
-
-# SPA fallback for client-side routing - ONLY for page routes, not assets
-/login /index.html 200
-/register /index.html 200
-/participant-dashboard /index.html 200
-/organizer-dashboard /index.html 200
-/all-events /index.html 200
-/create-event /index.html 200
-/public-events /index.html 200
-/invitations /index.html 200
-/send-invitations /index.html 200
-/invitation/* /index.html 200
-/events/* /index.html 200
-/registration-forms/* /index.html 200
-/event/* /index.html 200
-/join/* /index.html 200
-/organization /index.html 200
