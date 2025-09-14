@@ -708,11 +708,37 @@ const ParticipantDashboard = () => {
   }, [token]);
 
 
+  // Force cleanup any active camera streams on component mount
+  useEffect(() => {
+    // Initial cleanup to ensure clean state on component mount
+    const forceCleanupCamera = async () => {
+      try {
+        // Stop any existing streams
+        stopQRScanner();
+
+        // Also check for any active media streams and stop them
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          // Check if there are active camera devices
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+          if (videoDevices.length === 0) {
+            console.warn('No camera devices found on this device');
+          }
+        }
+      } catch (error) {
+        console.warn('Camera cleanup on mount failed:', error);
+      }
+    };
+
+    forceCleanupCamera();
+  }, []);
+
   // Cleanup camera and location tracking when component unmounts
   useEffect(() => {
     return () => {
       stopQRScanner();
-      
+
       // Stop location tracking if active
       if (locationWatchId) {
         if (Capacitor.isNativePlatform()) {
@@ -1159,38 +1185,98 @@ const ParticipantDashboard = () => {
           }
         }
       } else {
-        // Check if camera is available first
+        // Enhanced mobile web camera checks
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('Camera API not supported');
+          throw new Error('Camera API not supported in this browser');
         }
-        
+
+        // Check for HTTPS on mobile devices
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile && location.protocol !== 'https:' && location.hostname !== 'localhost') {
+          throw new Error('Camera requires HTTPS on mobile devices');
+        }
+
+        // Check permissions before attempting to access camera
+        if ('permissions' in navigator) {
+          try {
+            const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+            if (permission.state === 'denied') {
+              throw new Error('Camera permission denied. Please enable camera access in browser settings.');
+            }
+          } catch (permError) {
+            console.warn('Could not check camera permissions:', permError);
+          }
+        }
+
         await startWebCamera();
       }
-    } catch (error) {
-      setScanningStatus('Camera access failed - ' + error.message);
-      
+    } catch (error: any) {
+      const errorMessage = error.message || 'Unknown camera error';
+      setScanningStatus('Camera access failed - ' + errorMessage);
+
+      // Provide more specific error messages for mobile users
+      let userMessage = errorMessage;
+      if (errorMessage.includes('HTTPS')) {
+        userMessage = 'Camera access requires a secure connection (HTTPS) on mobile devices.';
+      } else if (errorMessage.includes('permission') || errorMessage.includes('denied')) {
+        userMessage = 'Please allow camera access in your browser settings and refresh the page.';
+      } else if (errorMessage.includes('not supported')) {
+        userMessage = 'Camera is not supported in this browser. Try using Chrome, Firefox, or Safari.';
+      }
+
       toast({
         title: "Camera Error",
-        description: `Unable to access camera: ${error.message}. Please check permissions.`,
+        description: userMessage,
         variant: "destructive",
       });
     }
   };
 
   const startWebCamera = async () => {
+    console.log('startWebCamera called');
     try {
-      // Try with rear camera first with advanced constraints
+      // Check if we're on mobile for better constraints
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      console.log('Device type:', isMobile ? 'Mobile' : 'Desktop');
+
       let stream: MediaStream;
+
+      // Mobile-optimized constraints
+      const mobileConstraints = {
+        video: {
+          facingMode: facingMode,
+          width: { min: 320, ideal: 640, max: 1920 },
+          height: { min: 240, ideal: 480, max: 1080 },
+          frameRate: { ideal: 30, max: 30 }
+        }
+      };
+
+      // Desktop constraints optimized for laptop webcams
+      const desktopConstraints = {
+        video: {
+          width: { min: 320, ideal: 640, max: 1920 },
+          height: { min: 240, ideal: 480, max: 1080 },
+          frameRate: { ideal: 30, max: 60 },
+          // Don't force exact facing mode on desktop - most laptops only have front camera
+          facingMode: isMobile ? { exact: facingMode } : facingMode
+        }
+      };
+
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: { exact: facingMode },
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            advanced: [{ torch: true } as any]
-          }
-        });
-        
+        // Try exact facing mode first (works better on mobile)
+        const constraints = isMobile ? mobileConstraints : desktopConstraints;
+        console.log('Requesting camera with constraints:', constraints);
+        setScanningStatus('Requesting camera permissions...');
+
+        // Add timeout to prevent hanging
+        const cameraPromise = navigator.mediaDevices.getUserMedia(constraints);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Camera request timed out after 10 seconds')), 10000)
+        );
+
+        stream = await Promise.race([cameraPromise, timeoutPromise]) as MediaStream;
+        console.log('Camera stream obtained:', stream);
+
         // Check if flash/torch is supported
         const track = stream.getVideoTracks()[0];
         const capabilities = track.getCapabilities();
@@ -1198,18 +1284,24 @@ const ParticipantDashboard = () => {
           setFlashSupported(true);
         }
       } catch (error) {
+        console.warn('Exact facing mode failed, trying fallback:', error);
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { 
-              facingMode: facingMode,
-              width: { ideal: 640 },
-              height: { ideal: 480 }
-            }
-          });
-        } catch (rearError) {
-          // Fallback to any available camera
+          // Fallback: Try without exact facing mode
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
+              facingMode: facingMode, // Remove 'exact' constraint
+              width: isMobile ? { min: 320, ideal: 480, max: 1280 } : { ideal: 640 },
+              height: isMobile ? { min: 240, ideal: 640, max: 720 } : { ideal: 480 }
+            }
+          });
+        } catch (fallbackError) {
+          console.warn('Fallback with facing mode failed, trying any camera:', fallbackError);
+          // Final fallback: Any available camera
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: isMobile ? {
+              width: { min: 320, ideal: 480 },
+              height: { min: 240, ideal: 640 }
+            } : {
               width: { ideal: 640 },
               height: { ideal: 480 }
             }
@@ -1217,36 +1309,76 @@ const ParticipantDashboard = () => {
         }
       }
       
-      if (videoRef.current && stream) {
-        streamRef.current = stream;
-        const video = videoRef.current;
-        video.srcObject = stream;
-        
-        // Check flash support for any camera
-        if (!flashSupported) {
-          const track = stream.getVideoTracks()[0];
-          const capabilities = track.getCapabilities();
-          if ((capabilities as any).torch) {
-            setFlashSupported(true);
-            }
+      // Store the stream and set camera active first
+      streamRef.current = stream;
+      setIsCameraActive(true);
+      setScanningStatus('Camera starting...');
+      console.log('Camera set to active, waiting for video element to mount');
+
+      // Check flash support for any camera
+      if (!flashSupported) {
+        const track = stream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities();
+        if ((capabilities as any).torch) {
+          setFlashSupported(true);
         }
-        
-        // Wait for video metadata to load
-        video.onloadedmetadata = () => {
-          video.play().then(() => {
-            setScanningStatus('Position QR code within frame');
-            setIsCameraActive(true);
-            startScanningInterval();
-          }).catch(playError => {
-            setScanningStatus('Camera playback failed');
-          });
-        };
-        
-        video.onerror = (videoError) => {
-          setScanningStatus('Camera display error');
-        };
       }
+
+      // Use useEffect-like approach to wait for video element
+      const setupVideo = () => {
+        if (videoRef.current) {
+          console.log('Video element found, assigning stream');
+          const video = videoRef.current;
+          video.srcObject = stream;
+          console.log('Stream assigned to video element');
+
+          // Wait for video metadata to load
+          video.onloadedmetadata = () => {
+            console.log('Video metadata loaded, dimensions:', video.videoWidth, 'x', video.videoHeight);
+
+            video.play().then(() => {
+              console.log('Video playing successfully');
+              setScanningStatus('Position QR code within frame');
+              startScanningInterval();
+            }).catch(playError => {
+              console.error('Video play error:', playError);
+              setScanningStatus('Camera playback failed - ' + playError.message);
+            });
+          };
+
+          video.onloadstart = () => console.log('Video load started');
+          video.oncanplay = () => {
+            console.log('Video can play');
+            setScanningStatus('Camera ready - Position QR code within frame');
+          };
+          video.onplay = () => {
+            console.log('Video play event');
+            setScanningStatus('Position QR code within frame');
+            startScanningInterval();
+          };
+
+          video.onerror = (videoError) => {
+            console.error('Video element error:', videoError);
+            setScanningStatus('Camera display error');
+          };
+
+          // Force immediate play attempt
+          setTimeout(() => {
+            if (video.readyState >= 3) {
+              console.log('Video ready, attempting immediate play');
+              video.play().catch(console.error);
+            }
+          }, 100);
+        } else {
+          console.log('Video element not ready yet, retrying in 100ms');
+          setTimeout(setupVideo, 100);
+        }
+      };
+
+      // Start trying to setup video
+      setTimeout(setupVideo, 50);
     } catch (error) {
+      console.error('Main camera constraints failed, trying basic constraints:', error);
       await retryWithBasicConstraints();
     }
   };
@@ -1298,34 +1430,68 @@ const ParticipantDashboard = () => {
 
   const retryWithBasicConstraints = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      setScanningStatus('Trying basic camera settings...');
+
+      // Try even more basic constraints for problematic mobile devices
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: 320,
-          height: 240
+          width: { ideal: 320 },
+          height: { ideal: 240 },
+          frameRate: { ideal: 15 }
         }
       });
-      
+
       if (videoRef.current && stream) {
+        streamRef.current = stream;
         const video = videoRef.current;
         video.srcObject = stream;
-        
+
+        // Set camera active immediately for fallback too
+        setScanningStatus('Basic camera starting...');
+        setIsCameraActive(true);
+
         video.onloadedmetadata = () => {
           video.play().then(() => {
             setScanningStatus('Basic camera active - Position QR code within frame');
-            setIsCameraActive(true);
             startScanningInterval();
           }).catch(error => {
             setScanningStatus('Camera playback failed');
+            console.error('Video play error:', error);
+            // Keep camera active even if play fails
           });
         };
+
+        video.oncanplay = () => {
+          setScanningStatus('Basic camera ready - Position QR code within frame');
+        };
+
+        video.onerror = (videoError) => {
+          setScanningStatus('Camera display error');
+          console.error('Video error:', videoError);
+        };
+
+        // Force play attempt
+        setTimeout(() => {
+          if (video.readyState >= 3) {
+            video.play().catch(console.error);
+          }
+        }, 100);
       }
-    } catch (error) {
+    } catch (error: any) {
       setScanningStatus('Camera unavailable - Check permissions');
-      
-      // Show more helpful error message
+      console.error('Basic camera constraints failed:', error);
+
+      // Provide mobile-specific guidance
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      let errorMessage = "Please allow camera access in your browser settings and refresh the page.";
+
+      if (isMobile) {
+        errorMessage = "Camera not available. Try: 1) Allow camera permission 2) Close other apps using camera 3) Try Chrome or Safari browser";
+      }
+
       toast({
         title: "Camera Access Denied",
-        description: "Please allow camera access in your browser settings and refresh the page.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -1372,12 +1538,12 @@ const ParticipantDashboard = () => {
       clearTimeout(cameraTimeoutRef.current);
       cameraTimeoutRef.current = null;
     }
-    
+
     if (scanningIntervalRef.current) {
       clearInterval(scanningIntervalRef.current);
       scanningIntervalRef.current = null;
     }
-    
+
     // Turn off flash before stopping camera
     if (isFlashOn && streamRef.current) {
       try {
@@ -1388,19 +1554,19 @@ const ParticipantDashboard = () => {
       } catch (error) {
       }
     }
-    
+
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
       tracks.forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
-    
+
     if (streamRef.current) {
       const tracks = streamRef.current.getTracks();
       tracks.forEach(track => track.stop());
       streamRef.current = null;
     }
-    
+
     setIsCameraActive(false);
     setIsFlashOn(false);
     setFlashSupported(false);
@@ -4719,30 +4885,34 @@ const ParticipantDashboard = () => {
           <div className="relative h-full">
             <video
               ref={videoRef}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover bg-black"
               playsInline
               muted
+              autoPlay
+              onLoadedData={() => console.log('Video loaded data')}
+              onPlay={() => console.log('Video started playing')}
+              onError={(e) => console.error('Video error:', e)}
             />
             <canvas ref={canvasRef} className="hidden" />
             
-            {/* QR Scanner Frame */}
-            <div className="absolute inset-0 flex items-center justify-center">
+            {/* QR Scanner Frame - Made transparent to show video behind */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="relative w-60 h-60 portrait:w-56 portrait:h-56">
-                {/* Corner brackets */}
-                <div className="absolute top-0 left-0 w-12 h-12 border-l-3 border-t-3 border-blue-500"></div>
-                <div className="absolute top-0 right-0 w-12 h-12 border-r-3 border-t-3 border-blue-500"></div>
-                <div className="absolute bottom-0 left-0 w-12 h-12 border-l-3 border-b-3 border-blue-500"></div>
-                <div className="absolute bottom-0 right-0 w-12 h-12 border-r-3 border-b-3 border-blue-500"></div>
-                
-                {/* Center QR area */}
-                <div className="absolute inset-3 bg-white flex items-center justify-center">
-                  <div className="w-32 h-32 bg-gray-900 flex items-center justify-center">
-                    <QrCode className="w-12 h-12 text-white" />
-                  </div>
-                </div>
-                
-                {/* Scanning line */}
-                <div className="absolute inset-x-4 top-1/2 h-0.5 bg-blue-500 animate-pulse"></div>
+                {/* Corner brackets - brighter and more visible */}
+                <div className="absolute top-0 left-0 w-12 h-12 border-l-4 border-t-4 border-blue-400 drop-shadow-lg"></div>
+                <div className="absolute top-0 right-0 w-12 h-12 border-r-4 border-t-4 border-blue-400 drop-shadow-lg"></div>
+                <div className="absolute bottom-0 left-0 w-12 h-12 border-l-4 border-b-4 border-blue-400 drop-shadow-lg"></div>
+                <div className="absolute bottom-0 right-0 w-12 h-12 border-r-4 border-b-4 border-blue-400 drop-shadow-lg"></div>
+
+                {/* Scanning line - more visible */}
+                <div className="absolute inset-x-4 top-1/2 h-1 bg-blue-400 animate-pulse drop-shadow-lg"></div>
+              </div>
+            </div>
+
+            {/* Status overlay */}
+            <div className="absolute top-4 left-4 right-4">
+              <div className="bg-black bg-opacity-50 rounded-lg p-2">
+                <p className="text-white text-sm text-center">{scanningStatus}</p>
               </div>
             </div>
             
@@ -4797,13 +4967,13 @@ const ParticipantDashboard = () => {
             <span className="text-blue-600 dark:text-blue-400 text-xs mt-2 font-medium">Upload QR</span>
           </button>
           
-          <button 
+          <button
             onClick={startQRScannerMobile}
             className={`flex flex-col items-center touch-manipulation active:scale-95 transition-transform`}
           >
             <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-lg ${
-              isCameraActive 
-                ? 'bg-gradient-to-r from-red-600 to-red-700 active:from-red-700 active:to-red-800' 
+              isCameraActive
+                ? 'bg-gradient-to-r from-red-600 to-red-700 active:from-red-700 active:to-red-800'
                 : 'bg-gradient-to-r from-blue-600 to-purple-600 active:from-blue-700 active:to-purple-700'
             }`}>
               {isCameraActive ? <X className="w-6 h-6 sm:w-7 sm:h-7 text-white" /> : <Camera className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}

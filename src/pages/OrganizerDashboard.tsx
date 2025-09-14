@@ -1,6 +1,7 @@
 import React from 'react';
 import axios from "axios";
 import { useState, useEffect } from 'react';
+import { useEvents } from '@/hooks/useEvents';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -43,7 +44,13 @@ const OrganizerDashboard = () => {
 
   // Check for system-wide dark mode
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    return document.documentElement.classList.contains('dark');
+    // Check localStorage first, then fallback to system preference
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+      return saved === 'dark';
+    }
+    // If no saved preference, check system preference
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
   // Initialize user data
@@ -73,6 +80,15 @@ const OrganizerDashboard = () => {
     }
   }, []);
 
+  // Apply theme to DOM on mount and when isDarkMode changes
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
   const toggleTheme = () => {
     const newDarkMode = !isDarkMode;
     setIsDarkMode(newDarkMode);
@@ -92,53 +108,29 @@ const OrganizerDashboard = () => {
     window.location.href = '/';
   };
 
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Use optimized events hook with auto-refresh for real-time updates
+  const {
+    events,
+    loading,
+    error: eventsError,
+    refreshEvents,
+    updateEvent,
+    lastRefresh
+  } = useEvents({
+    autoRefresh: true,
+    refreshInterval: 30000, // 30 seconds
+    cacheTime: 5 * 60 * 1000 // 5 minutes
+  });
 
 
+  // Set error state from events hook
   useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('/api/events', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-
-        const result = await response.json();
-        if (result.success) {
-          // Add fallback for missing fields
-          const processed = result.data.events.map((e: any) => ({
-            ...e,
-            id: e._id,
-            location: e.location?.address || 'Unknown',
-            totalParticipants: e.totalParticipants || 0,
-            checkedIn: e.checkedIn || 0,
-            currentlyPresent: e.currentlyPresent || 0,
-            geofence: {
-              center: e.location?.coordinates?.coordinates
-                ? [e.location.coordinates.coordinates[1], e.location.coordinates.coordinates[0]]
-                : [0, 0],
-              radius: e.geofenceRadius || 100
-            }
-          }));
-
-          setEvents(processed);
-        } else {
-          console.error(result.message);
-        }
-      } catch (error) {
-        console.error('Error fetching events:', error);
-        setError('Failed to load events. Please refresh the page.');
-        setEvents([]); // Set empty array as fallback
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEvents();
-  }, []);
+    if (eventsError) {
+      setError(eventsError);
+    } else {
+      setError(null);
+    }
+  }, [eventsError]);
 
   const [hiddenEventIds, setHiddenEventIds] = useState<string[]>([]);
 
@@ -172,32 +164,9 @@ const OrganizerDashboard = () => {
           });
 
           // Refresh events data to reflect the changes
-          const fetchEvents = async () => {
-            try {
-              const response = await fetch('/api/events', {
-                headers: {
-                  Authorization: `Bearer ${token}`
-                }
-              });
-
-              const result = await response.json();
-              if (result.success) {
-                const processed = result.data.events.map((e: any) => ({
-                  ...e,
-                  id: e._id,
-                  location: e.location?.address || 'Unknown',
-                  totalParticipants: e.totalParticipants || 0,
-                  checkedIn: e.checkedIn || 0,
-                  currentlyPresent: e.currentlyPresent || 0,
-                }));
-                setEvents(processed);
-              }
-            } catch (error) {
-              console.error('Error refreshing events after auto-checkout:', error);
-            }
-          };
-
-          fetchEvents();
+          refreshEvents().catch(error => {
+            console.error('Error refreshing events after auto-checkout:', error);
+          });
         }
       } catch (error) {
         // Silently log errors to avoid spamming organizer with network issues
@@ -223,7 +192,8 @@ const OrganizerDashboard = () => {
       // delete from DB
       try {
         await axios.delete(`/api/events/${eventId}`);
-        setEvents(prev => prev.filter(e => e.id !== eventId));
+        // Remove from events cache instead of local state
+        refreshEvents();
       } catch (error) {
         console.error("Failed to delete event:", error);
       }
@@ -290,17 +260,10 @@ const OrganizerDashboard = () => {
           description: `Geofence and location were saved for event "${result.data.event.title}"`,
         });
 
-        setEvents(prevEvents =>
-          prevEvents.map(event =>
-            event.id === eventId
-              ? {
-                  ...event,
-                  geofence: { center, radius },
-                  location: newAddress
-                }
-              : event
-          )
-        );
+        updateEvent(eventId, {
+          geofence: { center, radius },
+          location: newAddress
+        });
       } else {
         throw new Error(result.message);
       }
@@ -521,14 +484,8 @@ const OrganizerDashboard = () => {
         throw new Error(result.message || 'Failed to update publish status');
       }
 
-      // Update the local state
-      setEvents(prevEvents =>
-        prevEvents.map(e =>
-          e.id === eventId
-            ? { ...e, published: newPublishedStatus }
-            : e
-        )
-      );
+      // Update the event in cache
+      updateEvent(eventId, { published: newPublishedStatus });
 
       toast({
         title: newPublishedStatus ? "Event Published" : "Event Unpublished",
@@ -734,8 +691,8 @@ const OrganizerDashboard = () => {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4 text-muted-foreground" />
-                              <span className="truncate max-w-[150px]" title={event.location}>
-                                {event.location}
+                              <span className="truncate max-w-[150px]" title={typeof event.location === 'string' ? event.location : event.location?.address || 'Location not specified'}>
+                                {typeof event.location === 'string' ? event.location : event.location?.address || 'Location not specified'}
                               </span>
                             </div>
                           </TableCell>
@@ -885,6 +842,7 @@ const OrganizerDashboard = () => {
                 eventId={selectedEventForQRData.id}
                 eventTitle={selectedEventForQRData.title}
                 eventCode={selectedEventForQRData.eventCode}
+                isPublished={selectedEventForQRData.published}
               />
             </DialogContent>
           </Dialog>

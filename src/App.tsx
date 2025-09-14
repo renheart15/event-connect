@@ -3,6 +3,24 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+// Initialize theme on app load
+const initializeTheme = () => {
+  const saved = localStorage.getItem('theme');
+  if (saved) {
+    if (saved === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('theme', 'dark');
+  }
+};
+
+// Initialize theme immediately
+initializeTheme();
 import Layout from "./components/Layout";
 import AutoLocationPermission from "./components/AutoLocationPermission";
 import ErrorBoundary from "./components/ErrorBoundary";

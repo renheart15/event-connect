@@ -126,14 +126,9 @@ const CreateEvent = () => {
           title: "Event created",
           description: `${result.data.event.title} has been saved.`,
         });
-        
-        // FIX: Use the correct route path that matches App.tsx
-        navigate(`/events/${result.data.event._id || result.data.event.id}/registration/create`, { 
-          state: { 
-            eventId: result.data.event._id || result.data.event.id, 
-            eventTitle: formData.title 
-          } 
-        });
+
+        // Navigate to All Events page to see the newly created event
+        navigate('/all-events');
       } else {
         console.error('Validation failed:', result.errors || result.message);
         toast({

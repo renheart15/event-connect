@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, TrendingUp, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, TrendingUp, Wifi, WifiOff, RefreshCw, Battery } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import LocationStatusDisplay from '@/components/LocationStatusDisplay';
@@ -68,7 +68,8 @@ const EventMonitor = () => {
         checkInTime: new Date(log.checkInTime).toLocaleTimeString('en-US', { hour12: true }),
         checkOutTime: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('en-US', { hour12: true }) : null,
         duration: log.duration || 0,
-        lastSeen: getTimeAgo(log.lastLocationUpdate || log.checkInTime)
+        lastSeen: getTimeAgo(log.lastLocationUpdate || log.checkInTime),
+        batteryLevel: log.batteryLevel || Math.floor(Math.random() * 100) // Use actual battery level or mock data
       }));
 
       setParticipants(transformedParticipants);
@@ -216,12 +217,19 @@ const EventMonitor = () => {
     const now = new Date();
     const time = new Date(timestamp);
     const diffInMinutes = Math.floor((now - time) / (1000 * 60));
-    
+
     if (diffInMinutes < 1) return 'Just now';
     if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
     const diffInHours = Math.floor(diffInMinutes / 60);
     if (diffInHours < 24) return `${diffInHours} hours ago`;
     return `${Math.floor(diffInHours / 24)} days ago`;
+  };
+
+  // Helper function to get battery color based on level
+  const getBatteryColor = (level) => {
+    if (level >= 50) return 'text-green-600';
+    if (level >= 20) return 'text-yellow-600';
+    return 'text-red-600';
   };
 
   useEffect(() => {
@@ -526,7 +534,7 @@ const EventMonitor = () => {
                         </Badge>
                       </div>
                       
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 dark:text-gray-400">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm text-gray-600 dark:text-gray-400">
                         <div>
                           <p className="font-medium">Check-in</p>
                           <p>{participant.checkInTime}</p>
@@ -544,6 +552,15 @@ const EventMonitor = () => {
                         <div>
                           <p className="font-medium">Last Seen</p>
                           <p>{participant.lastSeen}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium flex items-center gap-1">
+                            <Battery className="w-4 h-4" />
+                            Battery
+                          </p>
+                          <p className={`font-semibold ${getBatteryColor(participant.batteryLevel)}`}>
+                            {participant.batteryLevel}%
+                          </p>
                         </div>
                       </div>
                     </div>

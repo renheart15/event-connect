@@ -19,9 +19,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const noSidebarRoutes = ['/', '/login', '/register', '/participant-dashboard'];
   const showSidebar = !noSidebarRoutes.includes(location.pathname) && !location.pathname.startsWith('/join/');
 
+  // Routes that should always be in light mode
+  const lightModeOnlyRoutes = ['/', '/login', '/register'];
+  const shouldForceLightMode = lightModeOnlyRoutes.includes(location.pathname);
+
   // Dark mode state
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    return document.documentElement.classList.contains('dark');
+    // Check localStorage first, then fallback to system preference
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+      return saved === 'dark';
+    }
+    // If no saved preference, check system preference
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
   useEffect(() => {
@@ -36,7 +46,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, []);
 
+  // Apply theme to DOM on mount and when isDarkMode changes
+  useEffect(() => {
+    if (shouldForceLightMode) {
+      // Force light mode for certain routes
+      document.documentElement.classList.remove('dark');
+    } else if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode, shouldForceLightMode]);
+
   const toggleTheme = () => {
+    // Don't allow theme toggle on light-mode-only routes
+    if (shouldForceLightMode) {
+      return;
+    }
+
     const newDarkMode = !isDarkMode;
     setIsDarkMode(newDarkMode);
 

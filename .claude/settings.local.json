@@ -49,7 +49,8 @@
       "Bash(npx eslint:*)",
       "Bash(sed:*)",
       "Bash(findstr:*)",
-      "Bash(netstat:*)"
+      "Bash(netstat:*)",
+      "Bash(set PORT=8080)"
     ],
     "deny": [],
     "ask": []

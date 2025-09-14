@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import axios from "axios";
+import { useEvents } from '@/hooks/useEvents';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Eye, Filter, Calendar, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import EventCard from '@/components/EventCard';
 import ParticipantReports from '@/components/ParticipantReports';
 import EventSettings from '@/components/EventSettings';
 import FeedbackFormManager from '@/components/FeedbackFormManager';
+import QRCodeDisplay from '@/components/QRCodeDisplay';
+import GeofenceMap from '@/components/GeofenceMap';
 import { Link, useNavigate } from 'react-router-dom';
 
 interface Event {
@@ -41,9 +45,15 @@ interface Event {
 const AllEvents = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // Use optimized events hook
+  const {
+    events,
+    loading,
+    error: eventsError,
+    refreshEvents,
+    updateEvent
+  } = useEvents();
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [hiddenEventIds, setHiddenEventIds] = useState<string[]>(() => {
     const stored = localStorage.getItem("hiddenEventIds");
@@ -54,61 +64,26 @@ const AllEvents = () => {
   const [selectedEventForReports, setSelectedEventForReports] = useState<string | null>(null);
   const [selectedEventForSettings, setSelectedEventForSettings] = useState<string | null>(null);
   const [selectedEventForFeedback, setSelectedEventForFeedback] = useState<string | null>(null);
+  const [selectedEventForQR, setSelectedEventForQR] = useState<string | null>(null);
+  const [selectedEventForGeofence, setSelectedEventForGeofence] = useState<string | null>(null);
+  const [isQRDialogOpen, setIsQRDialogOpen] = useState(false);
+  const [isGeofenceDialogOpen, setIsGeofenceDialogOpen] = useState(false);
+
+  // Set local error state from events hook
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('/api/events', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-
-        const result = await response.json();
-        if (result.success) {
-          // Add fallback for missing fields
-          const processed = result.data.events.map((e: any) => ({
-            ...e,
-            id: e._id,
-            location: e.location || {
-              address: 'Unknown',
-              coordinates: {
-                type: 'Point',
-                coordinates: [0, 0]
-              }
-            },
-            totalParticipants: e.totalParticipants || 0,
-            checkedIn: e.checkedIn || 0,
-            currentlyPresent: e.currentlyPresent || 0,
-            geofence: {
-              center: e.location?.coordinates?.coordinates
-                ? [e.location.coordinates.coordinates[1], e.location.coordinates.coordinates[0]]
-                : [0, 0],
-              radius: e.geofenceRadius || 100
-            }
-          }));
-
-          setEvents(processed);
-        } else {
-          console.error(result.message);
-        }
-      } catch (error) {
-        console.error('Error fetching events:', error);
-        setError('Failed to load events. Please refresh the page.');
-        setEvents([]); // Set empty array as fallback
-        toast({
-          title: "Error",
-          description: "Failed to load events. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEvents();
-  }, [toast]);
+    if (eventsError) {
+      setError(eventsError);
+      toast({
+        title: "Error",
+        description: "Failed to load events. Please try again.",
+        variant: "destructive",
+      });
+    } else {
+      setError(null);
+    }
+  }, [eventsError, toast]);
 
   useEffect(() => {
     localStorage.setItem("hiddenEventIds", JSON.stringify(hiddenEventIds));
@@ -152,7 +127,8 @@ const AllEvents = () => {
       // Delete from DB
       try {
         await axios.delete(`/api/events/${eventId}`);
-        setEvents(prev => prev.filter(e => e.id !== eventId));
+        // Refresh events to reflect deletion
+        refreshEvents();
         toast({
           title: "Event Deleted",
           description: "Event has been deleted successfully.",
@@ -214,23 +190,17 @@ const AllEvents = () => {
           description: `Geofence and location were saved for event "${result.data.event.title}"`,
         });
 
-        setEvents(prevEvents =>
-          prevEvents.map(event =>
-            event.id === eventId
-              ? {
-                  ...event,
-                  geofence: { center, radius },
-                  location: {
-                    address: newAddress,
-                    coordinates: {
-                      type: 'Point',
-                      coordinates: [center[1], center[0]]
-                    }
-                  }
-                }
-              : event
-          )
-        );
+        // Update event in cache
+        updateEvent(eventId, {
+          geofence: { center, radius },
+          location: {
+            address: newAddress,
+            coordinates: {
+              type: 'Point',
+              coordinates: [center[1], center[0]]
+            }
+          }
+        });
       } else {
         throw new Error(result.message);
       }
@@ -244,6 +214,27 @@ const AllEvents = () => {
     }
   };
 
+  // QR Code and Geofence modal handlers
+  const openQRDialog = (eventId: string) => {
+    setSelectedEventForQR(eventId);
+    setIsQRDialogOpen(true);
+  };
+
+  const openGeofenceDialog = (eventId: string) => {
+    setSelectedEventForGeofence(eventId);
+    setIsGeofenceDialogOpen(true);
+  };
+
+  const closeQRDialog = () => {
+    setSelectedEventForQR(null);
+    setIsQRDialogOpen(false);
+  };
+
+  const closeGeofenceDialog = () => {
+    setSelectedEventForGeofence(null);
+    setIsGeofenceDialogOpen(false);
+  };
+
   // Close modal handlers
   const closeReportsDialog = () => {
     setSelectedEventForReports(null);
@@ -252,7 +243,6 @@ const AllEvents = () => {
   const closeSettingsDialog = () => {
     setSelectedEventForSettings(null);
   };
-
 
   const closeFeedbackDialog = () => {
     setSelectedEventForFeedback(null);
@@ -308,14 +298,8 @@ const AllEvents = () => {
         throw new Error(result.message || 'Failed to update publish status');
       }
 
-      // Update the local state
-      setEvents(prevEvents =>
-        prevEvents.map(e =>
-          e.id === eventId
-            ? { ...e, published: newPublishedStatus }
-            : e
-        )
-      );
+      // Update event in cache
+      updateEvent(eventId, { published: newPublishedStatus });
 
       toast({
         title: newPublishedStatus ? "Event Published" : "Event Unpublished",
@@ -453,6 +437,8 @@ const AllEvents = () => {
                 onFeedbackClick={handleFeedbackClick}
                 onDeleteClick={handleDeleteClick}
                 onPublishClick={handlePublishClick}
+                onQRClick={openQRDialog}
+                onGeofenceClick={openGeofenceDialog}
               />
             ))}
           </div>
@@ -486,6 +472,45 @@ const AllEvents = () => {
             isOpen={!!selectedEventForFeedback}
             onClose={closeFeedbackDialog}
           />
+        )}
+
+        {/* QR Code Modal */}
+        {selectedEventForQR && (
+          <Dialog open={isQRDialogOpen} onOpenChange={closeQRDialog}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Event QR Code</DialogTitle>
+              </DialogHeader>
+              <div className="flex justify-center">
+                <QRCodeDisplay
+                  eventId={selectedEventForQR}
+                  eventTitle={events.find(e => e.id === selectedEventForQR)?.title || ''}
+                  eventCode={events.find(e => e.id === selectedEventForQR)?.eventCode || ''}
+                  isPublished={events.find(e => e.id === selectedEventForQR)?.published}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Geofence Modal */}
+        {selectedEventForGeofence && (
+          <Dialog open={isGeofenceDialogOpen} onOpenChange={closeGeofenceDialog}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Configure Geofence</DialogTitle>
+              </DialogHeader>
+              <div className="max-h-[70vh] overflow-y-auto">
+                <GeofenceMap
+                  eventId={selectedEventForGeofence}
+                  initialCenter={events.find(e => e.id === selectedEventForGeofence)?.geofence?.center}
+                  initialRadius={events.find(e => e.id === selectedEventForGeofence)?.geofence?.radius}
+                  onGeofenceUpdate={(center, radius) => handleGeofenceUpdate(selectedEventForGeofence, center, radius)}
+                  showSaveButton={true}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
     </div>

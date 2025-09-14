@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useEvents, type Event } from '@/hooks/useEvents';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -27,21 +28,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { emailCredentialsService } from '@/services/emailCredentialsService';
 
-interface Event {
-  id: string;
-  _id: string;
-  title: string;
-  description: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  location: string;
-  status: 'upcoming' | 'active' | 'completed';
-  totalParticipants: number;
-  checkedIn: number;
-  currentlyPresent: number;
-  eventCode: string;
-}
 
 interface InvitationRecord {
   id: string;
@@ -59,8 +45,17 @@ interface InvitationRecord {
 const Invitations = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  // Use optimized events hook - only show active and upcoming events for invitations
+  const {
+    events: allEvents,
+    loading,
+    error: eventsError,
+    refreshEvents
+  } = useEvents();
+
+  // Filter to show only active and upcoming events for invitations
+  const events = allEvents.filter(e => e.status === 'active' || e.status === 'upcoming');
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   
   // History tab states
@@ -97,55 +92,20 @@ const Invitations = () => {
     }
   };
 
+  // Handle events error
   useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('/api/events', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
+    if (eventsError) {
+      toast({
+        title: "Error",
+        description: "Failed to load events. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [eventsError, toast]);
 
-        const result = await response.json();
-        if (result.success) {
-          console.log('Raw events from API:', result.data.events);
-          
-          // Only show active and upcoming events for invitations
-          const processed = result.data.events
-            .filter((e: any) => {
-              console.log(`Event ${e.title} has status: ${e.status}`);
-              return e.status === 'active' || e.status === 'upcoming';
-            })
-            .map((e: any) => ({
-              ...e,
-              id: e._id,
-              location: e.location?.address || 'Unknown',
-              totalParticipants: e.totalParticipants || 0,
-              checkedIn: e.checkedIn || 0,
-              currentlyPresent: e.currentlyPresent || 0,
-            }));
-
-          console.log('Processed events for invitations:', processed);
-          setEvents(processed);
-        } else {
-          console.error(result.message);
-        }
-      } catch (error) {
-        console.error('Error fetching events:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load events. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEvents();
+  useEffect(() => {
     checkStoredCredentials();
-  }, [toast]);
+  }, []);
 
   // Filter invitations based on search and status
   useEffect(() => {
@@ -444,22 +404,22 @@ const Invitations = () => {
 
   if (loading) {
     return (
-      <div className="min-h-full bg-gray-50 flex items-center justify-center">
+      <div className="min-h-full bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading events...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading events...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-full bg-gray-50">
-      <div className="bg-white border-b px-6 py-4 mb-6">
+    <div className="min-h-full bg-gray-50 dark:bg-gray-900">
+      <div className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 mb-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Invitations</h1>
-            <p className="text-gray-600 mt-1">Send invitations and manage invitation history</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Invitations</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Send invitations and manage invitation history</p>
           </div>
           <Link to="/create-event">
             <Button variant="outline" className="flex items-center gap-2">
@@ -486,7 +446,7 @@ const Invitations = () => {
 
             <TabsContent value="send" className="space-y-6 mt-6">
           {events.length === 0 ? (
-            <Card className="border-dashed border-2 border-gray-300">
+            <Card className="border-dashed border-2 border-gray-300 bg-white dark:bg-gray-800">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                   <Mail className="w-8 h-8 text-gray-400" />
@@ -508,7 +468,7 @@ const Invitations = () => {
           ) : (
             <>
               {/* Event Selection */}
-              <Card>
+              <Card className="bg-white dark:bg-gray-800">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Mail className="w-5 h-5" />
@@ -574,7 +534,11 @@ const Invitations = () => {
 
                               <div className="flex items-start text-sm text-gray-600">
                                 <MapPin className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />
-                                <span className="min-w-0 flex-1 break-words">{selectedEvent.location}</span>
+                                <span className="min-w-0 flex-1 break-words">
+                                  {typeof selectedEvent.location === 'object'
+                                    ? selectedEvent.location.address || 'Unknown'
+                                    : selectedEvent.location || 'Unknown'}
+                                </span>
                               </div>
                             </div>
 
@@ -630,7 +594,7 @@ const Invitations = () => {
               </Card>
 
               {/* Recent Events Quick Access */}
-              <Card>
+              <Card className="bg-white dark:bg-gray-800">
                 <CardHeader>
                   <CardTitle>Quick Access</CardTitle>
                   <CardDescription>
@@ -683,7 +647,7 @@ const Invitations = () => {
 
             <TabsContent value="history" className="space-y-6 mt-6">
               {!selectedEventId ? (
-                <Card>
+                <Card className="bg-white dark:bg-gray-800">
                   <CardContent className="flex flex-col items-center justify-center py-12">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                       <History className="w-8 h-8 text-gray-400" />
@@ -704,7 +668,7 @@ const Invitations = () => {
                 <>
                   {/* Event Header */}
                   {selectedEvent && (
-                    <Card>
+                    <Card className="bg-white dark:bg-gray-800">
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <div>
@@ -718,7 +682,11 @@ const Invitations = () => {
                                 {getStatusBadge(selectedEvent.status)}
                               </div>
                               <CardDescription className="text-sm text-gray-500 mt-1">
-                                {formatDate(selectedEvent.date)} • {selectedEvent.location}
+                                {formatDate(selectedEvent.date)} • {
+                                  typeof selectedEvent.location === 'object'
+                                    ? selectedEvent.location.address || 'Unknown'
+                                    : selectedEvent.location || 'Unknown'
+                                }
                               </CardDescription>
                             </div>
                           </div>
@@ -739,7 +707,7 @@ const Invitations = () => {
                   )}
 
                   {/* Search, Filter, and Email Settings */}
-                  <Card>
+                  <Card className="bg-white dark:bg-gray-800">
                     <CardContent className="pt-6 space-y-4">
                       <div className="flex flex-col sm:flex-row gap-4">
                         <div className="flex-1">
@@ -822,7 +790,7 @@ const Invitations = () => {
                   </Card>
 
                   {/* Invitations List */}
-                  <Card>
+                  <Card className="bg-white dark:bg-gray-800">
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <CardTitle>
@@ -878,7 +846,7 @@ const Invitations = () => {
                           {filteredInvitations.map((invitation) => (
                             <div
                               key={invitation.id}
-                              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
                             >
                               <div className="flex items-center gap-3">
                                 <Checkbox
@@ -932,7 +900,7 @@ const Invitations = () => {
                                           </DialogDescription>
                                         </DialogHeader>
                                         <div className="flex flex-col items-center space-y-4">
-                                          <div className="bg-white p-4 rounded-lg">
+                                          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
                                             <img 
                                               src={invitation.qrCode} 
                                               alt="QR Code" 

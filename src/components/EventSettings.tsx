@@ -25,14 +25,14 @@ interface Event {
   totalParticipants: number;
   checkedIn: number;
   currentlyPresent: number;
-  location: {
-    address: string;
-    coordinates: {
+  location: string | {
+    address?: string;
+    coordinates?: {
       type: 'Point';
       coordinates: [number, number];
     };
   };
-  eventCode: string;
+  eventCode?: string;
   description?: string;
   maxTimeOutside?: number;
   startTime?: string; // <-- added

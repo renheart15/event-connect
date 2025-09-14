@@ -17,7 +17,13 @@ interface Event {
   totalParticipants: number;
   checkedIn: number;
   currentlyPresent: number;
-  location: string;
+  location: string | {
+    address?: string;
+    coordinates?: {
+      type: 'Point';
+      coordinates: [number, number];
+    };
+  };
 }
 
 interface EventExportDialogProps {
@@ -64,7 +70,7 @@ const EventExportDialog = ({ events, isOpen, onClose }: EventExportDialogProps) 
         totalParticipants: event.totalParticipants,
         checkedIn: event.checkedIn,
         currentlyPresent: event.currentlyPresent,
-        location: event.location,
+        location: typeof event.location === 'string' ? event.location : event.location?.address || 'Location not specified',
         status: event.status
       }));
 
@@ -129,7 +135,7 @@ const EventExportDialog = ({ events, isOpen, onClose }: EventExportDialogProps) 
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
                         <div>Date: {event.date}</div>
-                        <div>Location: {event.location}</div>
+                        <div>Location: {typeof event.location === 'string' ? event.location : event.location?.address || 'Location not specified'}</div>
                         <div>Participants: {event.totalParticipants}</div>
                         <div>Checked In: {event.checkedIn}</div>
                       </div>

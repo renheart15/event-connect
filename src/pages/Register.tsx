@@ -169,7 +169,7 @@ const Register = () => {
   // Error boundary fallback
   if (hasError) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="[&]:!bg-gradient-to-br [&]:!from-blue-50 [&]:!to-indigo-100 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4" style={{colorScheme: 'light'}} data-theme="light">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
@@ -186,7 +186,7 @@ const Register = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="[&]:!bg-gradient-to-br [&]:!from-blue-50 [&]:!to-indigo-100 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4" style={{colorScheme: 'light'}} data-theme="light">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">

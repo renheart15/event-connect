@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useEvent } from '@/hooks/useEvents';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,18 +23,6 @@ interface Participant {
   email: string;
 }
 
-interface Event {
-  id: string;
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  location: string;
-  status: string;
-  eventCode: string;
-  totalParticipants: number;
-  checkedIn: number;
-}
 
 interface OrganizationMember {
   user: {
@@ -41,7 +30,7 @@ interface OrganizationMember {
     name: string;
     email: string;
   };
-  role: 'member' | 'admin';
+  role: 'member' | 'admin' | 'owner';
   joinedAt: string;
 }
 
@@ -64,9 +53,9 @@ const SendInvitations = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const eventId = searchParams.get('eventId');
-  const eventTitle = searchParams.get('eventTitle');
   
-  const [event, setEvent] = useState<Event | null>(null);
+  // Use optimized event hook for single event fetching
+  const { event, loading: eventLoading, error: eventError } = useEvent(eventId);
   const [participants, setParticipants] = useState<Participant[]>([
     { id: '1', name: '', email: '' }
   ]);
@@ -98,18 +87,27 @@ const SendInvitations = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
   const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
-  const [loadingCredentials, setLoadingCredentials] = useState(true);
 
   useEffect(() => {
     if (!eventId) {
       navigate('/invitations');
       return;
     }
-    
-    fetchEventDetails();
+
     fetchOrganizations();
     checkStoredCredentials();
   }, [eventId, navigate]);
+
+  // Handle event loading error
+  useEffect(() => {
+    if (eventError) {
+      toast({
+        title: "Error",
+        description: "Failed to load event details. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [eventError, toast]);
 
   const fetchOrganizations = async () => {
     try {
@@ -132,7 +130,6 @@ const SendInvitations = () => {
 
   const checkStoredCredentials = async () => {
     try {
-      setLoadingCredentials(true);
       const hasCredentials = await emailCredentialsService.hasStoredCredentials();
       setHasStoredCredentials(hasCredentials);
       
@@ -151,44 +148,9 @@ const SendInvitations = () => {
     } catch (error) {
       console.error('Error checking stored credentials:', error);
     } finally {
-      setLoadingCredentials(false);
     }
   };
 
-  const fetchEventDetails = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/events/${eventId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        setEvent({
-          ...result.data.event,
-          id: result.data.event._id,
-          location: result.data.event.location?.address || 'Unknown'
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to load event details.",
-          variant: "destructive",
-        });
-        navigate('/invitations');
-      }
-    } catch (error) {
-      console.error('Error fetching event:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load event details.",
-        variant: "destructive",
-      });
-      navigate('/invitations');
-    }
-  };
 
   const addParticipant = () => {
     const newParticipant: Participant = {
@@ -424,12 +386,12 @@ const SendInvitations = () => {
   useEffect(() => {
     if (selectedOrg && currentUserId) {
       // Include both owner and members, but exclude current user
-      const allMembers = [
+      const allMembers: OrganizationMember[] = [
         // Add owner as a selectable member (if not current user)
         ...(selectedOrg.owner._id !== currentUserId ? [{
           user: selectedOrg.owner,
           role: 'owner' as const,
-          joinedAt: selectedOrg.createdAt || new Date().toISOString()
+          joinedAt: new Date().toISOString()
         }] : []),
         // Add regular members (excluding current user)
         ...selectedOrg.members.filter(member => member.user._id !== currentUserId)
@@ -671,7 +633,7 @@ const SendInvitations = () => {
     });
   };
 
-  if (!event) {
+  if (eventLoading || !event) {
     return (
       <div className="min-h-full bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -697,11 +659,11 @@ const SendInvitations = () => {
               Back to Invitations
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <Mail className="w-6 h-6" />
                 Send Invitations
               </h1>
-              <p className="text-gray-600 mt-1">Send invitations with QR codes for "{event.title}"</p>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">Send invitations with QR codes for "{event.title}"</p>
             </div>
           </div>
         </div>
@@ -710,7 +672,7 @@ const SendInvitations = () => {
       <div className="container mx-auto px-6 py-4">
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Event Details */}
-          <Card>
+          <Card className="bg-white dark:bg-gray-800">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>Event Details</span>
@@ -719,7 +681,7 @@ const SendInvitations = () => {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center text-sm text-gray-600">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                   <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
                   <div>
                     <div>{formatDate(event.date)}</div>
@@ -730,19 +692,23 @@ const SendInvitations = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center text-sm text-gray-600">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                   <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
-                  <span>{event.location}</span>
+                  <span>
+                    {typeof event.location === 'object'
+                      ? event.location.address || 'Unknown'
+                      : event.location || 'Unknown'}
+                  </span>
                 </div>
 
-                <div className="flex items-center text-sm text-gray-600">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                   <Users className="w-4 h-4 mr-2 flex-shrink-0" />
                   <span>
                     {event.checkedIn}/{event.totalParticipants} participants
                   </span>
                 </div>
 
-                <div className="flex items-center text-sm text-gray-600">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                   <span className="w-4 h-4 mr-2 flex-shrink-0 font-mono text-xs bg-gray-200 rounded px-1 py-0.5">
                     CODE
                   </span>
@@ -753,7 +719,7 @@ const SendInvitations = () => {
           </Card>
 
           {/* Invitation Form */}
-          <Card>
+          <Card className="bg-white dark:bg-gray-800">
             <CardHeader>
               <CardTitle>Invitation Details</CardTitle>
             </CardHeader>
@@ -861,7 +827,7 @@ const SendInvitations = () => {
                   <TabsContent value="manual" className="space-y-4">
                     <div className="space-y-4 max-h-96 overflow-y-auto">
                       {participants.map((participant, index) => (
-                        <Card key={participant.id} className="p-4">
+                        <Card key={participant.id} className="p-4 bg-white dark:bg-gray-800">
                           <div className="flex items-center justify-between mb-3">
                             <h4 className="font-medium">Participant {index + 1}</h4>
                             {participants.length > 1 && (
@@ -919,7 +885,7 @@ const SendInvitations = () => {
                   </TabsContent>
                   
                   <TabsContent value="upload" className="space-y-4">
-                    <Card className="p-4 border-dashed border-2">
+                    <Card className="p-4 border-dashed border-2 bg-white dark:bg-gray-800">
                       <div className="text-center space-y-4">
                         <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
                           <FileSpreadsheet className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -987,7 +953,7 @@ const SendInvitations = () => {
                         
                         <div className="space-y-4 max-h-96 overflow-y-auto">
                           {uploadedParticipants.map((participant, index) => (
-                            <Card key={participant.id} className="p-4">
+                            <Card key={participant.id} className="p-4 bg-white dark:bg-gray-800">
                               <div className="flex items-center justify-between mb-3">
                                 <h4 className="font-medium">Participant {index + 1}</h4>
                                 <Button
@@ -1035,7 +1001,7 @@ const SendInvitations = () => {
                   
                   <TabsContent value="organization" className="space-y-4">
                     {organizations.length === 0 ? (
-                      <Card className="p-4 border-dashed border-2">
+                      <Card className="p-4 border-dashed border-2 bg-white dark:bg-gray-800">
                         <div className="text-center space-y-4">
                           <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
                             <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -1061,7 +1027,7 @@ const SendInvitations = () => {
                       <div className="space-y-4">
                         {/* Organization Selection */}
                         {organizations.length > 1 && (
-                          <Card className="p-4">
+                          <Card className="p-4 bg-white dark:bg-gray-800">
                             <div className="space-y-3">
                               <Label className="text-sm font-medium">Select Organization</Label>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1090,7 +1056,7 @@ const SendInvitations = () => {
 
                         {/* Member Selection */}
                         {selectedOrg && selectableMembers.length > 0 ? (
-                          <Card className="p-4">
+                          <Card className="p-4 bg-white dark:bg-gray-800">
                             <div className="space-y-4">
                               {/* Selection Controls */}
                               <div className="flex items-center justify-between pb-4 border-b">
@@ -1193,7 +1159,7 @@ const SendInvitations = () => {
                             </div>
                           </Card>
                         ) : selectedOrg ? (
-                          <Card className="p-4 border-dashed border-2">
+                          <Card className="p-4 border-dashed border-2 bg-white dark:bg-gray-800">
                             <div className="text-center space-y-4">
                               <div className="mx-auto w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
                                 <Users className="w-6 h-6 text-gray-400" />

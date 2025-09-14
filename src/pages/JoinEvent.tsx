@@ -26,7 +26,14 @@ const JoinEvent = () => {
         const result = await response.json();
 
         if (result.success) {
-          setEvent(result.data.event);
+          const eventData = result.data.event;
+
+          // Check if event is published (available for public access)
+          if (!eventData.published) {
+            throw new Error('This event is not currently available for registration');
+          }
+
+          setEvent(eventData);
         } else {
           throw new Error(result.message || 'Event not found');
         }

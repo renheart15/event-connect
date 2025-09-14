@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, MapPin, Users, Monitor, Mail, Settings, QrCode, MessageSquare, FileText, Send } from 'lucide-react';
+import { Calendar, MapPin, Users, Monitor, Mail, Settings, QrCode, MessageSquare, Send } from 'lucide-react';
 import QRCodeDisplay from '@/components/QRCodeDisplay';
 import GeofenceMap from '@/components/GeofenceMap';
 import { toast } from '@/hooks/use-toast';
@@ -19,21 +19,46 @@ interface EventCardProps {
   onFeedbackClick: (eventId: string) => void;
   onDeleteClick: (eventId: string, isCompleted: boolean) => void;
   onPublishClick: (eventId: string) => void;
+  onQRClick?: (eventId: string) => void;
+  onGeofenceClick?: (eventId: string) => void;
 }
 
-const EventCard = ({ 
-  event, 
-  onInvitationClick, 
-  onReportsClick, 
-  onSettingsClick, 
-  onGeofenceUpdate, 
-  onFeedbackClick, 
+const EventCard = ({
+  event,
+  onInvitationClick,
+  onReportsClick,
+  onSettingsClick,
+  onGeofenceUpdate,
+  onFeedbackClick,
   onDeleteClick,
-  onPublishClick
+  onPublishClick,
+  onQRClick,
+  onGeofenceClick
 }: EventCardProps) => {
   const isUpcoming = event.status === 'upcoming';
   const isActive = event.status === 'active';
   const isCompleted = event.status === 'completed';
+
+  // Check if current time is within 1 hour prior to event start
+  const isLiveMonitorAvailable = () => {
+    if (isActive) return true; // Always available for active events
+    if (!isUpcoming) return false; // Not available for completed events
+
+    const now = new Date();
+    const eventStartTime = event.startTime;
+
+    // Combine event date and start time
+    const eventDateTime = new Date(`${event.date}T${eventStartTime}`);
+
+    // Calculate time difference in milliseconds
+    const timeDiff = eventDateTime.getTime() - now.getTime();
+    const oneHourInMs = 60 * 60 * 1000; // 1 hour in milliseconds
+
+    // Available if 1 hour or less remaining until event start (and event hasn't started yet)
+    return timeDiff <= oneHourInMs && timeDiff >= 0;
+  };
+
+  const liveMonitorAvailable = isLiveMonitorAvailable();
   const [hasRegistrationForm, setHasRegistrationForm] = useState<boolean | null>(null);
   const [registrationFormId, setRegistrationFormId] = useState<string | null>(null);
   const [hasFeedbackForm, setHasFeedbackForm] = useState<boolean | null>(null);
@@ -97,22 +122,27 @@ const EventCard = ({
   };
 
   const handleEditFormClick = () => {
+    const currentPath = window.location.pathname;
+    const returnPath = currentPath.includes('/all-events') ? '/all-events' : '/dashboard';
+
     if (hasRegistrationForm && registrationFormId) {
       // Navigate to edit existing form
       navigate(`/registration-forms/${registrationFormId}/edit`, {
-        state: { 
-          eventId: event.id, 
+        state: {
+          eventId: event.id,
           eventTitle: event.title,
-          mode: 'edit'
+          mode: 'edit',
+          returnPath: returnPath
         }
       });
     } else {
       // Navigate to create new form
       navigate(`/events/${event.id}/registration/create`, {
-        state: { 
-          eventId: event.id, 
+        state: {
+          eventId: event.id,
           eventTitle: event.title,
-          mode: 'create'
+          mode: 'create',
+          returnPath: returnPath
         }
       });
     }
@@ -262,38 +292,45 @@ const EventCard = ({
             
             <TabsContent value="overview" className="space-y-4 mt-4">
               <div className="grid grid-cols-2 gap-2">
-                <Link to={`/event/${event.id}/monitor`}>
-                  <Button size="sm" variant="outline" className="w-full hover:bg-primary hover:text-primary-foreground transition-colors">
+                {liveMonitorAvailable ? (
+                  <Link to={`/event/${event.id}/monitor`}>
+                    <Button size="sm" variant="outline" className="w-full hover:bg-primary hover:text-primary-foreground transition-colors">
+                      <Monitor className="w-4 h-4 mr-2" />
+                      Live Monitor
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full opacity-50 cursor-not-allowed"
+                    disabled
+                    title={isUpcoming ? "Live Monitor available 1 hour before event start" : "Live Monitor not available"}
+                  >
                     <Monitor className="w-4 h-4 mr-2" />
                     Live Monitor
                   </Button>
-                </Link>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={() => onInvitationClick(event.id)}
                   className="hover:bg-primary hover:text-primary-foreground transition-colors"
                 >
                   <Mail className="w-4 h-4 mr-2" />
                   Invite
                 </Button>
-                <Link to={`/invitation-history?eventId=${event.id}&eventTitle=${encodeURIComponent(event.title)}`}>
-                  <Button size="sm" variant="outline" className="w-full hover:bg-primary hover:text-primary-foreground transition-colors">
-                    <FileText className="w-4 h-4 mr-2" />
-                    History
-                  </Button>
-                </Link>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={() => onReportsClick(event.id)}
                   className="hover:bg-primary hover:text-primary-foreground transition-colors"
                 >
                   <Users className="w-4 h-4 mr-2" />
                   Reports
                 </Button>
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   variant="outline"
                   onClick={() => onSettingsClick(event.id)}
                   className="hover:bg-primary hover:text-primary-foreground transition-colors"
@@ -305,20 +342,34 @@ const EventCard = ({
             </TabsContent>
             
             <TabsContent value="qr-code" className="py-4">
-              <QRCodeDisplay
-                eventId={event.id}
-                eventTitle={event.title}
-                eventCode={event.eventCode}
-              />
+              <div className="text-center space-y-4">
+                <p className="text-muted-foreground">
+                  Generate and download QR code for participants
+                </p>
+                <Button
+                  onClick={() => onQRClick?.(event.id)}
+                  className="w-full"
+                >
+                  <QrCode className="w-4 h-4 mr-2" />
+                  View QR Code
+                </Button>
+              </div>
             </TabsContent>
             
             <TabsContent value="geofence" className="py-4">
-              <GeofenceMap
-                eventId={event.id}
-                initialCenter={event.geofence.center}
-                initialRadius={event.geofence.radius}
-                onGeofenceUpdate={(center, radius) => onGeofenceUpdate(event.id, center, radius)}
-              />
+              <div className="text-center space-y-4">
+                <p className="text-muted-foreground">
+                  Configure location boundaries and geofence settings
+                </p>
+                <Button
+                  onClick={() => onGeofenceClick?.(event.id)}
+                  className="w-full"
+                  variant="outline"
+                >
+                  <MapPin className="w-4 h-4 mr-2" />
+                  Configure Geofence
+                </Button>
+              </div>
             </TabsContent>
             
             <TabsContent value="feedback" className="py-4">
