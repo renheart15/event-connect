@@ -6,16 +6,22 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 // Initialize theme on app load
 const initializeTheme = () => {
-  const saved = localStorage.getItem('theme');
-  if (saved) {
-    if (saved === 'dark') {
+  try {
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+      if (saved === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
       document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'dark');
     }
-  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    document.documentElement.classList.add('dark');
-    localStorage.setItem('theme', 'dark');
+  } catch (error) {
+    console.error('Theme initialization error:', error);
+    // Fallback to light theme
+    document.documentElement.classList.remove('dark');
   }
 };
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { QrCode, Calendar, MapPin, Users, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -12,6 +13,8 @@ const JoinEvent = () => {
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -34,6 +37,12 @@ const JoinEvent = () => {
           }
 
           setEvent(eventData);
+
+          // Check if user is already logged in, show join modal immediately
+          const token = localStorage.getItem('token');
+          if (token) {
+            setShowJoinModal(true);
+          }
         } else {
           throw new Error(result.message || 'Event not found');
         }
@@ -61,8 +70,39 @@ const JoinEvent = () => {
       return;
     }
 
-    // Redirect to participant dashboard with the event code
-    navigate(`/participant-dashboard?eventCode=${eventCode}`);
+    // Show confirmation modal
+    setShowJoinModal(true);
+  };
+
+  const confirmJoinEvent = async () => {
+    setIsJoining(true);
+    try {
+      // Here you can add any additional join event logic if needed
+      toast({
+        title: "Joining Event",
+        description: `You're joining "${event.title}"`,
+      });
+
+      // Redirect to participant dashboard with the event code
+      navigate(`/participant-dashboard?eventCode=${eventCode}`);
+    } catch (error) {
+      console.error('Error joining event:', error);
+      toast({
+        title: "Join Failed",
+        description: "Failed to join the event. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const cancelJoinEvent = () => {
+    setShowJoinModal(false);
+    toast({
+      title: "Cancelled",
+      description: "You can join this event anytime by clicking the Join button.",
+    });
   };
 
   const formatDate = (dateString: string) => {
@@ -193,6 +233,65 @@ const JoinEvent = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Join Confirmation Modal */}
+        <Dialog open={showJoinModal} onOpenChange={setShowJoinModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-blue-600" />
+                Join Event
+              </DialogTitle>
+              <DialogDescription>
+                Do you want to join this event?
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg">
+                <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                  {event?.title}
+                </h4>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Event Code: {event?.eventCode}
+                </p>
+                {event?.date && (
+                  <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                    {formatDate(event.date)}
+                    {event.startTime && ` at ${formatTime(event.startTime)}`}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={cancelJoinEvent}
+                  disabled={isJoining}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={confirmJoinEvent}
+                  disabled={isJoining}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isJoining ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Joining...
+                    </>
+                  ) : (
+                    <>
+                      <QrCode className="w-4 h-4 mr-2" />
+                      Yes, Join Event
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

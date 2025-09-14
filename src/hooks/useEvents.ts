@@ -80,7 +80,8 @@ const fetchEventsData = async (): Promise<Event[]> => {
 
   const token = localStorage.getItem('token');
   if (!token) {
-    throw new Error('No authentication token found');
+    console.warn('No authentication token found for events fetch');
+    return [];
   }
 
   const requestPromise = fetch(`${API_CONFIG.API_BASE}/events`, {
@@ -91,15 +92,20 @@ const fetchEventsData = async (): Promise<Event[]> => {
   })
     .then(async (response) => {
       if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('Authentication failed, user may need to log in again');
+          return [];
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const result = await response.json();
       if (!result.success) {
-        throw new Error(result.message || 'Failed to fetch events');
+        console.error('Events API error:', result.message);
+        return [];
       }
 
       // Process and cache the data
-      const processedEvents = result.data.events.map(processEventData);
+      const processedEvents = result.data?.events?.map(processEventData) || [];
 
       // Update global cache
       eventsCache = {
@@ -112,6 +118,11 @@ const fetchEventsData = async (): Promise<Event[]> => {
       cacheSubscribers.forEach(callback => callback());
 
       return processedEvents;
+    })
+    .catch((error) => {
+      console.error('Error fetching events:', error);
+      // Return empty array instead of throwing to prevent app crashes
+      return [];
     })
     .finally(() => {
       activeRequests.delete(cacheKey);
