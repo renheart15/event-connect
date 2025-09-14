@@ -1359,6 +1359,7 @@ const ParticipantDashboard = () => {
             video.play().then(() => {
               console.log('Video playing successfully');
               setScanningStatus('Position QR code within frame');
+              setIsScanning(true);
               startScanningInterval();
             }).catch(playError => {
               console.error('Video play error:', playError);
@@ -1374,6 +1375,7 @@ const ParticipantDashboard = () => {
           video.onplay = () => {
             console.log('Video play event');
             setScanningStatus('Position QR code within frame');
+            setIsScanning(true);
             startScanningInterval();
           };
 
