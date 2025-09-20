@@ -5,7 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
+import { API_CONFIG } from '@/config';
 import GeofenceMap from '@/components/GeofenceMap';
 
 const CreateEvent = () => {
@@ -13,9 +16,12 @@ const CreateEvent = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    eventType: 'single-day', // 'single-day' or 'multi-day'
     date: '',
+    endDate: '',
     startTime: '',
     endTime: '',
+    daysOfWeek: [] as string[], // For multi-day events: ['monday', 'tuesday', etc.]
     location: '',
     maxTimeOutside: '15',
     geofenceRadius: '100',
@@ -29,6 +35,25 @@ const CreateEvent = () => {
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  const handleDayOfWeekChange = (day: string, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      daysOfWeek: checked
+        ? [...prev.daysOfWeek, day]
+        : prev.daysOfWeek.filter(d => d !== day)
+    }));
+  };
+
+  const daysOfWeek = [
+    { value: 'monday', label: 'Monday' },
+    { value: 'tuesday', label: 'Tuesday' },
+    { value: 'wednesday', label: 'Wednesday' },
+    { value: 'thursday', label: 'Thursday' },
+    { value: 'friday', label: 'Friday' },
+    { value: 'saturday', label: 'Saturday' },
+    { value: 'sunday', label: 'Sunday' }
+  ];
 
   const generateEventCode = () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -47,13 +72,44 @@ const CreateEvent = () => {
       return;
     }
 
-    if (!formData.title || !formData.date || !formData.startTime || !tempCenter || !formData.location) {
+    // Validation for required fields
+    if (!formData.title || !formData.startTime || !tempCenter || !formData.location) {
       toast({
         title: "Missing required fields",
         description: "Please fill in all required fields including geofence",
         variant: "destructive",
       });
       return;
+    }
+
+    // Validation for single-day events
+    if (formData.eventType === 'single-day' && !formData.date) {
+      toast({
+        title: "Missing date",
+        description: "Please select a date for your event",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validation for multi-day events
+    if (formData.eventType === 'multi-day') {
+      if (!formData.date || !formData.endDate) {
+        toast({
+          title: "Missing dates",
+          description: "Please select start and end dates for your multi-day event",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (formData.daysOfWeek.length === 0) {
+        toast({
+          title: "Missing days",
+          description: "Please select which days of the week this event occurs",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     const selectedDate = new Date(`${formData.date}T${formData.startTime}`);
@@ -94,9 +150,12 @@ const CreateEvent = () => {
       const payload = {
         title: formData.title,
         description: formData.description,
+        eventType: formData.eventType,
         date: formData.date,
+        endDate: formData.eventType === 'multi-day' ? formData.endDate : undefined,
         startTime: formData.startTime,
         endTime: formData.endTime,
+        daysOfWeek: formData.eventType === 'multi-day' ? formData.daysOfWeek : undefined,
         location: {
           address: formData.location || "Unknown",
           coordinates: {
@@ -110,7 +169,7 @@ const CreateEvent = () => {
         maxParticipants: 100
       };
 
-      const res = await fetch('/api/events', {
+      const res = await fetch(`${API_CONFIG.API_BASE}/events`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -193,38 +252,132 @@ const CreateEvent = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Date *</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => handleInputChange('date', e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="startTime">Start Time *</Label>
-                  <Input
-                    id="startTime"
-                    type="time"
-                    value={formData.startTime}
-                    onChange={(e) => handleInputChange('startTime', e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="endTime">End Time</Label>
-                  <Input
-                    id="endTime"
-                    type="time"
-                    value={formData.endTime}
-                    onChange={(e) => handleInputChange('endTime', e.target.value)}
-                  />
-                </div>
+              <div className="space-y-3">
+                <Label>Event Type</Label>
+                <RadioGroup
+                  value={formData.eventType}
+                  onValueChange={(value) => handleInputChange('eventType', value)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="single-day" id="single-day" />
+                    <Label htmlFor="single-day">Single Day Event</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="multi-day" id="multi-day" />
+                    <Label htmlFor="multi-day">Multi-Day Recurring Event</Label>
+                  </div>
+                </RadioGroup>
+                <p className="text-xs text-gray-500">
+                  Choose single day for one-time events or multi-day for recurring events (e.g., Monday-Friday, 5-6 PM)
+                </p>
               </div>
+
+              {formData.eventType === 'single-day' ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Date *</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) => handleInputChange('date', e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="startTime">Start Time *</Label>
+                    <Input
+                      id="startTime"
+                      type="time"
+                      value={formData.startTime}
+                      onChange={(e) => handleInputChange('startTime', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="endTime">End Time</Label>
+                    <Input
+                      id="endTime"
+                      type="time"
+                      value={formData.endTime}
+                      onChange={(e) => handleInputChange('endTime', e.target.value)}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="date">Start Date *</Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        value={formData.date}
+                        onChange={(e) => handleInputChange('date', e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="endDate">End Date *</Label>
+                      <Input
+                        id="endDate"
+                        type="date"
+                        value={formData.endDate}
+                        onChange={(e) => handleInputChange('endDate', e.target.value)}
+                        min={formData.date || new Date().toISOString().split('T')[0]}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label>Days of Week *</Label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {daysOfWeek.map((day) => (
+                        <div key={day.value} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={day.value}
+                            checked={formData.daysOfWeek.includes(day.value)}
+                            onCheckedChange={(checked) =>
+                              handleDayOfWeekChange(day.value, checked as boolean)
+                            }
+                          />
+                          <Label htmlFor={day.value} className="text-sm">
+                            {day.label}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Select which days of the week this event occurs (e.g., Monday-Friday for work days)
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="startTime">Daily Start Time *</Label>
+                      <Input
+                        id="startTime"
+                        type="time"
+                        value={formData.startTime}
+                        onChange={(e) => handleInputChange('startTime', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="endTime">Daily End Time</Label>
+                      <Input
+                        id="endTime"
+                        type="time"
+                        value={formData.endTime}
+                        onChange={(e) => handleInputChange('endTime', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Event Location & Geofence *</Label>

@@ -12,9 +12,27 @@ const eventSchema = new mongoose.Schema({
     trim: true,
     maxlength: [500, 'Description cannot exceed 500 characters']
   },
+  eventType: {
+    type: String,
+    enum: ['single-day', 'multi-day'],
+    default: 'single-day'
+  },
   date: {
     type: Date,
     required: [true, 'Event date is required']
+  },
+  endDate: {
+    type: Date,
+    validate: {
+      validator: function(value) {
+        // Only validate if this is a multi-day event
+        if (this.eventType === 'multi-day') {
+          return value && value >= this.date;
+        }
+        return true;
+      },
+      message: 'End date must be on or after start date'
+    }
   },
   startTime: {
     type: String,
@@ -28,6 +46,20 @@ const eventSchema = new mongoose.Schema({
     validate: {
       validator: v => /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(v),
       message: props => `${props.value} is not a valid time format (HH:mm)`
+    }
+  },
+  daysOfWeek: {
+    type: [String],
+    enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+    validate: {
+      validator: function(value) {
+        // Only validate if this is a multi-day event
+        if (this.eventType === 'multi-day') {
+          return value && value.length > 0;
+        }
+        return true;
+      },
+      message: 'Multi-day events must specify at least one day of the week'
     }
   },
   location: {

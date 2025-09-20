@@ -35,16 +35,19 @@ function computeStatus(date, startTime, endTime) {
 // @access  Private (Organizer only)
 router.post('/', auth, requireOrganizer, [
   body('title').trim().notEmpty().withMessage('Event title is required'),
-  body('date').isISO8601().withMessage('Valid date is required'),
+  body('eventType').optional().isIn(['single-day', 'multi-day']).withMessage('Event type must be single-day or multi-day'),
+  body('date').isISO8601().withMessage('Valid start date is required'),
+  body('endDate').optional().isISO8601().withMessage('Valid end date is required'),
   body('startTime')
     .optional()
     .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
     .withMessage('Start time must be in HH:mm format'),
-
   body('endTime')
     .optional()
     .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
     .withMessage('End time must be in HH:mm format'),
+  body('daysOfWeek').optional().isArray().withMessage('Days of week must be an array'),
+  body('daysOfWeek.*').optional().isIn(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']).withMessage('Invalid day of week'),
   body('location.address').trim().notEmpty().withMessage('Event location is required'),
   body('location.coordinates.type')
     .equals('Point')
@@ -58,7 +61,6 @@ router.post('/', auth, requireOrganizer, [
   body('location.coordinates.coordinates[1]')
     .isFloat({ min: -90, max: 90 })
     .withMessage('Latitude must be valid'),
-
   body('geofenceRadius').optional().isInt({ min: 1 }).withMessage('Geofence radius must be a positive number'),
   body('description').optional().trim(),
   body('maxParticipants').optional().isInt({ min: 1 }).withMessage('Max participants must be at least 1')
@@ -94,9 +96,12 @@ router.post('/', auth, requireOrganizer, [
 
     const eventData = {
       title: req.body.title,
+      eventType: req.body.eventType || 'single-day',
       date: req.body.date,
+      endDate: req.body.endDate,
       startTime: req.body.startTime,
       endTime: req.body.endTime,
+      daysOfWeek: req.body.daysOfWeek || [],
       location: {
         address: req.body.location.address,
         coordinates: {
