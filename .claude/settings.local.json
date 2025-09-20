@@ -50,7 +50,12 @@
       "Bash(sed:*)",
       "Bash(findstr:*)",
       "Bash(netstat:*)",
-      "Bash(set PORT=8080)"
+      "Bash(set PORT=8080)",
+      "Bash(copy:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(adb:*)",
+      "Bash(ipconfig)"
     ],
     "deny": [],
     "ask": []

@@ -30,7 +30,12 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_CONFIG.API_BASE}/auth/login`, {
+      const loginUrl = `${API_CONFIG.API_BASE}/auth/login`;
+      console.log('LOGIN DEBUG: Attempting login to:', loginUrl);
+      console.log('LOGIN DEBUG: Email:', email);
+      console.log('LOGIN DEBUG: API_CONFIG:', API_CONFIG);
+
+      const response = await fetch(loginUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -38,6 +43,9 @@ const Login = () => {
         credentials: 'include', // Include cookies for session
         body: JSON.stringify({ email, password })
       });
+
+      console.log('LOGIN DEBUG: Response status:', response.status);
+      console.log('LOGIN DEBUG: Response ok:', response.ok);
 
       const data = await response.json();
 

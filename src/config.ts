@@ -1,10 +1,15 @@
 // API Configuration for different environments
 export const API_CONFIG = {
   get BASE_URL() {
-    // Force localhost in development
-    if (import.meta.env.DEV) {
-      return 'http://localhost:5000';
+    // In production build, always use www.event-connect.site
+    if (import.meta.env.PROD) {
+      console.log('Production build, using www.event-connect.site');
+      return 'https://www.event-connect.site';
     }
+
+    // Development mode - use localhost
+    console.log('Development mode, using localhost');
+    return 'http://localhost:5000';
     
     // Use localhost when running locally, cloudflare tunnel when deployed
     if (typeof window !== 'undefined') {
@@ -27,9 +32,13 @@ export const API_CONFIG = {
 };
 
 // Debug logging
-console.log('API Config:', {
+console.log('API Config DEBUG:', {
   baseUrl: API_CONFIG.BASE_URL,
   apiBase: API_CONFIG.API_BASE,
+  isProd: import.meta.env.PROD,
+  isDev: import.meta.env.DEV,
+  mode: import.meta.env.MODE,
   protocol: window?.location?.protocol || 'unknown',
-  hostname: window?.location?.hostname || 'unknown'
+  hostname: window?.location?.hostname || 'unknown',
+  userAgent: navigator?.userAgent || 'unknown'
 });

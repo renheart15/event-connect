@@ -1,11 +1,11 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.app.eventconnect"
+    namespace "com.eventconnect.mobile"
     compileSdk rootProject.ext.compileSdkVersion
 
     defaultConfig {
-        applicationId "com.app.eventconnect"
+        applicationId "com.eventconnect.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
