@@ -48,20 +48,6 @@ const eventSchema = new mongoose.Schema({
       message: props => `${props.value} is not a valid time format (HH:mm)`
     }
   },
-  daysOfWeek: {
-    type: [String],
-    enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
-    validate: {
-      validator: function(value) {
-        // Only validate if this is a multi-day event
-        if (this.eventType === 'multi-day') {
-          return value && value.length > 0;
-        }
-        return true;
-      },
-      message: 'Multi-day events must specify at least one day of the week'
-    }
-  },
   location: {
     address: {
       type: String,

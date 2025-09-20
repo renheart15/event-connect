@@ -46,8 +46,6 @@ router.post('/', auth, requireOrganizer, [
     .optional()
     .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
     .withMessage('End time must be in HH:mm format'),
-  body('daysOfWeek').optional().isArray().withMessage('Days of week must be an array'),
-  body('daysOfWeek.*').optional().isIn(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']).withMessage('Invalid day of week'),
   body('location.address').trim().notEmpty().withMessage('Event location is required'),
   body('location.coordinates.type')
     .equals('Point')
@@ -101,7 +99,6 @@ router.post('/', auth, requireOrganizer, [
       endDate: req.body.endDate,
       startTime: req.body.startTime,
       endTime: req.body.endTime,
-      daysOfWeek: req.body.daysOfWeek || [],
       location: {
         address: req.body.location.address,
         coordinates: {

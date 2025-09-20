@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import GeofenceMap from '@/components/GeofenceMap';
@@ -21,7 +20,6 @@ const CreateEvent = () => {
     endDate: '',
     startTime: '',
     endTime: '',
-    daysOfWeek: [] as string[], // For multi-day events: ['monday', 'tuesday', etc.]
     location: '',
     maxTimeOutside: '15',
     geofenceRadius: '100',
@@ -36,24 +34,6 @@ const CreateEvent = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleDayOfWeekChange = (day: string, checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      daysOfWeek: checked
-        ? [...prev.daysOfWeek, day]
-        : prev.daysOfWeek.filter(d => d !== day)
-    }));
-  };
-
-  const daysOfWeek = [
-    { value: 'monday', label: 'Monday' },
-    { value: 'tuesday', label: 'Tuesday' },
-    { value: 'wednesday', label: 'Wednesday' },
-    { value: 'thursday', label: 'Thursday' },
-    { value: 'friday', label: 'Friday' },
-    { value: 'saturday', label: 'Saturday' },
-    { value: 'sunday', label: 'Sunday' }
-  ];
 
   const generateEventCode = () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -98,14 +78,6 @@ const CreateEvent = () => {
         toast({
           title: "Missing dates",
           description: "Please select start and end dates for your multi-day event",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (formData.daysOfWeek.length === 0) {
-        toast({
-          title: "Missing days",
-          description: "Please select which days of the week this event occurs",
           variant: "destructive",
         });
         return;
@@ -155,7 +127,6 @@ const CreateEvent = () => {
         endDate: formData.eventType === 'multi-day' ? formData.endDate : undefined,
         startTime: formData.startTime,
         endTime: formData.endTime,
-        daysOfWeek: formData.eventType === 'multi-day' ? formData.daysOfWeek : undefined,
         location: {
           address: formData.location || "Unknown",
           coordinates: {
@@ -268,7 +239,7 @@ const CreateEvent = () => {
                   </div>
                 </RadioGroup>
                 <p className="text-xs text-gray-500">
-                  Choose single day for one-time events or multi-day for recurring events (e.g., Monday-Friday, 5-6 PM)
+                  Choose single day for one-time events or multi-day for events spanning multiple consecutive days
                 </p>
               </div>
 
@@ -332,28 +303,6 @@ const CreateEvent = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <Label>Days of Week *</Label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {daysOfWeek.map((day) => (
-                        <div key={day.value} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={day.value}
-                            checked={formData.daysOfWeek.includes(day.value)}
-                            onCheckedChange={(checked) =>
-                              handleDayOfWeekChange(day.value, checked as boolean)
-                            }
-                          />
-                          <Label htmlFor={day.value} className="text-sm">
-                            {day.label}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      Select which days of the week this event occurs (e.g., Monday-Friday for work days)
-                    </p>
-                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
