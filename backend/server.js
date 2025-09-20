@@ -33,11 +33,14 @@ app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors({
   origin: [
-    'http://localhost:8080', 
+    'http://localhost:8080',
     'http://localhost:3000',
     'https://www.event-connect.site',
-    'https://event-connect.site'
-  ], // Specific origins for credentials
+    'https://event-connect.site',
+    'capacitor://localhost',
+    'ionic://localhost',
+    'http://localhost'
+  ], // Specific origins for credentials including mobile apps
   credentials: true
 }));
 

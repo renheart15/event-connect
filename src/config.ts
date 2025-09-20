@@ -1,16 +1,22 @@
 // API Configuration for different environments
 export const API_CONFIG = {
   get BASE_URL() {
-    // In production build, always use www.event-connect.site
+    // Check if we have a backend URL from environment variables first
+    if (import.meta.env.VITE_BACKEND_URL) {
+      console.log('Using backend URL from environment:', import.meta.env.VITE_BACKEND_URL);
+      return import.meta.env.VITE_BACKEND_URL;
+    }
+
+    // In production build, try the production server
     if (import.meta.env.PROD) {
-      console.log('Production build, using www.event-connect.site');
-      return 'https://www.event-connect.site';
+      console.log('Production build, using backend.event-connect.site');
+      return 'https://backend.event-connect.site';
     }
 
     // Development mode - use localhost
     console.log('Development mode, using localhost');
     return 'http://localhost:5000';
-    
+
     // Use localhost when running locally, cloudflare tunnel when deployed
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
