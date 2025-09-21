@@ -138,7 +138,7 @@ router.get('/test', (req, res) => {
   res.json({
     success: true,
     message: 'Auth API is working correctly',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' })
   });
 });
 

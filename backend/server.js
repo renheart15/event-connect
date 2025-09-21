@@ -131,7 +131,7 @@ app.use('/api/organization-membership', organizationMembershipRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ status: 'OK', timestamp: new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }) });
 });
 
 // Error handling middleware
@@ -151,10 +151,11 @@ app.get('/api/time', (req, res) => {
     success: true,
     serverTime: {
       iso: now.toISOString(),
-      local: now.toLocaleString(),
+      local: now.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }),
+      singapore: now.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }),
       utc: now.toUTCString(),
       timestamp: now.getTime(),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      timezone: 'Asia/Singapore'
     }
   });
 });

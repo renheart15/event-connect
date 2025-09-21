@@ -3,12 +3,12 @@ import App from './App.tsx'
 import './index.css'
 
 // Deployment debug info
-const deploymentTimestamp = new Date().toISOString();
+const deploymentTimestamp = new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' });
 const buildVersion = `Build-${Date.now()}`;
 console.log(`🚀 Event Connect Deployment Debug:`, {
   timestamp: deploymentTimestamp,
   version: buildVersion,
-  date: new Date().toLocaleString(),
+  date: new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }),
   userAgent: navigator.userAgent
 });
 console.log('🔍 If you see this log, the latest deployment is loaded!');
