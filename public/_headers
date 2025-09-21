@@ -1,0 +1,16 @@
+/assets/*
+  Content-Type: application/javascript
+  Cache-Control: max-age=31536000, immutable
+
+/*.js
+  Content-Type: application/javascript; charset=utf-8
+
+/*.mjs
+  Content-Type: application/javascript; charset=utf-8
+
+/*.css
+  Content-Type: text/css; charset=utf-8
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff

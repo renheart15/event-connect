@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Auth Info</title>
+</head>
+<body>
+    <h1>Debug Authentication Info</h1>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+
+        try {
+            const token = localStorage.getItem('token');
+            const userStr = localStorage.getItem('user');
+
+            output.innerHTML += `<h2>Token:</h2><pre>${token ? 'EXISTS (length: ' + token.length + ')' : 'NOT FOUND'}</pre>`;
+
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                output.innerHTML += `<h2>User Data:</h2><pre>${JSON.stringify(user, null, 2)}</pre>`;
+                output.innerHTML += `<h2>User Role:</h2><pre>${user.role || 'NO ROLE FOUND'}</pre>`;
+            } else {
+                output.innerHTML += `<h2>User Data:</h2><pre>NOT FOUND</pre>`;
+            }
+
+            // Test token decode
+            if (token) {
+                try {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(atob(parts[1]));
+                        output.innerHTML += `<h2>Token Payload:</h2><pre>${JSON.stringify(payload, null, 2)}</pre>`;
+                    }
+                } catch (e) {
+                    output.innerHTML += `<h2>Token Decode Error:</h2><pre>${e.message}</pre>`;
+                }
+            }
+        } catch (error) {
+            output.innerHTML += `<h2>Error:</h2><pre>${error.message}</pre>`;
+        }
+    </script>
+</body>
+</html>

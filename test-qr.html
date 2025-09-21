@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .qr-container {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            margin: 10px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            font-size: 16px;
+        }
+        input {
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>QR Code Generator for Testing</h1>
+    
+    <div class="qr-container">
+        <h3>Test Event QR Code</h3>
+        <canvas id="eventQR"></canvas>
+        <br>
+        <p><strong>Event QR Data:</strong></p>
+        <pre id="eventData"></pre>
+    </div>
+
+    <div class="qr-container">
+        <h3>Simple Text QR Code</h3>
+        <input type="text" id="textInput" placeholder="Enter text for QR code" value="Hello, World!">
+        <button onclick="generateTextQR()">Generate QR</button>
+        <br>
+        <canvas id="textQR"></canvas>
+    </div>
+
+    <div class="qr-container">
+        <h3>URL QR Code</h3>
+        <input type="url" id="urlInput" placeholder="Enter URL" value="https://www.example.com">
+        <button onclick="generateUrlQR()">Generate QR</button>
+        <br>
+        <canvas id="urlQR"></canvas>
+    </div>
+
+    <script>
+        // Generate event QR code on load
+        window.onload = function() {
+            generateEventQR();
+            generateTextQR();
+            generateUrlQR();
+        };
+
+        function generateEventQR() {
+            const eventData = {
+                eventId: "test-event-123",
+                invitationId: "invitation-456",
+                type: "checkin",
+                timestamp: new Date().toISOString()
+            };
+            
+            const qrData = JSON.stringify(eventData);
+            document.getElementById('eventData').textContent = qrData;
+            
+            QRCode.toCanvas(document.getElementById('eventQR'), qrData, {
+                width: 300,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            });
+        }
+
+        function generateTextQR() {
+            const text = document.getElementById('textInput').value || "Hello, World!";
+            QRCode.toCanvas(document.getElementById('textQR'), text, {
+                width: 300,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            });
+        }
+
+        function generateUrlQR() {
+            const url = document.getElementById('urlInput').value || "https://www.example.com";
+            QRCode.toCanvas(document.getElementById('urlQR'), url, {
+                width: 300,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            });
+        }
+    </script>
+</body>
+</html>

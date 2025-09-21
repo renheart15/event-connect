@@ -1,0 +1,107 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "max-age=31536000, immutable"
+
+[[headers]]
+  for = "*.js"
+  [headers.values]
+    Content-Type = "application/javascript; charset=utf-8"
+
+[[headers]]
+  for = "*.mjs"
+  [headers.values]
+    Content-Type = "application/javascript; charset=utf-8"
+
+[[headers]]
+  for = "*.css"
+  [headers.values]
+    Content-Type = "text/css; charset=utf-8"
+
+[[headers]]
+  for = "*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
+
+# SPA routing - specific page routes only
+[[redirects]]
+  from = "/login"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/register"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/participant-dashboard"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/organizer-dashboard"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/all-events"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/create-event"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/public-events"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/invitations"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/send-invitations"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/organization"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/invitation/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/events/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/registration-forms/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/event/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/join/*"
+  to = "/index.html"
+  status = 200

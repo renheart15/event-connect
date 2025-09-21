@@ -1,0 +1,34 @@
+RewriteEngine On
+
+# Handle API requests
+RewriteRule ^api/(.*)$ https://backend.event-connect.site/api/$1 [P,L]
+
+# Handle static assets - don't rewrite
+RewriteRule ^assets/ - [L]
+RewriteRule \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ - [L]
+
+# SPA routing - rewrite page routes to index.html
+RewriteRule ^login$ /index.html [L]
+RewriteRule ^register$ /index.html [L]
+RewriteRule ^participant-dashboard$ /index.html [L]
+RewriteRule ^organizer-dashboard$ /index.html [L]
+RewriteRule ^all-events$ /index.html [L]
+RewriteRule ^create-event$ /index.html [L]
+RewriteRule ^public-events$ /index.html [L]
+RewriteRule ^invitations$ /index.html [L]
+RewriteRule ^send-invitations$ /index.html [L]
+RewriteRule ^organization$ /index.html [L]
+RewriteRule ^invitation/ /index.html [L]
+RewriteRule ^events/ /index.html [L]
+RewriteRule ^registration-forms/ /index.html [L]
+RewriteRule ^event/ /index.html [L]
+RewriteRule ^join/ /index.html [L]
+
+# Set correct MIME types for JS modules
+<FilesMatch "\.js$">
+    Header set Content-Type "application/javascript; charset=utf-8"
+</FilesMatch>
+
+<FilesMatch "\.mjs$">
+    Header set Content-Type "application/javascript; charset=utf-8"
+</FilesMatch>
