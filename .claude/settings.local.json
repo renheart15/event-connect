@@ -64,7 +64,10 @@
       "WebFetch(domain:event-connect.site)",
       "Bash(rm:*)",
       "Bash(where railway)",
-      "Bash(railway login:*)"
+      "Bash(railway login:*)",
+      "Bash(where gh)",
+      "Bash(git remote add:*)",
+      "Bash(git remote set-url:*)"
     ],
     "deny": [],
     "ask": []

@@ -13,24 +13,34 @@ const calculateEventStatus = (event, now = new Date()) => {
     const [endHour, endMin] = event.endTime.split(':').map(Number);
 
     // Create dates in Singapore timezone (UTC+8)
+    // Convert times to Singapore timezone for proper comparison
     const eventDate = new Date(event.date);
-    const start = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), startHour, startMin, 0, 0);
-    const end = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), endHour, endMin, 0, 0);
+
+    // Create start and end times in Singapore timezone
+    const startSG = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), startHour, startMin, 0, 0);
+    const endSG = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), endHour, endMin, 0, 0);
+
+    // Convert current time to Singapore timezone for comparison
+    const nowSG = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+
+    const start = startSG;
+    const end = endSG;
 
     console.log(`📅 Status calculation for "${event.title}":`, {
-      now: now.toISOString(),
+      nowUTC: now.toISOString(),
+      nowSG: nowSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }),
       eventDate: event.date,
       startTime: event.startTime,
       endTime: event.endTime,
-      calculatedStart: start.toISOString(),
-      calculatedEnd: end.toISOString(),
-      nowVsStart: now >= start ? 'now >= start' : 'now < start',
-      nowVsEnd: now >= end ? 'now >= end' : 'now < end'
+      calculatedStart: start.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }),
+      calculatedEnd: end.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }),
+      nowVsStart: nowSG >= start ? 'now >= start' : 'now < start',
+      nowVsEnd: nowSG >= end ? 'now >= end' : 'now < end'
     });
 
     if (!isNaN(start) && !isNaN(end)) {
-      if (now >= end) return 'completed';
-      else if (now >= start) return 'active';
+      if (nowSG >= end) return 'completed';
+      else if (nowSG >= start) return 'active';
     }
   } catch (error) {
     console.error('Error calculating event status:', error);
