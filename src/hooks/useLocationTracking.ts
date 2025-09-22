@@ -93,8 +93,10 @@ export const useLocationTracking = (eventId: string): UseLocationTrackingReturn 
           sampleParticipant: participants.length > 0 ? {
             name: participants[0].participant?.name,
             location: participants[0].currentLocation,
-            battery: participants[0].batteryLevel
-          } : null
+            battery: participants[0].batteryLevel,
+            fullParticipant: participants[0]
+          } : null,
+          allParticipants: participants
         });
         setLocationStatuses(participants);
         setSummary(response.data.data.summary || null);
