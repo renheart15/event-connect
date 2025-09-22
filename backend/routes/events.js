@@ -989,9 +989,23 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
       status: 'checked-in'
     }).populate('participant', 'name email');
 
+    console.log(`📊 [TEMP-LOCATION] Found ${attendanceLogs.length} checked-in participants for event ${eventId}`);
+    console.log('📊 [TEMP-LOCATION] In-memory location data count:', participantLocationData.size);
+    console.log('📊 [TEMP-LOCATION] Stored participant IDs:', Array.from(participantLocationData.keys()));
+
     const mockLocationStatuses = attendanceLogs.map(log => {
       const participantId = log.participant._id.toString();
       const locationData = participantLocationData.get(participantId);
+
+      console.log(`👤 [TEMP-LOCATION] Processing participant ${log.participant.name} (${participantId}):`, {
+        hasLocationData: !!locationData,
+        locationData: locationData ? {
+          lat: locationData.latitude,
+          lng: locationData.longitude,
+          battery: locationData.batteryLevel,
+          timestamp: locationData.timestamp
+        } : null
+      });
 
       return {
         _id: log._id,
