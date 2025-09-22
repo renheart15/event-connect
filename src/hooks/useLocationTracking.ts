@@ -77,7 +77,7 @@ export const useLocationTracking = (eventId: string): UseLocationTrackingReturn 
       }
 
       const response = await axios.get(
-        `${API_BASE}/location-tracking/event/${eventId}/status`,
+        `${API_BASE}/events/${eventId}/location-status`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -122,7 +122,7 @@ export const useLocationTracking = (eventId: string): UseLocationTrackingReturn 
       }
 
       await axios.post(
-        `${API_BASE}/location-tracking/acknowledge-alert`,
+        `${API_BASE}/events/location-tracking/acknowledge-alert`,
         {
           statusId,
           alertId,

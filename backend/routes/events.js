@@ -961,5 +961,110 @@ router.post('/location-tracking/update-location', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/events/:eventId/location-status
+// @desc    Get location status for all participants in an event (temporary endpoint)
+// @access  Private
+router.get('/:eventId/location-status', auth, async (req, res) => {
+  console.log('📍 [TEMP-LOCATION] Location status endpoint hit for event:', req.params.eventId);
+
+  try {
+    const { eventId } = req.params;
+
+    // For now, create mock data to test the live monitor
+    // In real implementation, this would fetch from ParticipantLocationStatus collection
+    const mockLocationStatuses = [
+      {
+        _id: '68d0c3335b5d0deaa23ab4b1',
+        event: eventId,
+        participant: {
+          _id: '6884a4d477ab86450700f091',
+          name: 'Test Participant',
+          email: 'participant@test.com'
+        },
+        currentLocation: {
+          latitude: 10.5039879,
+          longitude: 123.7314512,
+          accuracy: 17.291,
+          timestamp: new Date().toISOString()
+        },
+        isWithinGeofence: true,
+        distanceFromCenter: 15,
+        outsideTimer: {
+          isActive: false,
+          totalTimeOutside: 0
+        },
+        status: 'inside',
+        alertsSent: [],
+        lastLocationUpdate: new Date().toISOString(),
+        currentTimeOutside: 0
+      }
+    ];
+
+    const summary = {
+      totalParticipants: mockLocationStatuses.length,
+      insideGeofence: mockLocationStatuses.filter(s => s.isWithinGeofence).length,
+      outsideGeofence: mockLocationStatuses.filter(s => !s.isWithinGeofence).length,
+      warningStatus: mockLocationStatuses.filter(s => s.status === 'warning').length,
+      exceededLimit: mockLocationStatuses.filter(s => s.status === 'exceeded_limit').length
+    };
+
+    res.json({
+      success: true,
+      data: {
+        participants: mockLocationStatuses,
+        summary
+      }
+    });
+
+    console.log(`✅ [TEMP-LOCATION] Location status returned for ${mockLocationStatuses.length} participants`);
+  } catch (error) {
+    console.error('❌ [TEMP-LOCATION] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get location status',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/events/location-tracking/acknowledge-alert
+// @desc    Acknowledge an alert (temporary endpoint)
+// @access  Private
+router.post('/location-tracking/acknowledge-alert', auth, async (req, res) => {
+  console.log('🔔 [TEMP-LOCATION] Acknowledge alert endpoint hit:', req.body);
+
+  try {
+    const { statusId, alertId } = req.body;
+
+    // Validate required fields
+    if (!statusId || !alertId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: statusId, alertId'
+      });
+    }
+
+    // For now, just return success to test the endpoint
+    res.json({
+      success: true,
+      message: 'Alert acknowledged successfully (temporary endpoint)',
+      data: {
+        statusId,
+        alertId,
+        acknowledgedAt: new Date().toISOString()
+      }
+    });
+
+    console.log(`✅ [TEMP-LOCATION] Alert ${alertId} acknowledged for status ${statusId}`);
+  } catch (error) {
+    console.error('❌ [TEMP-LOCATION] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to acknowledge alert',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 
