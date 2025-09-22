@@ -218,27 +218,34 @@ export const useParticipantLocationUpdater = () => {
     participantId: string,
     latitude: number,
     longitude: number,
-    accuracy?: number
+    accuracy?: number,
+    batteryLevel?: number | null
   ) => {
     try {
       setError(null);
       const token = localStorage.getItem('token');
 
-      console.log('🔄 Updating location:', { eventId, participantId, latitude, longitude, accuracy });
+      console.log('🔄 Updating location:', { eventId, participantId, latitude, longitude, accuracy, batteryLevel });
 
       if (!token) {
         throw new Error('No authentication token found');
       }
 
+      const payload: any = {
+        eventId,
+        participantId,
+        latitude,
+        longitude,
+        accuracy,
+      };
+
+      if (batteryLevel !== null && batteryLevel !== undefined) {
+        payload.batteryLevel = batteryLevel;
+      }
+
       const response = await axios.post(
         `${API_BASE}/events/location-tracking/update-location`,
-        {
-          eventId,
-          participantId,
-          latitude,
-          longitude,
-          accuracy,
-        },
+        payload,
         {
           headers: {
             Authorization: `Bearer ${token}`,

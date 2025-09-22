@@ -4563,16 +4563,32 @@ const ParticipantDashboard = () => {
               lng: position.coords.longitude,
               accuracy: position.coords.accuracy
             });
-            updateLocation(
-              eventId,
-              user._id,
-              position.coords.latitude,
-              position.coords.longitude,
-              position.coords.accuracy
-            ).then(() => {
-              console.log('✅ Location updated successfully');
-            }).catch((error) => {
-              console.error('❌ Location update failed:', error);
+            // Get battery level if available
+            const getBatteryLevel = async () => {
+              try {
+                if ('getBattery' in navigator) {
+                  const battery = await (navigator as any).getBattery();
+                  return Math.round(battery.level * 100);
+                }
+                return null;
+              } catch (error) {
+                return null;
+              }
+            };
+
+            getBatteryLevel().then((batteryLevel) => {
+              updateLocation(
+                eventId,
+                user._id,
+                position.coords.latitude,
+                position.coords.longitude,
+                position.coords.accuracy,
+                batteryLevel
+              ).then(() => {
+                console.log('✅ Location updated successfully');
+              }).catch((error) => {
+                console.error('❌ Location update failed:', error);
+              });
             });
           }
         });
@@ -4587,16 +4603,33 @@ const ParticipantDashboard = () => {
                 lng: position.coords.longitude,
                 accuracy: position.coords.accuracy
               });
-              updateLocation(
-                eventId,
-                user._id,
-                position.coords.latitude,
-                position.coords.longitude,
-                position.coords.accuracy
-              ).then(() => {
-                console.log('✅ Web location updated successfully');
-              }).catch((error) => {
-                console.error('❌ Web location update failed:', error);
+
+              // Get battery level if available
+              const getBatteryLevel = async () => {
+                try {
+                  if ('getBattery' in navigator) {
+                    const battery = await (navigator as any).getBattery();
+                    return Math.round(battery.level * 100);
+                  }
+                  return null;
+                } catch (error) {
+                  return null;
+                }
+              };
+
+              getBatteryLevel().then((batteryLevel) => {
+                updateLocation(
+                  eventId,
+                  user._id,
+                  position.coords.latitude,
+                  position.coords.longitude,
+                  position.coords.accuracy,
+                  batteryLevel
+                ).then(() => {
+                  console.log('✅ Web location updated successfully');
+                }).catch((error) => {
+                  console.error('❌ Web location update failed:', error);
+                });
               });
             },
             (error) => {

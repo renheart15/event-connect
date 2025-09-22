@@ -69,7 +69,7 @@ const EventMonitor = () => {
         checkOutTime: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('en-US', { hour12: true }) : null,
         duration: log.duration || 0,
         lastSeen: getTimeAgo(log.lastLocationUpdate || log.checkInTime),
-        batteryLevel: log.batteryLevel || Math.floor(Math.random() * 100) // Use actual battery level or mock data
+        batteryLevel: log.batteryLevel || null // Use actual battery level or null if not available
       }));
 
       setParticipants(transformedParticipants);
@@ -576,8 +576,8 @@ const EventMonitor = () => {
                             <Battery className="w-4 h-4" />
                             Battery
                           </p>
-                          <p className={`font-semibold ${getBatteryColor(participant.batteryLevel)}`}>
-                            {participant.batteryLevel}%
+                          <p className={`font-semibold ${participant.batteryLevel ? getBatteryColor(participant.batteryLevel) : 'text-gray-400'}`}>
+                            {participant.batteryLevel ? `${participant.batteryLevel}%` : 'N/A'}
                           </p>
                         </div>
                       </div>

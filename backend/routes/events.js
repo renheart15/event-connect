@@ -8,6 +8,9 @@ const AttendanceLog = require('../models/AttendanceLog');
 const Invitation = require('../models/Invitation');
 const RegistrationForm = require('../models/RegistrationForm');
 const { auth, requireOrganizer } = require('../middleware/auth');
+
+// Temporary in-memory store for location and battery data
+const participantLocationData = new Map(); // participantId -> { latitude, longitude, accuracy, batteryLevel, timestamp }
 const { updateAllEventStatuses, updateSingleEventStatus, calculateEventStatus } = require('../utils/updateEventStatuses');
 
 const router = express.Router();
@@ -926,7 +929,7 @@ router.post('/location-tracking/update-location', auth, async (req, res) => {
   console.log('📍 [TEMP-LOCATION] Update location endpoint hit:', req.body);
 
   try {
-    const { eventId, participantId, latitude, longitude, accuracy } = req.body;
+    const { eventId, participantId, latitude, longitude, accuracy, batteryLevel } = req.body;
 
     // Validate required fields
     if (!eventId || !participantId || latitude === undefined || longitude === undefined) {
@@ -936,21 +939,27 @@ router.post('/location-tracking/update-location', auth, async (req, res) => {
       });
     }
 
-    // For now, just return success to test the endpoint
+    // Store the location and battery data temporarily (in real implementation, this would save to database)
+    const locationData = {
+      eventId,
+      participantId,
+      latitude,
+      longitude,
+      accuracy: accuracy || 0,
+      batteryLevel: batteryLevel || null,
+      timestamp: new Date().toISOString()
+    };
+
+    // Store in temporary in-memory cache
+    participantLocationData.set(participantId, locationData);
+
     res.json({
       success: true,
       message: 'Location updated successfully (temporary endpoint)',
-      data: {
-        eventId,
-        participantId,
-        latitude,
-        longitude,
-        accuracy: accuracy || 0,
-        timestamp: new Date().toISOString()
-      }
+      data: locationData
     });
 
-    console.log(`📍 [TEMP-LOCATION] Location updated for participant ${participantId}: ${latitude}, ${longitude}`);
+    console.log(`📍 [TEMP-LOCATION] Location updated for participant ${participantId}: ${latitude}, ${longitude}, battery: ${batteryLevel || 'N/A'}%`);
   } catch (error) {
     console.error('❌ [TEMP-LOCATION] Error:', error);
     res.status(500).json({
@@ -970,35 +979,47 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
   try {
     const { eventId } = req.params;
 
-    // For now, create mock data to test the live monitor
-    // In real implementation, this would fetch from ParticipantLocationStatus collection
-    const mockLocationStatuses = [
-      {
-        _id: '68d0c3335b5d0deaa23ab4b1',
+    // Get location data from temporary store and combine with attendance data
+    const AttendanceLog = require('../models/AttendanceLog');
+    const User = require('../models/User');
+
+    // Fetch participants who are currently checked in to this event
+    const attendanceLogs = await AttendanceLog.find({
+      event: eventId,
+      status: 'checked-in'
+    }).populate('participant', 'name email');
+
+    const mockLocationStatuses = attendanceLogs.map(log => {
+      const participantId = log.participant._id.toString();
+      const locationData = participantLocationData.get(participantId);
+
+      return {
+        _id: log._id,
         event: eventId,
         participant: {
-          _id: '6884a4d477ab86450700f091',
-          name: 'Test Participant',
-          email: 'participant@test.com'
+          _id: log.participant._id,
+          name: log.participant.name,
+          email: log.participant.email
         },
         currentLocation: {
-          latitude: 10.5039879,
-          longitude: 123.7314512,
-          accuracy: 17.291,
-          timestamp: new Date().toISOString()
+          latitude: locationData?.latitude || 0,
+          longitude: locationData?.longitude || 0,
+          accuracy: locationData?.accuracy || 0,
+          timestamp: locationData?.timestamp || new Date().toISOString()
         },
-        isWithinGeofence: true,
-        distanceFromCenter: 15,
+        isWithinGeofence: true, // Mock value for now
+        distanceFromCenter: 15, // Mock value for now
         outsideTimer: {
           isActive: false,
           totalTimeOutside: 0
         },
         status: 'inside',
         alertsSent: [],
-        lastLocationUpdate: new Date().toISOString(),
-        currentTimeOutside: 0
-      }
-    ];
+        lastLocationUpdate: locationData?.timestamp || log.checkInTime,
+        currentTimeOutside: 0,
+        batteryLevel: locationData?.batteryLevel || null
+      };
+    });
 
     const summary = {
       totalParticipants: mockLocationStatuses.length,
