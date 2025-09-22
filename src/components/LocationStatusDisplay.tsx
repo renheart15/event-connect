@@ -285,17 +285,28 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                   </div>
 
                   {/* Timer Display */}
-                  {status.outsideTimer.isActive && (
+                  {console.log('🔍 [TIMER-DEBUG] Checking timer for', status.participant.name, ':', {
+                    outsideTimer: status.outsideTimer,
+                    isActive: status.outsideTimer?.isActive,
+                    currentTimeOutside: status.currentTimeOutside,
+                    status: status.status
+                  })}
+                  {(status.outsideTimer?.isActive || status.currentTimeOutside > 0) && (
                     <div className="bg-orange-50 border border-orange-200 rounded p-3">
                       <div className="flex items-center gap-2 text-orange-700">
                         <Clock className="w-4 h-4" />
                         <span className="font-medium">
-                          Timer Active - Time Outside: {formatTime(status.currentTimeOutside)}
+                          {status.outsideTimer?.isActive ? 'Timer Active' : 'Time Outside'}: {formatTime(status.currentTimeOutside)}
                         </span>
                       </div>
-                      {status.outsideTimer.startTime && (
+                      {status.outsideTimer?.startTime && (
                         <p className="text-sm text-orange-600 mt-1">
                           Started at: {new Date(status.outsideTimer.startTime).toLocaleTimeString('en-US', { hour12: true })}
+                        </p>
+                      )}
+                      {!status.outsideTimer?.isActive && status.currentTimeOutside > 0 && (
+                        <p className="text-sm text-orange-600 mt-1">
+                          No recent location data - timer started from check-in
                         </p>
                       )}
                     </div>
