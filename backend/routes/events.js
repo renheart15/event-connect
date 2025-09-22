@@ -1093,5 +1093,64 @@ router.post('/location-tracking/acknowledge-alert', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/events/location-tracking/participant/:participantId/event/:eventId/status
+// @desc    Get location status for a specific participant (temporary endpoint)
+// @access  Private
+router.get('/location-tracking/participant/:participantId/event/:eventId/status', auth, async (req, res) => {
+  console.log('👤 [TEMP-LOCATION] Participant status endpoint hit:', req.params);
+
+  try {
+    const { participantId, eventId } = req.params;
+
+    // Get location data from temporary store
+    const locationData = participantLocationData.get(participantId);
+
+    if (!locationData || locationData.eventId !== eventId) {
+      return res.status(404).json({
+        success: false,
+        message: 'Location status not found for this participant in this event'
+      });
+    }
+
+    // Return participant's current location status
+    const participantStatus = {
+      _id: `status_${participantId}_${eventId}`,
+      event: eventId,
+      participant: participantId,
+      currentLocation: {
+        latitude: locationData.latitude,
+        longitude: locationData.longitude,
+        accuracy: locationData.accuracy,
+        timestamp: locationData.timestamp
+      },
+      isWithinGeofence: true, // Mock value for now
+      distanceFromCenter: 15, // Mock value for now
+      outsideTimer: {
+        isActive: false,
+        totalTimeOutside: 0
+      },
+      status: 'inside',
+      alertsSent: [],
+      lastLocationUpdate: locationData.timestamp,
+      currentTimeOutside: 0,
+      batteryLevel: locationData.batteryLevel
+    };
+
+    res.json({
+      success: true,
+      data: participantStatus
+    });
+
+    console.log(`✅ [TEMP-LOCATION] Participant status returned for ${participantId}`);
+  } catch (error) {
+    console.error('❌ [TEMP-LOCATION] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get participant status',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 

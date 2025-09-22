@@ -4694,7 +4694,7 @@ const ParticipantDashboard = () => {
     if (!token || !user._id) return;
     
     try {
-      const response = await fetch(`${API_CONFIG.API_BASE}/location-tracking/participant/${user._id}/event/${eventId}/status`, {
+      const response = await fetch(`${API_CONFIG.API_BASE}/events/location-tracking/participant/${user._id}/event/${eventId}/status`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
