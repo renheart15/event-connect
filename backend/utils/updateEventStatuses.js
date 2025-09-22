@@ -28,22 +28,49 @@ const calculateEventStatus = (event, nowSG = null) => {
 
     console.log(`📅 Status calculation for "${event.title}":`, {
       nowSG: nowSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour12: false }),
+      nowSG_ISO: nowSG.toISOString(),
+      nowSG_timestamp: nowSG.getTime(),
       eventDate: event.date,
       startTime: event.startTime,
       endTime: event.endTime,
       calculatedStart: startSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour12: false }),
+      calculatedStart_ISO: startSG.toISOString(),
+      calculatedStart_timestamp: startSG.getTime(),
       calculatedEnd: endSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour12: false }),
+      calculatedEnd_ISO: endSG.toISOString(),
+      calculatedEnd_timestamp: endSG.getTime(),
       nowVsStart: nowSG >= startSG ? 'now >= start' : 'now < start',
-      nowVsEnd: nowSG >= endSG ? 'now >= end' : 'now < end'
+      nowVsStart_diff: nowSG.getTime() - startSG.getTime(),
+      nowVsEnd: nowSG >= endSG ? 'now >= end' : 'now < end',
+      nowVsEnd_diff: nowSG.getTime() - endSG.getTime()
+    });
+
+    console.log(`🔍 Debug calculations for "${event.title}":`, {
+      eventDateParsed: new Date(event.date),
+      eventDateTimestamp: new Date(event.date).getTime(),
+      startHour, startMin, endHour, endMin,
+      startSG_check: `${eventDate.getTime()} + ${startHour * 60 * 60 * 1000} + ${startMin * 60 * 1000} = ${startSG.getTime()}`,
+      endSG_check: `${eventDate.getTime()} + ${endHour * 60 * 60 * 1000} + ${endMin * 60 * 1000} = ${endSG.getTime()}`
     });
 
     if (!isNaN(startSG) && !isNaN(endSG)) {
-      if (nowSG >= endSG) return 'completed';
-      else if (nowSG >= startSG) return 'active';
+      if (nowSG >= endSG) {
+        console.log(`🎯 Final status for "${event.title}": COMPLETED (nowSG >= endSG)`);
+        return 'completed';
+      } else if (nowSG >= startSG) {
+        console.log(`🎯 Final status for "${event.title}": ACTIVE (nowSG >= startSG)`);
+        return 'active';
+      } else {
+        console.log(`🎯 Final status for "${event.title}": UPCOMING (nowSG < startSG)`);
+        return 'upcoming';
+      }
+    } else {
+      console.log(`❌ Invalid dates for "${event.title}": startSG=${startSG}, endSG=${endSG}`);
     }
   } catch (error) {
     console.error('Error calculating event status:', error);
   }
+  console.log(`🎯 Final status for "${event.title}": UPCOMING (fallback)`);
   return 'upcoming';
 };
 
