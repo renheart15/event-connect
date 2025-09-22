@@ -1036,7 +1036,7 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
         } : null
       });
 
-      // Check if location data is stale (older than 5 minutes)
+      // Check if location data is stale (older than 1 minute for testing)
       const hasLocationData = !!locationData;
       const now = new Date();
       const checkInTime = new Date(log.checkInTime);
@@ -1045,9 +1045,14 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
       if (hasLocationData) {
         const locationTimestamp = new Date(locationData.timestamp);
         const timeSinceLastLocation = Math.floor((now - locationTimestamp) / 1000);
-        isLocationDataStale = timeSinceLastLocation > 300; // 5 minutes
-        console.log(`📍 [TEMP-LOCATION] Location data age for ${log.participant.name}: ${timeSinceLastLocation}s (stale: ${isLocationDataStale})`);
-        console.log(`📍 [TEMP-LOCATION] Timestamps - Now: ${now.toISOString()}, Location: ${locationTimestamp.toISOString()}`);
+        isLocationDataStale = timeSinceLastLocation > 60; // 1 minute for more aggressive detection
+
+        console.log(`📍 [TEMP-LOCATION] STALE CHECK for ${log.participant.name}:`);
+        console.log(`📍 [TEMP-LOCATION] - Now: ${now.toISOString()}`);
+        console.log(`📍 [TEMP-LOCATION] - Location timestamp: ${locationTimestamp.toISOString()}`);
+        console.log(`📍 [TEMP-LOCATION] - Seconds since location: ${timeSinceLastLocation}`);
+        console.log(`📍 [TEMP-LOCATION] - Is stale (>60s): ${isLocationDataStale}`);
+        console.log(`📍 [TEMP-LOCATION] - Has location data: ${hasLocationData}`);
       } else {
         console.log(`📍 [TEMP-LOCATION] No location data found for ${log.participant.name}`);
       }
@@ -1074,7 +1079,14 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
         outsideTimerStart = isLocationDataStale ? locationData.timestamp : log.checkInTime;
         isWithinGeofence = false;
 
-        console.log(`⏰ [TEMP-LOCATION] Auto-starting timer for ${log.participant.name}: ${timeToUse}s since ${isLocationDataStale ? 'last location' : 'check-in'}`);
+        console.log(`⏰ [TEMP-LOCATION] TIMER ACTIVATED for ${log.participant.name}:`);
+        console.log(`⏰ [TEMP-LOCATION] - Time to use: ${timeToUse}s`);
+        console.log(`⏰ [TEMP-LOCATION] - Status: ${participantStatus}`);
+        console.log(`⏰ [TEMP-LOCATION] - Timer active: ${timerActive}`);
+        console.log(`⏰ [TEMP-LOCATION] - Within geofence: ${isWithinGeofence}`);
+        console.log(`⏰ [TEMP-LOCATION] - Reason: ${isLocationDataStale ? 'stale location data' : 'no location data'}`);
+      } else {
+        console.log(`✅ [TEMP-LOCATION] Location data is fresh for ${log.participant.name}, no timer needed`);
       }
 
       return {
