@@ -1005,6 +1005,41 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
     // Get location data from temporary store and combine with attendance data
     const AttendanceLog = require('../models/AttendanceLog');
     const User = require('../models/User');
+    const Event = require('../models/Event');
+
+    // Get event details for center coordinates and geofence radius
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+
+    const eventCenter = {
+      latitude: event.location.coordinates.coordinates[1], // latitude
+      longitude: event.location.coordinates.coordinates[0], // longitude
+    };
+    const geofenceRadius = event.geofenceRadius || 100; // meters
+
+    console.log(`📍 [TEMP-LOCATION] Event center: ${eventCenter.latitude}, ${eventCenter.longitude}, radius: ${geofenceRadius}m`);
+
+    // Haversine formula to calculate distance between two points
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; // Earth's radius in meters
+      const φ1 = lat1 * Math.PI/180; // φ, λ in radians
+      const φ2 = lat2 * Math.PI/180;
+      const Δφ = (lat2-lat1) * Math.PI/180;
+      const Δλ = (lon2-lon1) * Math.PI/180;
+
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+      const distance = R * c; // in meters
+      return Math.round(distance);
+    }
 
     // Fetch participants who are currently checked in to this event or have checked in recently
     const attendanceLogs = await AttendanceLog.find({
@@ -1066,30 +1101,61 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
         Math.floor((nowSG - new Date(locationData.timestamp)) / 1000) :
         timeSinceCheckIn;
 
-      // Determine status based on location data availability and freshness
+      // Calculate actual distance from event center
+      let distanceFromCenter = 999; // Default high distance for no location data
+      let isWithinGeofence = false;
+
+      if (hasLocationData && locationData.latitude && locationData.longitude) {
+        distanceFromCenter = calculateDistance(
+          eventCenter.latitude,
+          eventCenter.longitude,
+          locationData.latitude,
+          locationData.longitude
+        );
+        isWithinGeofence = distanceFromCenter <= geofenceRadius;
+
+        console.log(`📏 [TEMP-LOCATION] Distance calculation for ${log.participant.name}:`);
+        console.log(`📏 [TEMP-LOCATION] - Participant: ${locationData.latitude}, ${locationData.longitude}`);
+        console.log(`📏 [TEMP-LOCATION] - Event center: ${eventCenter.latitude}, ${eventCenter.longitude}`);
+        console.log(`📏 [TEMP-LOCATION] - Distance: ${distanceFromCenter}m`);
+        console.log(`📏 [TEMP-LOCATION] - Geofence radius: ${geofenceRadius}m`);
+        console.log(`📏 [TEMP-LOCATION] - Within geofence: ${isWithinGeofence}`);
+      }
+
+      // Determine status based on location data availability, freshness, and geofence
       let participantStatus = 'inside';
       let timerActive = false;
       let timeOutside = 0;
       let outsideTimerStart = null;
-      let isWithinGeofence = true;
 
-      if (!hasLocationData || isLocationDataStale) {
-        // No location data or stale data means participant is potentially outside
+      if (!hasLocationData || isLocationDataStale || !isWithinGeofence) {
+        // Start timer if: no data, stale data, or outside geofence
         const timeToUse = isLocationDataStale ? timeSinceLastUpdate : timeSinceCheckIn;
-        participantStatus = timeToUse > 60 ? 'warning' : 'outside'; // Warning after 1 minute
+
+        if (!hasLocationData || isLocationDataStale) {
+          // No data or stale data
+          participantStatus = timeToUse > 60 ? 'warning' : 'outside';
+          timeOutside = timeToUse;
+          outsideTimerStart = isLocationDataStale ? locationData.timestamp : log.checkInTime;
+        } else {
+          // Outside geofence with fresh data
+          participantStatus = 'outside';
+          timeOutside = 0; // Just left geofence
+          outsideTimerStart = new Date().toISOString();
+        }
+
         timerActive = true;
-        timeOutside = timeToUse;
-        outsideTimerStart = isLocationDataStale ? locationData.timestamp : log.checkInTime;
         isWithinGeofence = false;
 
         console.log(`⏰ [TEMP-LOCATION] TIMER ACTIVATED for ${log.participant.name}:`);
         console.log(`⏰ [TEMP-LOCATION] - Time to use: ${timeToUse}s`);
         console.log(`⏰ [TEMP-LOCATION] - Status: ${participantStatus}`);
         console.log(`⏰ [TEMP-LOCATION] - Timer active: ${timerActive}`);
+        console.log(`⏰ [TEMP-LOCATION] - Distance: ${distanceFromCenter}m`);
         console.log(`⏰ [TEMP-LOCATION] - Within geofence: ${isWithinGeofence}`);
-        console.log(`⏰ [TEMP-LOCATION] - Reason: ${isLocationDataStale ? 'stale location data' : 'no location data'}`);
+        console.log(`⏰ [TEMP-LOCATION] - Reason: ${!hasLocationData ? 'no location data' : isLocationDataStale ? 'stale location data' : 'outside geofence'}`);
       } else {
-        console.log(`✅ [TEMP-LOCATION] Location data is fresh for ${log.participant.name}, no timer needed`);
+        console.log(`✅ [TEMP-LOCATION] Location data is fresh and within geofence for ${log.participant.name}`);
       }
 
       return {
@@ -1107,7 +1173,7 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
           timestamp: locationData?.timestamp || new Date().toISOString()
         },
         isWithinGeofence: isWithinGeofence,
-        distanceFromCenter: isWithinGeofence ? 15 : 999, // Far distance if outside geofence
+        distanceFromCenter: distanceFromCenter,
         outsideTimer: {
           isActive: timerActive,
           startTime: outsideTimerStart,
