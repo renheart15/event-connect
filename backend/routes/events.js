@@ -1036,27 +1036,42 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
         } : null
       });
 
-      // If no location data is found, automatically start the outside timer
+      // Check if location data is stale (older than 5 minutes)
       const hasLocationData = !!locationData;
       const now = new Date();
       const checkInTime = new Date(log.checkInTime);
 
-      // Calculate time since check-in if no location data
-      const timeSinceCheckIn = hasLocationData ? 0 : Math.floor((now - checkInTime) / 1000);
+      let isLocationDataStale = false;
+      if (hasLocationData) {
+        const locationTimestamp = new Date(locationData.timestamp);
+        const timeSinceLastLocation = Math.floor((now - locationTimestamp) / 1000);
+        isLocationDataStale = timeSinceLastLocation > 300; // 5 minutes
+        console.log(`📍 [TEMP-LOCATION] Location data age for ${log.participant.name}: ${timeSinceLastLocation}s (stale: ${isLocationDataStale})`);
+      }
 
-      // Determine status based on location data availability
+      // Calculate time since check-in or since last location update
+      const timeSinceCheckIn = Math.floor((now - checkInTime) / 1000);
+      const timeSinceLastUpdate = hasLocationData ?
+        Math.floor((now - new Date(locationData.timestamp)) / 1000) :
+        timeSinceCheckIn;
+
+      // Determine status based on location data availability and freshness
       let participantStatus = 'inside';
       let timerActive = false;
       let timeOutside = 0;
       let outsideTimerStart = null;
+      let isWithinGeofence = true;
 
-      if (!hasLocationData) {
-        // No location data means participant is potentially outside or not tracking
-        participantStatus = timeSinceCheckIn > 60 ? 'warning' : 'outside'; // Warning after 1 minute
+      if (!hasLocationData || isLocationDataStale) {
+        // No location data or stale data means participant is potentially outside
+        const timeToUse = isLocationDataStale ? timeSinceLastUpdate : timeSinceCheckIn;
+        participantStatus = timeToUse > 60 ? 'warning' : 'outside'; // Warning after 1 minute
         timerActive = true;
-        timeOutside = timeSinceCheckIn;
-        outsideTimerStart = log.checkInTime; // Start timer from check-in time
-        console.log(`⏰ [TEMP-LOCATION] Auto-starting timer for ${log.participant.name}: ${timeSinceCheckIn}s since check-in`);
+        timeOutside = timeToUse;
+        outsideTimerStart = isLocationDataStale ? locationData.timestamp : log.checkInTime;
+        isWithinGeofence = false;
+
+        console.log(`⏰ [TEMP-LOCATION] Auto-starting timer for ${log.participant.name}: ${timeToUse}s since ${isLocationDataStale ? 'last location' : 'check-in'}`);
       }
 
       return {
@@ -1073,8 +1088,8 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
           accuracy: locationData?.accuracy || 0,
           timestamp: locationData?.timestamp || new Date().toISOString()
         },
-        isWithinGeofence: hasLocationData,
-        distanceFromCenter: hasLocationData ? 15 : 999, // Far distance if no location data
+        isWithinGeofence: isWithinGeofence,
+        distanceFromCenter: isWithinGeofence ? 15 : 999, // Far distance if outside geofence
         outsideTimer: {
           isActive: timerActive,
           startTime: outsideTimerStart,
