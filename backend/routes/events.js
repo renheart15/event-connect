@@ -1119,6 +1119,7 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
         console.log(`📏 [TEMP-LOCATION] - Event center: ${eventCenter.latitude}, ${eventCenter.longitude}`);
         console.log(`📏 [TEMP-LOCATION] - Distance: ${distanceFromCenter}m`);
         console.log(`📏 [TEMP-LOCATION] - Geofence radius: ${geofenceRadius}m`);
+        console.log(`📏 [TEMP-LOCATION] - Comparison: ${distanceFromCenter} <= ${geofenceRadius} = ${distanceFromCenter <= geofenceRadius}`);
         console.log(`📏 [TEMP-LOCATION] - Within geofence: ${isWithinGeofence}`);
       }
 
