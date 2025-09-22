@@ -12,18 +12,19 @@ const calculateEventStatus = (event, nowSG = null) => {
     // Get current time in Singapore timezone if not provided
     if (!nowSG) {
       const now = new Date();
-      nowSG = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+      // Convert UTC to Singapore timezone (UTC+8)
+      nowSG = new Date(now.getTime() + (8 * 60 * 60 * 1000));
     }
 
     const [startHour, startMin] = event.startTime.split(':').map(Number);
     const [endHour, endMin] = event.endTime.split(':').map(Number);
 
-    // Create dates in Singapore timezone
+    // Create dates in Singapore timezone using the same date as the event
     const eventDate = new Date(event.date);
 
-    // Create start and end times in Singapore timezone
-    const startSG = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), startHour, startMin, 0, 0);
-    const endSG = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), endHour, endMin, 0, 0);
+    // Create start and end times in Singapore timezone using UTC+8 offset
+    const startSG = new Date(eventDate.getTime() + (startHour * 60 * 60 * 1000) + (startMin * 60 * 1000));
+    const endSG = new Date(eventDate.getTime() + (endHour * 60 * 60 * 1000) + (endMin * 60 * 1000));
 
     console.log(`📅 Status calculation for "${event.title}":`, {
       nowSG: nowSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour12: false }),
@@ -52,9 +53,9 @@ const updateSingleEventStatus = async (eventId, forceUpdate = false, eventInstan
     const event = eventInstance || await Event.findById(eventId);
     if (!event) return null;
 
-    // Get current time in Singapore timezone
+    // Get current time in Singapore timezone (UTC+8)
     const now = new Date();
-    const nowSG = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+    const nowSG = new Date(now.getTime() + (8 * 60 * 60 * 1000));
     const expectedStatus = calculateEventStatus(event, nowSG);
 
     console.log(`🔍 Status check for "${event.title}": current="${event.status}" expected="${expectedStatus}" statusMode="${event.statusMode}" forceUpdate=${forceUpdate}`);
@@ -77,9 +78,9 @@ const updateSingleEventStatus = async (eventId, forceUpdate = false, eventInstan
 
 // Function to update all event statuses (used by cron and manual triggers)
 const updateAllEventStatuses = async () => {
-  // Get current time in Singapore timezone
+  // Get current time in Singapore timezone (UTC+8)
   const now = new Date();
-  const nowSG = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+  const nowSG = new Date(now.getTime() + (8 * 60 * 60 * 1000));
 
   try {
     // Fetch all events with auto mode that might need status updates
