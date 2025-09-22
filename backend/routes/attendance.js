@@ -265,41 +265,8 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
       console.log('First attendance log:', JSON.stringify(attendanceLogs[0], null, 2));
     }
 
-    // Get battery data from the in-memory location store (if available)
-    // Import the location data map from events route temporarily
-    let participantLocationData;
-    try {
-      // Try to access the location data from events route
-      const eventsModule = require('./events');
-      participantLocationData = eventsModule.participantLocationData;
-    } catch (err) {
-      console.log('Could not access location data from events route');
-      participantLocationData = new Map(); // Fallback to empty map
-    }
-
-    // Enhance attendance logs with battery data
-    console.log('📊 [ATTENDANCE] Location data store size:', participantLocationData?.size || 0);
-    console.log('📊 [ATTENDANCE] Stored participant IDs:', Array.from(participantLocationData?.keys() || []));
-
-    const enhancedAttendanceLogs = attendanceLogs.map(log => {
-      const participantId = log.participant._id.toString();
-      const locationData = participantLocationData?.get(participantId);
-
-      console.log(`📊 [ATTENDANCE] Processing ${log.participant.name} (${participantId}):`, {
-        hasLocationData: !!locationData,
-        locationData: locationData ? {
-          battery: locationData.batteryLevel,
-          timestamp: locationData.timestamp,
-          eventId: locationData.eventId
-        } : null
-      });
-
-      return {
-        ...log.toObject(),
-        batteryLevel: locationData?.batteryLevel || null,
-        lastLocationUpdate: locationData?.timestamp || log.checkInTime
-      };
-    });
+    // Battery data and lastLocationUpdate are now stored directly in attendance logs
+    console.log('📊 [ATTENDANCE] Processing attendance logs with stored battery data');
 
     // Get summary statistics
     const stats = {
@@ -315,7 +282,7 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
     res.json({
       success: true,
       data: {
-        attendanceLogs: enhancedAttendanceLogs,
+        attendanceLogs,
         stats,
         event: {
           _id: event._id,

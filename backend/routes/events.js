@@ -954,6 +954,28 @@ router.post('/location-tracking/update-location', auth, async (req, res) => {
     participantLocationData.set(participantId, locationData);
     console.log(`💾 [TEMP-LOCATION] Stored location data for participant ${participantId}. Total stored: ${participantLocationData.size}`);
 
+    // Also update the attendance log with battery data for persistence
+    try {
+      const AttendanceLog = require('../models/AttendanceLog');
+      await AttendanceLog.findOneAndUpdate(
+        {
+          event: eventId,
+          participant: participantId,
+          $or: [
+            { status: 'checked-in' },
+            { status: 'registered', checkInTime: { $exists: true } }
+          ]
+        },
+        {
+          batteryLevel: batteryLevel,
+          lastLocationUpdate: new Date().toISOString()
+        }
+      );
+      console.log(`📱 [TEMP-LOCATION] Updated attendance log with battery ${batteryLevel}% for participant ${participantId}`);
+    } catch (updateError) {
+      console.error('❌ [TEMP-LOCATION] Failed to update attendance log:', updateError);
+    }
+
     res.json({
       success: true,
       message: 'Location updated successfully (temporary endpoint)',

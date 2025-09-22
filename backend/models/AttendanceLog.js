@@ -50,6 +50,14 @@ const attendanceLogSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  batteryLevel: {
+    type: Number,
+    min: 0,
+    max: 100
+  },
+  lastLocationUpdate: {
+    type: Date
+  },
   createdAt: {
     type: Date,
     default: Date.now
