@@ -1047,6 +1047,9 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
         const timeSinceLastLocation = Math.floor((now - locationTimestamp) / 1000);
         isLocationDataStale = timeSinceLastLocation > 300; // 5 minutes
         console.log(`📍 [TEMP-LOCATION] Location data age for ${log.participant.name}: ${timeSinceLastLocation}s (stale: ${isLocationDataStale})`);
+        console.log(`📍 [TEMP-LOCATION] Timestamps - Now: ${now.toISOString()}, Location: ${locationTimestamp.toISOString()}`);
+      } else {
+        console.log(`📍 [TEMP-LOCATION] No location data found for ${log.participant.name}`);
       }
 
       // Calculate time since check-in or since last location update
