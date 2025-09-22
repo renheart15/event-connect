@@ -950,8 +950,9 @@ router.post('/location-tracking/update-location', auth, async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    // Store in temporary in-memory cache
+    // Store in temporary in-memory cache with better logging
     participantLocationData.set(participantId, locationData);
+    console.log(`💾 [TEMP-LOCATION] Stored location data for participant ${participantId}. Total stored: ${participantLocationData.size}`);
 
     res.json({
       success: true,

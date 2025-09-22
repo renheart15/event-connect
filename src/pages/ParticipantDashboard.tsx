@@ -1104,15 +1104,15 @@ const ParticipantDashboard = () => {
         if (now > eventEndTime) {
           
           try {
-            const response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkout`, {
-              method: 'POST',
+            const response = await fetch(`${API_CONFIG.API_BASE}/attendance/${attendance._id}/checkout`, {
+              method: 'PUT',
               headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                attendanceId: attendance._id,
-                autoCheckOut: true
+                autoCheckOut: true,
+                notes: 'Auto-checkout: Event ended'
               })
             });
 
