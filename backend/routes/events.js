@@ -1036,6 +1036,29 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
         } : null
       });
 
+      // If no location data is found, automatically start the outside timer
+      const hasLocationData = !!locationData;
+      const now = new Date();
+      const checkInTime = new Date(log.checkInTime);
+
+      // Calculate time since check-in if no location data
+      const timeSinceCheckIn = hasLocationData ? 0 : Math.floor((now - checkInTime) / 1000);
+
+      // Determine status based on location data availability
+      let participantStatus = 'inside';
+      let timerActive = false;
+      let timeOutside = 0;
+      let outsideTimerStart = null;
+
+      if (!hasLocationData) {
+        // No location data means participant is potentially outside or not tracking
+        participantStatus = timeSinceCheckIn > 300 ? 'warning' : 'outside'; // Warning after 5 minutes
+        timerActive = true;
+        timeOutside = timeSinceCheckIn;
+        outsideTimerStart = log.checkInTime; // Start timer from check-in time
+        console.log(`⏰ [TEMP-LOCATION] Auto-starting timer for ${log.participant.name}: ${timeSinceCheckIn}s since check-in`);
+      }
+
       return {
         _id: log._id,
         event: eventId,
@@ -1050,16 +1073,18 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
           accuracy: locationData?.accuracy || 0,
           timestamp: locationData?.timestamp || new Date().toISOString()
         },
-        isWithinGeofence: true, // Mock value for now
-        distanceFromCenter: 15, // Mock value for now
+        isWithinGeofence: hasLocationData,
+        distanceFromCenter: hasLocationData ? 15 : 999, // Far distance if no location data
         outsideTimer: {
-          isActive: false,
-          totalTimeOutside: 0
+          isActive: timerActive,
+          startTime: outsideTimerStart,
+          totalTimeOutside: timeOutside,
+          currentSessionStart: outsideTimerStart
         },
-        status: 'inside',
+        status: participantStatus,
         alertsSent: [],
         lastLocationUpdate: locationData?.timestamp || log.checkInTime,
-        currentTimeOutside: 0,
+        currentTimeOutside: timeOutside,
         batteryLevel: locationData?.batteryLevel || null
       };
     });
