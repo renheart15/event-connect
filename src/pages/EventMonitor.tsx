@@ -44,6 +44,7 @@ const EventMonitor = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+      console.log('📊 [ATTENDANCE] Fetching attendance data for event:', eventId);
       const response = await fetch(`${API_CONFIG.API_BASE}/attendance/event/${eventId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -53,8 +54,17 @@ const EventMonitor = () => {
 
       clearTimeout(timeoutId);
 
+      console.log('📊 [ATTENDANCE] Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('📊 [ATTENDANCE] Error response:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
       const data = await response.json();
-      
+      console.log('📊 [ATTENDANCE] Response data:', data);
+
       if (!data.success) {
         throw new Error(data.message);
       }
