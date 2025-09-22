@@ -265,6 +265,30 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
       console.log('First attendance log:', JSON.stringify(attendanceLogs[0], null, 2));
     }
 
+    // Get battery data from the in-memory location store (if available)
+    // Import the location data map from events route temporarily
+    let participantLocationData;
+    try {
+      // Try to access the location data from events route
+      const eventsModule = require('./events');
+      participantLocationData = eventsModule.participantLocationData;
+    } catch (err) {
+      console.log('Could not access location data from events route');
+      participantLocationData = new Map(); // Fallback to empty map
+    }
+
+    // Enhance attendance logs with battery data
+    const enhancedAttendanceLogs = attendanceLogs.map(log => {
+      const participantId = log.participant._id.toString();
+      const locationData = participantLocationData?.get(participantId);
+
+      return {
+        ...log.toObject(),
+        batteryLevel: locationData?.batteryLevel || null,
+        lastLocationUpdate: locationData?.timestamp || log.checkInTime
+      };
+    });
+
     // Get summary statistics
     const stats = {
       totalCheckedIn: attendanceLogs.length,
@@ -279,8 +303,18 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
     res.json({
       success: true,
       data: {
-        attendanceLogs,
-        stats
+        attendanceLogs: enhancedAttendanceLogs,
+        stats,
+        event: {
+          _id: event._id,
+          title: event.title,
+          description: event.description,
+          date: event.date,
+          startTime: event.startTime,
+          endTime: event.endTime,
+          venue: event.venue,
+          status: event.status
+        }
       }
     });
   } catch (error) {

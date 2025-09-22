@@ -1174,4 +1174,5 @@ router.get('/location-tracking/participant/:participantId/event/:eventId/status'
 });
 
 module.exports = router;
+module.exports.participantLocationData = participantLocationData;
 

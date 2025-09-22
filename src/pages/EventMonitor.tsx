@@ -64,6 +64,7 @@ const EventMonitor = () => {
 
       const data = await response.json();
       console.log('📊 [ATTENDANCE] Response data:', data);
+      console.log('📊 [ATTENDANCE] First attendance log details:', data.data.attendanceLogs[0]);
 
       if (!data.success) {
         throw new Error(data.message);
@@ -84,6 +85,12 @@ const EventMonitor = () => {
 
       setParticipants(transformedParticipants);
       setStats(data.data.stats);
+
+      // Set event data if returned from attendance endpoint
+      if (data.data.event) {
+        setEventData(data.data.event);
+      }
+
       setIsConnected(true);
       setConnectionRetries(0);
       setLastUpdate(new Date());
