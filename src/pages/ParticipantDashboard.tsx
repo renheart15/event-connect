@@ -5146,22 +5146,34 @@ const ParticipantDashboard = () => {
                   Duration: {formatDuration(attendance.checkInTime)}
                 </p>
                 <div className="flex gap-1">
-                  <Button 
+                  <Button
                     onClick={() => handleOpenFeedbackForm(attendance.event._id, attendance.event.title)}
                     disabled={isFeedbackButtonDisabled(attendance.event._id)}
                     variant="outline"
                     size="sm"
                     className={`text-blue-700 border-blue-300 hover:bg-blue-100 dark:text-blue-300 dark:border-blue-600 dark:hover:bg-blue-900/30 h-7 text-xs px-2 ${
-                      isFeedbackButtonDisabled(attendance.event._id) 
-                        ? 'opacity-50 cursor-not-allowed' 
+                      isFeedbackButtonDisabled(attendance.event._id)
+                        ? 'opacity-50 cursor-not-allowed'
                         : ''
                     }`}
                     title={getFeedbackButtonTooltip(attendance.event._id)}
                   >
                     <MessageSquare className="w-3 h-3" />
                   </Button>
-                  <Button 
-                    onClick={() => handleCheckOut(attendance._id)} 
+                  <Button
+                    onClick={() => startLocationWatching(attendance.event._id, attendance._id)}
+                    variant="outline"
+                    size="sm"
+                    className={`text-orange-700 border-orange-300 hover:bg-orange-100 dark:text-orange-300 dark:border-orange-600 dark:hover:bg-orange-900/30 h-7 text-xs px-2 ${
+                      isTracking ? 'bg-orange-100 dark:bg-orange-900/30' : ''
+                    }`}
+                    title="Start location tracking for this event"
+                  >
+                    <MapPin className="w-3 h-3" />
+                    {isTracking ? 'Tracking' : 'Track Location'}
+                  </Button>
+                  <Button
+                    onClick={() => handleCheckOut(attendance._id)}
                     variant="outline"
                     size="sm"
                     className="text-green-700 border-green-300 hover:bg-green-100 dark:text-green-300 dark:border-green-600 dark:hover:bg-green-900/30 h-7 text-xs"
