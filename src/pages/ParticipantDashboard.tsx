@@ -4524,9 +4524,14 @@ const ParticipantDashboard = () => {
   // Location tracking functions
   const startLocationWatching = async (eventId: string, attendanceLogId: string) => {
     try {
+      console.log('🎯 Starting location tracking for:', { eventId, attendanceLogId, userId: user._id });
+
       // Check location permissions first
       const hasPermission = await checkLocationPermissions();
+      console.log('📍 Location permission status:', hasPermission);
+
       if (!hasPermission) {
+        console.error('❌ Location permission denied');
         toast({
           title: "Location Permission Required",
           description: "Location tracking requires permission to work properly.",
@@ -4535,8 +4540,10 @@ const ParticipantDashboard = () => {
         return;
       }
 
+      console.log('🚀 Initializing location tracking on server...');
       // Initialize location tracking on server
       await startLocationTracking(eventId, user._id, attendanceLogId);
+      console.log('✅ Location tracking initialized successfully');
       
       toast({
         title: "Location Tracking Started",
@@ -4551,13 +4558,22 @@ const ParticipantDashboard = () => {
           timeout: 10000
         }, (position) => {
           if (position) {
+            console.log('📱 Native position update:', {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              accuracy: position.coords.accuracy
+            });
             updateLocation(
               eventId,
               user._id,
               position.coords.latitude,
               position.coords.longitude,
               position.coords.accuracy
-            ).catch(() => {});
+            ).then(() => {
+              console.log('✅ Location updated successfully');
+            }).catch((error) => {
+              console.error('❌ Location update failed:', error);
+            });
           }
         });
         setLocationWatchId(watchId as any);
@@ -4566,15 +4582,25 @@ const ParticipantDashboard = () => {
         if (navigator.geolocation) {
           const watchId = navigator.geolocation.watchPosition(
             (position) => {
+              console.log('🌐 Web position update:', {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                accuracy: position.coords.accuracy
+              });
               updateLocation(
                 eventId,
                 user._id,
                 position.coords.latitude,
                 position.coords.longitude,
                 position.coords.accuracy
-              ).catch(() => {});
+              ).then(() => {
+                console.log('✅ Web location updated successfully');
+              }).catch((error) => {
+                console.error('❌ Web location update failed:', error);
+              });
             },
             (error) => {
+              console.error('❌ Geolocation error:', error);
               toast({
                 title: "Location Error",
                 description: "Unable to track location. Please check permissions.",
@@ -4596,9 +4622,10 @@ const ParticipantDashboard = () => {
         description: "Your location is now being tracked for this event.",
       });
     } catch (error) {
+      console.error('❌ Failed to start location tracking:', error);
       toast({
         title: "Location Tracking Failed",
-        description: "Failed to start location tracking. Please try again.",
+        description: `Failed to start location tracking: ${error.message || 'Unknown error'}`,
         variant: "destructive",
       });
     }

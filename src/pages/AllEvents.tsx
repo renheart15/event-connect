@@ -303,9 +303,18 @@ const AllEvents = () => {
         return;
       }
 
-      // Toggle the published status
+      // Show confirmation dialog
       const newPublishedStatus = !event.published;
-      
+      const action = newPublishedStatus ? 'make public' : 'make private';
+      const confirmMessage = newPublishedStatus
+        ? `Are you sure you want to make "${event.title}" public? This will allow participants to see and register for this event.`
+        : `Are you sure you want to make "${event.title}" private? This will hide it from participants.`;
+
+      const confirmed = window.confirm(confirmMessage);
+      if (!confirmed) {
+        return;
+      }
+
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_CONFIG.API_BASE}/events/${eventId}/publish`, {
         method: 'PATCH',

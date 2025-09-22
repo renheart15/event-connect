@@ -177,12 +177,14 @@ export const useParticipantLocationUpdater = () => {
     try {
       setError(null);
       const token = localStorage.getItem('token');
-      
+
+      console.log('🚀 Initializing location tracking:', { eventId, participantId, attendanceLogId });
+
       if (!token) {
         throw new Error('No authentication token found');
       }
 
-      await axios.post(
+      const response = await axios.post(
         `${API_BASE}/location-tracking/initialize`,
         {
           eventId,
@@ -196,9 +198,16 @@ export const useParticipantLocationUpdater = () => {
         }
       );
 
+      console.log('✅ Location tracking initialized:', response.data);
       setIsTracking(true);
     } catch (err: any) {
-      console.error('Error starting location tracking:', err);
+      console.error('❌ Error starting location tracking:', err);
+      console.error('❌ Initialization error details:', {
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        message: err.message
+      });
       setError(err.response?.data?.message || 'Failed to start location tracking');
       throw err;
     }
@@ -214,7 +223,9 @@ export const useParticipantLocationUpdater = () => {
     try {
       setError(null);
       const token = localStorage.getItem('token');
-      
+
+      console.log('🔄 Updating location:', { eventId, participantId, latitude, longitude, accuracy });
+
       if (!token) {
         throw new Error('No authentication token found');
       }
@@ -235,9 +246,16 @@ export const useParticipantLocationUpdater = () => {
         }
       );
 
+      console.log('✅ Location update response:', response.data);
       return response.data;
     } catch (err: any) {
-      console.error('Error updating location:', err);
+      console.error('❌ Error updating location:', err);
+      console.error('❌ Error details:', {
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        message: err.message
+      });
       setError(err.response?.data?.message || 'Failed to update location');
       throw err;
     }
