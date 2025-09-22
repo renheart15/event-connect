@@ -2,45 +2,43 @@ const cron = require('node-cron');
 const Event = require('../models/Event');
 
 // Function to calculate expected status for an event
-const calculateEventStatus = (event, now = new Date()) => {
+const calculateEventStatus = (event, nowSG = null) => {
   // Handle cases where startTime or endTime might be missing
   if (!event.startTime || !event.endTime || !event.date) {
     return 'upcoming';
   }
 
   try {
+    // Get current time in Singapore timezone if not provided
+    if (!nowSG) {
+      const now = new Date();
+      nowSG = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+    }
+
     const [startHour, startMin] = event.startTime.split(':').map(Number);
     const [endHour, endMin] = event.endTime.split(':').map(Number);
 
-    // Create dates in Singapore timezone (UTC+8)
-    // Convert times to Singapore timezone for proper comparison
+    // Create dates in Singapore timezone
     const eventDate = new Date(event.date);
 
     // Create start and end times in Singapore timezone
     const startSG = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), startHour, startMin, 0, 0);
     const endSG = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), endHour, endMin, 0, 0);
 
-    // Convert current time to Singapore timezone for comparison
-    const nowSG = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
-
-    const start = startSG;
-    const end = endSG;
-
     console.log(`📅 Status calculation for "${event.title}":`, {
-      nowUTC: now.toISOString(),
-      nowSG: nowSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }),
+      nowSG: nowSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour12: false }),
       eventDate: event.date,
       startTime: event.startTime,
       endTime: event.endTime,
-      calculatedStart: start.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }),
-      calculatedEnd: end.toLocaleString('en-SG', { timeZone: 'Asia/Singapore' }),
-      nowVsStart: nowSG >= start ? 'now >= start' : 'now < start',
-      nowVsEnd: nowSG >= end ? 'now >= end' : 'now < end'
+      calculatedStart: startSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour12: false }),
+      calculatedEnd: endSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour12: false }),
+      nowVsStart: nowSG >= startSG ? 'now >= start' : 'now < start',
+      nowVsEnd: nowSG >= endSG ? 'now >= end' : 'now < end'
     });
 
-    if (!isNaN(start) && !isNaN(end)) {
-      if (nowSG >= end) return 'completed';
-      else if (nowSG >= start) return 'active';
+    if (!isNaN(startSG) && !isNaN(endSG)) {
+      if (nowSG >= endSG) return 'completed';
+      else if (nowSG >= startSG) return 'active';
     }
   } catch (error) {
     console.error('Error calculating event status:', error);
@@ -54,8 +52,10 @@ const updateSingleEventStatus = async (eventId, forceUpdate = false, eventInstan
     const event = eventInstance || await Event.findById(eventId);
     if (!event) return null;
 
+    // Get current time in Singapore timezone
     const now = new Date();
-    const expectedStatus = calculateEventStatus(event, now);
+    const nowSG = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+    const expectedStatus = calculateEventStatus(event, nowSG);
 
     console.log(`🔍 Status check for "${event.title}": current="${event.status}" expected="${expectedStatus}" statusMode="${event.statusMode}" forceUpdate=${forceUpdate}`);
 
@@ -77,7 +77,9 @@ const updateSingleEventStatus = async (eventId, forceUpdate = false, eventInstan
 
 // Function to update all event statuses (used by cron and manual triggers)
 const updateAllEventStatuses = async () => {
+  // Get current time in Singapore timezone
   const now = new Date();
+  const nowSG = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
 
   try {
     // Fetch all events with auto mode that might need status updates
@@ -87,7 +89,7 @@ const updateAllEventStatuses = async () => {
     let updatedCount = 0;
 
     for (const event of events) {
-      const expectedStatus = calculateEventStatus(event, now);
+      const expectedStatus = calculateEventStatus(event, nowSG);
 
       if (event.status !== expectedStatus) {
         event.status = expectedStatus;
