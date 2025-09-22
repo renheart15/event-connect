@@ -878,5 +878,88 @@ router.post('/:id/update-status', auth, async (req, res) => {
   }
 });
 
+// Temporary location tracking endpoints while debugging Railway deployment
+// @route   POST /api/events/location-tracking/initialize
+// @desc    Initialize location tracking for a participant (temporary endpoint)
+// @access  Private
+router.post('/location-tracking/initialize', auth, async (req, res) => {
+  console.log('🎯 [TEMP-LOCATION] Initialize endpoint hit:', req.body);
+
+  try {
+    const { eventId, participantId, attendanceLogId } = req.body;
+
+    // Validate required fields
+    if (!eventId || !participantId || !attendanceLogId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: eventId, participantId, attendanceLogId'
+      });
+    }
+
+    // For now, just return success to test the endpoint
+    res.json({
+      success: true,
+      message: 'Location tracking initialized successfully (temporary endpoint)',
+      data: {
+        eventId,
+        participantId,
+        attendanceLogId,
+        status: 'initialized'
+      }
+    });
+
+    console.log('✅ [TEMP-LOCATION] Location tracking initialized for participant:', participantId);
+  } catch (error) {
+    console.error('❌ [TEMP-LOCATION] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to initialize location tracking',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/events/location-tracking/update-location
+// @desc    Update participant location (temporary endpoint)
+// @access  Private
+router.post('/location-tracking/update-location', auth, async (req, res) => {
+  console.log('📍 [TEMP-LOCATION] Update location endpoint hit:', req.body);
+
+  try {
+    const { eventId, participantId, latitude, longitude, accuracy } = req.body;
+
+    // Validate required fields
+    if (!eventId || !participantId || latitude === undefined || longitude === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: eventId, participantId, latitude, longitude'
+      });
+    }
+
+    // For now, just return success to test the endpoint
+    res.json({
+      success: true,
+      message: 'Location updated successfully (temporary endpoint)',
+      data: {
+        eventId,
+        participantId,
+        latitude,
+        longitude,
+        accuracy: accuracy || 0,
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    console.log(`📍 [TEMP-LOCATION] Location updated for participant ${participantId}: ${latitude}, ${longitude}`);
+  } catch (error) {
+    console.error('❌ [TEMP-LOCATION] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update location',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 
