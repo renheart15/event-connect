@@ -116,6 +116,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 .catch((err) => console.error('MongoDB connection error:', err));
 
 // Routes
+console.log('🔧 [RAILWAY] Registering API routes...');
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/attendance', attendanceRoutes);
@@ -125,9 +126,11 @@ app.use('/api/registration-responses', registrationResponseRoutes);
 app.use('/api/feedback-forms', feedbackFormRoutes); // ✅ Added this line
 app.use('/api/user-settings', userSettingsRoutes);
 app.use('/api/location-tracking', locationTrackingRoutes);
+console.log('🎯 [RAILWAY] Location tracking routes registered successfully');
 app.use('/api/email-credentials', emailCredentialsRoutes);
 app.use('/api/organizations', organizationsRoutes);
 app.use('/api/organization-membership', organizationMembershipRoutes);
+console.log('✅ [RAILWAY] All API routes registered');
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

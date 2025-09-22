@@ -5,6 +5,8 @@ const { auth } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
 const AttendanceLog = require('../models/AttendanceLog');
 
+console.log('🎯 [LOCATION-ROUTES] Location tracking routes module loaded successfully');
+
 // Initialize location tracking for a participant (called when checking in)
 router.post('/initialize', [
   body('eventId').isMongoId().withMessage('Valid event ID is required'),
