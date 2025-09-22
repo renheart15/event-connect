@@ -1052,7 +1052,7 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
 
       if (!hasLocationData) {
         // No location data means participant is potentially outside or not tracking
-        participantStatus = timeSinceCheckIn > 300 ? 'warning' : 'outside'; // Warning after 5 minutes
+        participantStatus = timeSinceCheckIn > 60 ? 'warning' : 'outside'; // Warning after 1 minute
         timerActive = true;
         timeOutside = timeSinceCheckIn;
         outsideTimerStart = log.checkInTime; // Start timer from check-in time
