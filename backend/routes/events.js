@@ -1038,6 +1038,12 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
     });
 
     console.log(`✅ [TEMP-LOCATION] Location status returned for ${mockLocationStatuses.length} participants`);
+    console.log('📊 [TEMP-LOCATION] Sample participant data:', mockLocationStatuses.length > 0 ? {
+      participant: mockLocationStatuses[0].participant.name,
+      location: mockLocationStatuses[0].currentLocation,
+      battery: mockLocationStatuses[0].batteryLevel,
+      hasLocationData: !!participantLocationData.get(mockLocationStatuses[0].participant._id.toString())
+    } : 'No participants');
   } catch (error) {
     console.error('❌ [TEMP-LOCATION] Error:', error);
     res.status(500).json({

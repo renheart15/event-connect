@@ -241,7 +241,22 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                   </div>
 
                   {/* Location Details */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+                    <div>
+                      <p className="font-medium text-gray-700">Current Location</p>
+                      <p className="text-gray-600 font-mono text-xs">
+                        {status.currentLocation?.latitude ?
+                          `${status.currentLocation.latitude.toFixed(6)}, ${status.currentLocation.longitude.toFixed(6)}` :
+                          'No location data'
+                        }
+                      </p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-700">Accuracy</p>
+                      <p className="text-gray-600">
+                        {status.currentLocation?.accuracy ? `${Math.round(status.currentLocation.accuracy)}m` : 'N/A'}
+                      </p>
+                    </div>
                     <div>
                       <p className="font-medium text-gray-700">Distance from Center</p>
                       <p className="text-gray-600">{status.distanceFromCenter}m</p>

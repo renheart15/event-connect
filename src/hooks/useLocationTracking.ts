@@ -87,7 +87,16 @@ export const useLocationTracking = (eventId: string): UseLocationTrackingReturn 
       );
 
       if (response.data.success) {
-        setLocationStatuses(response.data.data.participants || []);
+        const participants = response.data.data.participants || [];
+        console.log('📍 [LOCATION-HOOK] Received location data:', {
+          participantCount: participants.length,
+          sampleParticipant: participants.length > 0 ? {
+            name: participants[0].participant?.name,
+            location: participants[0].currentLocation,
+            battery: participants[0].batteryLevel
+          } : null
+        });
+        setLocationStatuses(participants);
         setSummary(response.data.data.summary || null);
       } else {
         setError(response.data.message || 'Failed to fetch location data');
