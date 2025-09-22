@@ -984,10 +984,16 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
     const AttendanceLog = require('../models/AttendanceLog');
     const User = require('../models/User');
 
-    // Fetch participants who are currently checked in to this event
+    // Fetch participants who are currently checked in to this event or have checked in recently
     const attendanceLogs = await AttendanceLog.find({
       event: eventId,
-      status: 'checked-in'
+      $or: [
+        { status: 'checked-in' },
+        {
+          status: 'registered',
+          checkInTime: { $exists: true } // Has checked in at some point
+        }
+      ]
     }).populate('participant', 'name email');
 
     console.log(`📊 [TEMP-LOCATION] Found ${attendanceLogs.length} checked-in participants for event ${eventId}`);
