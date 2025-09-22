@@ -12,23 +12,7 @@ const { updateAllEventStatuses, updateSingleEventStatus, calculateEventStatus } 
 
 const router = express.Router();
 
-function computeStatus(date, startTime, endTime) {
-  const now = new Date();
-
-  if (!date || !startTime || !endTime) return 'upcoming';
-
-  const [startHour, startMin] = startTime.split(':').map(Number);
-  const [endHour, endMin] = endTime.split(':').map(Number);
-
-  // Create dates in local timezone to avoid UTC offset issues
-  const eventDate = new Date(date);
-  const start = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), startHour, startMin, 0, 0);
-  const end = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), endHour, endMin, 0, 0);
-
-  if (now >= end) return 'completed';
-  if (now >= start) return 'active';
-  return 'upcoming';
-}
+// Use the centralized calculateEventStatus function instead of local computeStatus
 
 // @route   POST /api/events
 // @desc    Create a new event
@@ -78,19 +62,14 @@ router.post('/', auth, requireOrganizer, [
   try {
     const coords = req.body.location.coordinates.coordinates.map(Number);
 
-    const { date, startTime, endTime } = req.body;
-    const now = new Date();
-    const start = new Date(date);
-    start.setHours(...startTime.split(':').map(Number), 0, 0);
-
-    const end = new Date(date);
-    end.setHours(...endTime.split(':').map(Number), 0, 0);
-
-    let status = 'upcoming';
-    if (!isNaN(start) && !isNaN(end)) {
-      if (now >= end) status = 'completed';
-      else if (now >= start) status = 'active';
-    }
+    // Create a temporary event object to calculate status
+    const tempEvent = {
+      date: req.body.date,
+      startTime: req.body.startTime,
+      endTime: req.body.endTime,
+      title: req.body.title || 'New Event'
+    };
+    const status = calculateEventStatus(tempEvent);
 
     const eventData = {
       title: req.body.title,
@@ -181,7 +160,7 @@ router.get('/', auth, async (req, res) => {
     for (let event of events) {
       // Auto-update status only if statusMode is 'auto'
       if (event.statusMode === 'auto') {
-        const expectedStatus = computeStatus(event.date, event.startTime, event.endTime);
+        const expectedStatus = calculateEventStatus(event);
         console.log(`Event ${event.title}: current status = ${event.status}, computed status = ${expectedStatus}`);
         if (expectedStatus !== event.status) {
           event.status = expectedStatus;
@@ -434,7 +413,7 @@ router.get('/:id', auth, async (req, res) => {
       }
     });
 
-    const expectedStatus = computeStatus(event.date, event.startTime, event.endTime);
+    const expectedStatus = calculateEventStatus(event);
     if (expectedStatus !== event.status) {
       event.status = expectedStatus;
       await event.save(); // Save the update
@@ -779,7 +758,7 @@ router.get('/code/:eventCode', auth, async (req, res) => {
     }
 
     // Auto-update status if needed
-    const expectedStatus = computeStatus(event.date, event.startTime, event.endTime);
+    const expectedStatus = calculateEventStatus(event);
     if (expectedStatus !== event.status && event.statusMode === 'auto') {
       event.status = expectedStatus;
       await event.save();
