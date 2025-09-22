@@ -278,9 +278,21 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
     }
 
     // Enhance attendance logs with battery data
+    console.log('📊 [ATTENDANCE] Location data store size:', participantLocationData?.size || 0);
+    console.log('📊 [ATTENDANCE] Stored participant IDs:', Array.from(participantLocationData?.keys() || []));
+
     const enhancedAttendanceLogs = attendanceLogs.map(log => {
       const participantId = log.participant._id.toString();
       const locationData = participantLocationData?.get(participantId);
+
+      console.log(`📊 [ATTENDANCE] Processing ${log.participant.name} (${participantId}):`, {
+        hasLocationData: !!locationData,
+        locationData: locationData ? {
+          battery: locationData.batteryLevel,
+          timestamp: locationData.timestamp,
+          eventId: locationData.eventId
+        } : null
+      });
 
       return {
         ...log.toObject(),
