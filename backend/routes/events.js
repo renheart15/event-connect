@@ -1038,17 +1038,20 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
 
       // Check if location data is stale (older than 1 minute for testing)
       const hasLocationData = !!locationData;
+      // Use Singapore timezone consistently (UTC+8)
       const now = new Date();
+      const nowSG = new Date(now.getTime() + (8 * 60 * 60 * 1000));
       const checkInTime = new Date(log.checkInTime);
 
       let isLocationDataStale = false;
       if (hasLocationData) {
         const locationTimestamp = new Date(locationData.timestamp);
-        const timeSinceLastLocation = Math.floor((now - locationTimestamp) / 1000);
+        const timeSinceLastLocation = Math.floor((nowSG - locationTimestamp) / 1000);
         isLocationDataStale = timeSinceLastLocation > 60; // 1 minute for more aggressive detection
 
         console.log(`📍 [TEMP-LOCATION] STALE CHECK for ${log.participant.name}:`);
-        console.log(`📍 [TEMP-LOCATION] - Now: ${now.toISOString()}`);
+        console.log(`📍 [TEMP-LOCATION] - Server UTC: ${now.toISOString()}`);
+        console.log(`📍 [TEMP-LOCATION] - Singapore time: ${nowSG.toISOString()}`);
         console.log(`📍 [TEMP-LOCATION] - Location timestamp: ${locationTimestamp.toISOString()}`);
         console.log(`📍 [TEMP-LOCATION] - Seconds since location: ${timeSinceLastLocation}`);
         console.log(`📍 [TEMP-LOCATION] - Is stale (>60s): ${isLocationDataStale}`);
@@ -1058,9 +1061,9 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
       }
 
       // Calculate time since check-in or since last location update
-      const timeSinceCheckIn = Math.floor((now - checkInTime) / 1000);
+      const timeSinceCheckIn = Math.floor((nowSG - checkInTime) / 1000);
       const timeSinceLastUpdate = hasLocationData ?
-        Math.floor((now - new Date(locationData.timestamp)) / 1000) :
+        Math.floor((nowSG - new Date(locationData.timestamp)) / 1000) :
         timeSinceCheckIn;
 
       // Determine status based on location data availability and freshness
