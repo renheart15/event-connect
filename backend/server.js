@@ -174,6 +174,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 [RAILWAY BACKEND ${timestamp}] Server running on port ${PORT}, accessible from all network interfaces`);
   console.log(`🔍 [RAILWAY BACKEND] Use browser DevTools to see database fetch logs in real-time`);
   console.log(`📍 [RAILWAY BACKEND] Backend URL: https://backend.event-connect.site`);
+  console.log(`🎯 [RAILWAY BACKEND] Location tracking routes enabled`);
 });
 
 module.exports = app;
