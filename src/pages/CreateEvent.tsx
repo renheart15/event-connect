@@ -240,7 +240,7 @@ const CreateEvent = () => {
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="multi-day" id="multi-day" />
-                    <Label htmlFor="multi-day">Multi-Day Recurring Event</Label>
+                    <Label htmlFor="multi-day">Multi-Day Event</Label>
                   </div>
                 </RadioGroup>
                 <p className="text-xs text-gray-500">
