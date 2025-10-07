@@ -1358,6 +1358,58 @@ router.get('/geocode/search', async (req, res) => {
   }
 });
 
+// @route   POST /api/events/reset-timers/:eventId
+// @desc    Reset all location timers for an event (admin/organizer only)
+// @access  Private (Organizer only)
+router.post('/reset-timers/:eventId', auth, requireOrganizer, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    // Verify event belongs to organizer
+    const event = await Event.findOne({ _id: eventId, organizer: req.user._id });
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found or access denied'
+      });
+    }
+
+    const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
+
+    // Reset all timers for this event
+    const result = await ParticipantLocationStatus.updateMany(
+      { event: eventId },
+      {
+        $set: {
+          'outsideTimer.isActive': false,
+          'outsideTimer.startTime': null,
+          'outsideTimer.totalTimeOutside': 0,
+          'outsideTimer.currentSessionStart': null,
+          status: 'inside',
+          isWithinGeofence: true
+        }
+      }
+    );
+
+    console.log(`✅ Reset ${result.modifiedCount} location timers for event ${eventId}`);
+
+    res.json({
+      success: true,
+      message: `Successfully reset ${result.modifiedCount} location timer(s)`,
+      data: {
+        modifiedCount: result.modifiedCount
+      }
+    });
+  } catch (error) {
+    console.error('Reset timers error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset timers',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 module.exports.participantLocationData = participantLocationData;
 
