@@ -46,6 +46,7 @@ import SendInvitations from "./pages/SendInvitations";
 import InvitationSummary from "./pages/InvitationSummary";
 import InvitationView from "./pages/InvitationView";
 import OrganizationManagement from "./pages/OrganizationManagement";
+import LocationDebugger from "./pages/LocationDebugger";
 import NotFound from "./pages/NotFound";
 import JoinEvent from "./pages/JoinEvent";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -131,6 +132,11 @@ const App = () => (
               <Route path="/event-monitor" element={
                 <ProtectedRoute requiredRole="organizer">
                   <EventMonitor />
+                </ProtectedRoute>
+              } />
+              <Route path="/event/:eventId/location-debug" element={
+                <ProtectedRoute requiredRole="organizer">
+                  <LocationDebugger />
                 </ProtectedRoute>
               } />
               <Route path="/join/:eventCode" element={<JoinEvent />} />
