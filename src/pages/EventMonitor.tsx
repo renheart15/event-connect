@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, TrendingUp, Wifi, WifiOff, RefreshCw, Battery } from 'lucide-react';
+import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, Wifi, WifiOff, RefreshCw, Battery } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import LocationStatusDisplay from '@/components/LocationStatusDisplay';
@@ -498,14 +498,10 @@ const EventMonitor = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="attendance" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="attendance" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               Attendance Monitor
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <Activity className="w-4 h-4" />
-              Live Analytics
             </TabsTrigger>
             <TabsTrigger value="location" className="flex items-center gap-2">
               <Radar className="w-4 h-4" />
@@ -654,113 +650,6 @@ const EventMonitor = () => {
                       <p className="text-sm">Participants will appear here when they check in with their QR codes</p>
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="analytics" className="mt-6">
-            {/* Live Analytics Dashboard */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Attendance Trend */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-blue-600" />
-                    Attendance Trends
-                  </CardTitle>
-                  <CardDescription>Real-time attendance patterns</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                      <span className="text-sm font-medium">Peak Attendance</span>
-                      <span className="text-lg font-bold text-green-600">{stats.currentlyPresent}</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <span className="text-sm font-medium">Check-in Rate</span>
-                      <span className="text-lg font-bold text-blue-600">
-                        {stats.totalCheckedIn > 0 ? Math.round((stats.totalCheckedIn / 60) * 100) / 100 : 0}/min
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                      <span className="text-sm font-medium">Retention Rate</span>
-                      <span className="text-lg font-bold text-purple-600">
-                        {stats.totalCheckedIn > 0 ? Math.round((stats.currentlyPresent / stats.totalCheckedIn) * 100) : 0}%
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Event Status */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-green-600" />
-                    Event Health
-                  </CardTitle>
-                  <CardDescription>System status and performance</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Connection Status</span>
-                      <Badge variant={isConnected ? "default" : "destructive"}>
-                        {isConnected ? "Active" : "Disconnected"}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Data Freshness</span>
-                      <Badge variant="secondary">
-                        {Math.round((new Date() - lastUpdate) / 1000)}s ago
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Auto Refresh</span>
-                      <Badge variant="outline">45s interval</Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Connection Retries</span>
-                      <Badge variant={connectionRetries > 0 ? "destructive" : "default"}>
-                        {connectionRetries}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Participant Activity Summary */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Participant Activity Summary</CardTitle>
-                <CardDescription>Quick overview of participant engagement</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{participants.length}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Total Participants</p>
-                  </div>
-                  <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">
-                      {participants.filter(p => p.status === 'present').length}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Currently Present</p>
-                  </div>
-                  <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                    <p className="text-2xl font-bold text-orange-600">
-                      {participants.filter(p => p.status === 'left-early').length}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Left Early</p>
-                  </div>
-                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <p className="text-2xl font-bold text-blue-600">
-                      {participants.length > 0 ? Math.round(participants.reduce((acc, p) => acc + p.duration, 0) / participants.length / 60) : 0}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Avg Duration (min)</p>
-                  </div>
                 </div>
               </CardContent>
             </Card>
