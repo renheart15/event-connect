@@ -184,7 +184,7 @@ export const useParticipantLocationUpdater = () => {
       }
 
       const response = await axios.post(
-        `${API_BASE}/events/location-tracking/initialize`,
+        `${API_BASE}/location-tracking/initialize`,
         {
           eventId,
           participantId,
@@ -234,7 +234,7 @@ export const useParticipantLocationUpdater = () => {
       }
 
       const response = await axios.post(
-        `${API_BASE}/events/location-tracking/update-location`,
+        `${API_BASE}/location-tracking/update-location`,
         payload,
         {
           headers: {
