@@ -155,6 +155,8 @@ const EventMonitor = () => {
         // Handle nested event structure: data.data.event or data.data
         const eventInfo = data.data?.event || data.data;
         console.log('🎪 [EVENT] Event data:', eventInfo);
+        console.log('🎪 [EVENT] Location data:', eventInfo?.location);
+        console.log('🎪 [EVENT] Location address:', eventInfo?.location?.address);
         setEventData(eventInfo);
       } else {
         console.error('🎪 [EVENT] Failed to fetch event:', data.message);
@@ -583,7 +585,12 @@ const EventMonitor = () => {
                     </div>
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">Location</p>
-                      <p className="text-gray-600 dark:text-gray-400">{eventData.location?.address || eventData.location || 'Location not specified'}</p>
+                      <p
+                        className="text-gray-600 dark:text-gray-400 truncate max-w-full"
+                        title={eventData.location?.address || eventData.location || 'Location not specified'}
+                      >
+                        {eventData.location?.address || eventData.location || 'Location not specified'}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
