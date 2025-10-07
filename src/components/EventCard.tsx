@@ -223,7 +223,9 @@ const EventCard = ({
                 </div>
                 <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300">
                   <MapPin className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate">{event.location?.address || event.location}</span>
+                  <span className="truncate overflow-hidden text-ellipsis whitespace-nowrap max-w-[250px]" title={event.location?.address || event.location}>
+                    {event.location?.address || event.location}
+                  </span>
                 </div>
               </div>
             </div>
