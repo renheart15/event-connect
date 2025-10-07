@@ -207,17 +207,33 @@ const GeofenceMap = ({
 
     setIsSearching(true);
     try {
-      // Use Nominatim API for geocoding
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
-      );
-      const data = await response.json();
+      // Use backend proxy for geocoding to avoid CORS and timeout issues
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-      if (data && data.length > 0) {
-        const result = data[0];
-        const newCenter: [number, number] = [parseFloat(result.lat), parseFloat(result.lon)];
+      const response = await fetch(
+        `/api/events/geocode/search?query=${encodeURIComponent(searchQuery)}`,
+        {
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.data && result.data.length > 0) {
+        const location = result.data[0];
+        const newCenter: [number, number] = [parseFloat(location.lat), parseFloat(location.lon)];
         setCenter(newCenter);
-        
+
         if (map.current) {
           map.current.setView(newCenter, 15);
           // Update geofence elements at new location with current radius
@@ -227,10 +243,10 @@ const GeofenceMap = ({
         if (onGeofenceUpdate) {
           onGeofenceUpdate(newCenter, radius);
         }
-        
+
         toast({
           title: "Location Found",
-          description: `Centered map on: ${result.display_name}`,
+          description: `Centered map on: ${location.display_name}`,
         });
       } else {
         toast({
@@ -239,11 +255,19 @@ const GeofenceMap = ({
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Search error:', error);
+
+      let errorMessage = "Unable to search for location. Please try again.";
+      if (error.name === 'AbortError') {
+        errorMessage = "Search request timed out. Please check your internet connection.";
+      } else if (error.message?.includes('Failed to fetch')) {
+        errorMessage = "Network error. Please check your internet connection and try again.";
+      }
+
       toast({
         title: "Search Error",
-        description: "Unable to search for location. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

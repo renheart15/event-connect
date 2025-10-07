@@ -1320,6 +1320,44 @@ router.get('/location-tracking/participant/:participantId/event/:eventId/status'
   }
 });
 
+// @route   GET /api/events/geocode/search
+// @desc    Forward geocode search (address to coordinates)
+// @access  Public
+router.get('/geocode/search', async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required'
+      });
+    }
+
+    const axios = require('axios');
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'EventConnect/1.0'
+      },
+      timeout: 10000 // 10 second timeout
+    });
+
+    res.json({
+      success: true,
+      data: response.data
+    });
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search location',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 module.exports.participantLocationData = participantLocationData;
 
