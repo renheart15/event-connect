@@ -44,7 +44,6 @@ const EventMonitor = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      console.log('📊 [ATTENDANCE] Fetching attendance data for event:', eventId);
       const response = await fetch(`${API_CONFIG.API_BASE}/attendance/event/${eventId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -54,17 +53,13 @@ const EventMonitor = () => {
 
       clearTimeout(timeoutId);
 
-      console.log('📊 [ATTENDANCE] Response status:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('📊 [ATTENDANCE] Error response:', errorText);
+        console.error('Attendance fetch error:', response.status, errorText);
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
-      console.log('📊 [ATTENDANCE] Response data:', data);
-      console.log('📊 [ATTENDANCE] First attendance log details:', data.data.attendanceLogs[0]);
 
       if (!data.success) {
         throw new Error(data.message);
@@ -138,7 +133,6 @@ const EventMonitor = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      console.log('🎪 [EVENT] Fetching event data for:', eventId);
       const response = await fetch(`${API_CONFIG.API_BASE}/events/${eventId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -149,17 +143,13 @@ const EventMonitor = () => {
       clearTimeout(timeoutId);
 
       const data = await response.json();
-      console.log('🎪 [EVENT] Event data response:', data);
 
       if (data.success) {
         // Handle nested event structure: data.data.event or data.data
         const eventInfo = data.data?.event || data.data;
-        console.log('🎪 [EVENT] Event data:', eventInfo);
-        console.log('🎪 [EVENT] Location data:', eventInfo?.location);
-        console.log('🎪 [EVENT] Location address:', eventInfo?.location?.address);
         setEventData(eventInfo);
       } else {
-        console.error('🎪 [EVENT] Failed to fetch event:', data.message);
+        console.error('Failed to fetch event:', data.message);
       }
     } catch (error) {
       console.error('Failed to fetch event data:', error);

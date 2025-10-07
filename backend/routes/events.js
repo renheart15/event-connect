@@ -886,23 +886,23 @@ router.post('/:id/update-status', auth, async (req, res) => {
 // @desc    Initialize location tracking for a participant (temporary endpoint)
 // @access  Private
 router.post('/location-tracking/initialize', auth, async (req, res) => {
-  console.log('🎯 [TEMP-LOCATION] Initialize endpoint hit:', req.body);
-
   try {
     const { eventId, participantId, attendanceLogId } = req.body;
 
     // Validate required fields
     if (!eventId || !participantId || !attendanceLogId) {
+      console.error('❌ [LOCATION] Initialize missing fields:', { eventId: !!eventId, participantId: !!participantId, attendanceLogId: !!attendanceLogId });
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: eventId, participantId, attendanceLogId'
       });
     }
 
-    // For now, just return success to test the endpoint
+    console.log('✅ [LOCATION] Tracking initialized for participant:', participantId.substring(0, 8) + '...');
+
     res.json({
       success: true,
-      message: 'Location tracking initialized successfully (temporary endpoint)',
+      message: 'Location tracking initialized successfully',
       data: {
         eventId,
         participantId,
@@ -910,10 +910,8 @@ router.post('/location-tracking/initialize', auth, async (req, res) => {
         status: 'initialized'
       }
     });
-
-    console.log('✅ [TEMP-LOCATION] Location tracking initialized for participant:', participantId);
   } catch (error) {
-    console.error('❌ [TEMP-LOCATION] Error:', error);
+    console.error('❌ [LOCATION] Initialize error:', error.message);
     res.status(500).json({
       success: false,
       message: 'Failed to initialize location tracking',
@@ -926,18 +924,34 @@ router.post('/location-tracking/initialize', auth, async (req, res) => {
 // @desc    Update participant location (temporary endpoint)
 // @access  Private
 router.post('/location-tracking/update-location', auth, async (req, res) => {
-  console.log('📍 [TEMP-LOCATION] Update location endpoint hit:', req.body);
-
   try {
     const { eventId, participantId, latitude, longitude, accuracy, batteryLevel } = req.body;
 
     // Validate required fields
     if (!eventId || !participantId || latitude === undefined || longitude === undefined) {
+      console.error('❌ [LOCATION] Missing required fields:', { eventId, participantId, hasLat: latitude !== undefined, hasLng: longitude !== undefined });
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: eventId, participantId, latitude, longitude'
       });
     }
+
+    // Validate coordinates are not (0, 0) which indicates no GPS signal
+    if (latitude === 0 && longitude === 0) {
+      console.warn('⚠️ [LOCATION] Received (0,0) coordinates - GPS not available for participant:', participantId);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid GPS coordinates. Please ensure location services are enabled.'
+      });
+    }
+
+    console.log('📍 [LOCATION] Received update:', {
+      participantId: participantId.substring(0, 8) + '...',
+      lat: latitude.toFixed(4),
+      lng: longitude.toFixed(4),
+      accuracy: accuracy || 'N/A',
+      battery: batteryLevel || 'N/A'
+    });
 
     // Store the location and battery data temporarily (in real implementation, this would save to database)
     const locationData = {
@@ -950,9 +964,8 @@ router.post('/location-tracking/update-location', auth, async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    // Store in temporary in-memory cache with better logging
+    // Store in temporary in-memory cache
     participantLocationData.set(participantId, locationData);
-    console.log(`💾 [TEMP-LOCATION] Stored location data for participant ${participantId}. Total stored: ${participantLocationData.size}`);
 
     // Also update the attendance log with battery data for persistence
     try {
@@ -971,9 +984,11 @@ router.post('/location-tracking/update-location', auth, async (req, res) => {
           lastLocationUpdate: new Date().toISOString()
         }
       );
-      console.log(`📱 [TEMP-LOCATION] Updated attendance log with battery ${batteryLevel}% for participant ${participantId}`);
+      if (batteryLevel && batteryLevel < 20) {
+        console.warn(`🪫 [LOCATION] Low battery (${batteryLevel}%) for participant ${participantId.substring(0, 8)}...`);
+      }
     } catch (updateError) {
-      console.error('❌ [TEMP-LOCATION] Failed to update attendance log:', updateError);
+      console.error('❌ [LOCATION] Failed to update attendance log:', updateError);
     }
 
     res.json({
@@ -997,7 +1012,6 @@ router.post('/location-tracking/update-location', auth, async (req, res) => {
 // @desc    Get location status for all participants in an event (temporary endpoint)
 // @access  Private
 router.get('/:eventId/location-status', auth, async (req, res) => {
-  console.log('📍 [TEMP-LOCATION] Location status endpoint hit for event:', req.params.eventId);
 
   try {
     const { eventId } = req.params;

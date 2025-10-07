@@ -4584,10 +4584,8 @@ const ParticipantDashboard = () => {
                 position.coords.longitude,
                 position.coords.accuracy,
                 batteryLevel
-              ).then(() => {
-                console.log('✅ Location updated successfully');
-              }).catch((error) => {
-                console.error('❌ Location update failed:', error);
+              ).catch((error) => {
+                console.error('Location update failed:', error);
               });
             });
           }
@@ -4625,15 +4623,13 @@ const ParticipantDashboard = () => {
                   position.coords.longitude,
                   position.coords.accuracy,
                   batteryLevel
-                ).then(() => {
-                  console.log('✅ Web location updated successfully');
-                }).catch((error) => {
-                  console.error('❌ Web location update failed:', error);
+                ).catch((error) => {
+                  console.error('Web location update failed:', error);
                 });
               });
             },
             (error) => {
-              console.error('❌ Geolocation error:', error);
+              console.error('Geolocation error:', error);
               toast({
                 title: "Location Error",
                 description: "Unable to track location. Please check permissions.",

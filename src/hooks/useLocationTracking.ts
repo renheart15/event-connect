@@ -88,16 +88,6 @@ export const useLocationTracking = (eventId: string): UseLocationTrackingReturn 
 
       if (response.data.success) {
         const participants = response.data.data.participants || [];
-        console.log('📍 [LOCATION-HOOK] Received location data:', {
-          participantCount: participants.length,
-          sampleParticipant: participants.length > 0 ? {
-            name: participants[0].participant?.name,
-            location: participants[0].currentLocation,
-            battery: participants[0].batteryLevel,
-            fullParticipant: participants[0]
-          } : null,
-          allParticipants: participants
-        });
         setLocationStatuses(participants);
         setSummary(response.data.data.summary || null);
       } else {
@@ -189,8 +179,6 @@ export const useParticipantLocationUpdater = () => {
       setError(null);
       const token = localStorage.getItem('token');
 
-      console.log('🚀 Initializing location tracking:', { eventId, participantId, attendanceLogId });
-
       if (!token) {
         throw new Error('No authentication token found');
       }
@@ -209,16 +197,9 @@ export const useParticipantLocationUpdater = () => {
         }
       );
 
-      console.log('✅ Location tracking initialized:', response.data);
       setIsTracking(true);
     } catch (err: any) {
-      console.error('❌ Error starting location tracking:', err);
-      console.error('❌ Initialization error details:', {
-        status: err.response?.status,
-        statusText: err.response?.statusText,
-        data: err.response?.data,
-        message: err.message
-      });
+      console.error('Error starting location tracking:', err.response?.data?.message || err.message);
       setError(err.response?.data?.message || 'Failed to start location tracking');
       throw err;
     }
@@ -235,8 +216,6 @@ export const useParticipantLocationUpdater = () => {
     try {
       setError(null);
       const token = localStorage.getItem('token');
-
-      console.log('🔄 Updating location:', { eventId, participantId, latitude, longitude, accuracy, batteryLevel });
 
       if (!token) {
         throw new Error('No authentication token found');
@@ -264,16 +243,9 @@ export const useParticipantLocationUpdater = () => {
         }
       );
 
-      console.log('✅ Location update response:', response.data);
       return response.data;
     } catch (err: any) {
-      console.error('❌ Error updating location:', err);
-      console.error('❌ Error details:', {
-        status: err.response?.status,
-        statusText: err.response?.statusText,
-        data: err.response?.data,
-        message: err.message
-      });
+      console.error('Error updating location:', err.response?.data?.message || err.message);
       setError(err.response?.data?.message || 'Failed to update location');
       throw err;
     }
