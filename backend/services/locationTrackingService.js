@@ -66,6 +66,19 @@ class LocationTrackingService {
         });
 
         await locationStatus.save();
+      } else {
+        // Reset timer for existing location status (new check-in session)
+        locationStatus.outsideTimer = {
+          isActive: false,
+          startTime: null,
+          totalTimeOutside: 0,
+          currentSessionStart: null
+        };
+        locationStatus.status = 'inside';
+        locationStatus.isWithinGeofence = true;
+        locationStatus.isActive = true;
+        locationStatus.attendanceLog = attendanceLogId;
+        await locationStatus.save();
       }
 
       // Add to active tracking
