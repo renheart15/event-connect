@@ -152,8 +152,10 @@ const EventMonitor = () => {
       console.log('🎪 [EVENT] Event data response:', data);
 
       if (data.success) {
-        console.log('🎪 [EVENT] Event data:', data.data);
-        setEventData(data.data);
+        // Handle nested event structure: data.data.event or data.data
+        const eventInfo = data.data?.event || data.data;
+        console.log('🎪 [EVENT] Event data:', eventInfo);
+        setEventData(eventInfo);
       } else {
         console.error('🎪 [EVENT] Failed to fetch event:', data.message);
       }
