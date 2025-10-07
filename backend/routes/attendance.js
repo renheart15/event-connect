@@ -130,6 +130,29 @@ router.post('/checkin', [
       checkInLocation: location || null
     });
 
+    // Reset location tracking timer for this participant/event
+    const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
+    try {
+      await ParticipantLocationStatus.findOneAndUpdate(
+        { event: eventId, participant: participantId },
+        {
+          $set: {
+            'outsideTimer.isActive': false,
+            'outsideTimer.startTime': null,
+            'outsideTimer.totalTimeOutside': 0,
+            'outsideTimer.currentSessionStart': null,
+            status: 'inside',
+            isWithinGeofence: true
+          }
+        },
+        { upsert: false }
+      );
+      console.log('✅ Reset location timer for participant on check-in');
+    } catch (resetError) {
+      console.error('⚠️ Failed to reset location timer:', resetError);
+      // Don't fail the check-in if timer reset fails
+    }
+
     // Mark invitation as used
     invitation.isUsed = true;
     invitation.usedAt = new Date();
