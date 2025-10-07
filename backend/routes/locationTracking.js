@@ -29,14 +29,21 @@ router.post('/initialize', [
       const attendanceLog = await AttendanceLog.findOne({
         _id: attendanceLogId,
         event: eventId,
-        participant: participantId,
-        status: 'checked-in'
+        participant: participantId
       });
 
       if (!attendanceLog) {
         return res.status(404).json({
           success: false,
-          message: 'Valid attendance log not found'
+          message: 'Attendance log not found. Please check in to the event first.'
+        });
+      }
+
+      // Check if participant is checked in
+      if (attendanceLog.status !== 'checked-in') {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot start location tracking. Current status: ${attendanceLog.status}. Please check in first.`
         });
       }
 
