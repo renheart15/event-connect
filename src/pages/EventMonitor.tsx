@@ -138,6 +138,7 @@ const EventMonitor = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+      console.log('🎪 [EVENT] Fetching event data for:', eventId);
       const response = await fetch(`${API_CONFIG.API_BASE}/events/${eventId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -148,8 +149,13 @@ const EventMonitor = () => {
       clearTimeout(timeoutId);
 
       const data = await response.json();
+      console.log('🎪 [EVENT] Event data response:', data);
+
       if (data.success) {
+        console.log('🎪 [EVENT] Event data:', data.data);
         setEventData(data.data);
+      } else {
+        console.error('🎪 [EVENT] Failed to fetch event:', data.message);
       }
     } catch (error) {
       console.error('Failed to fetch event data:', error);
@@ -221,29 +227,58 @@ const EventMonitor = () => {
 
   // Helper function to format time from HH:MM to 12-hour format
   const formatTime = (timeString: string) => {
-    if (!timeString) return '';
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
+    if (!timeString) return 'Not specified';
+    try {
+      const date = new Date(`2000-01-01T${timeString}`);
+      if (isNaN(date.getTime())) return 'Invalid time';
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return 'Invalid time';
+    }
   };
 
   // Helper function to format event date for multi-day events
   const formatEventDate = (event: any) => {
-    if (event.endDate && event.endDate !== event.date) {
-      // Multi-day event: show date range
-      return `${new Date(event.date).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric'
-      })} - ${new Date(event.endDate).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })}`;
-    } else {
-      // Single-day event: show full date
-      return new Date(event.date).toLocaleDateString();
+    if (!event?.date) return 'Date not specified';
+
+    try {
+      const startDate = new Date(event.date);
+      if (isNaN(startDate.getTime())) return 'Invalid Date';
+
+      if (event.endDate && event.endDate !== event.date) {
+        // Multi-day event: show date range
+        const endDate = new Date(event.endDate);
+        if (isNaN(endDate.getTime())) {
+          return startDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+        }
+        return `${startDate.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        })} - ${endDate.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        })}`;
+      } else {
+        // Single-day event: show full date
+        return startDate.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      }
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid Date';
     }
   };
 
@@ -535,7 +570,18 @@ const EventMonitor = () => {
                     </div>
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">Time</p>
-                      <p className="text-gray-600 dark:text-gray-400">{formatTime(eventData.startTime)} - {formatTime(eventData.endTime)}</p>
+                      <p className="text-gray-600 dark:text-gray-400">
+                        {eventData.startTime || eventData.endTime ? (
+                          <>
+                            {formatTime(eventData.startTime)}
+                            {eventData.endTime && eventData.endTime !== eventData.startTime && (
+                              <> - {formatTime(eventData.endTime)}</>
+                            )}
+                          </>
+                        ) : (
+                          'Time not specified'
+                        )}
+                      </p>
                     </div>
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">Location</p>
