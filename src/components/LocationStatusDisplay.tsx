@@ -330,12 +330,6 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                   })()}
 
                   {/* Timer Display */}
-                  {console.log('🔍 [TIMER-DEBUG] Checking timer for', status.participant.name, ':', {
-                    outsideTimer: status.outsideTimer,
-                    isActive: status.outsideTimer?.isActive,
-                    currentTimeOutside: status.currentTimeOutside,
-                    status: status.status
-                  })}
                   {(status.outsideTimer?.isActive || status.currentTimeOutside > 0) && (
                     <div className="bg-orange-50 border border-orange-200 rounded p-3">
                       <div className="flex items-center gap-2 text-orange-700">

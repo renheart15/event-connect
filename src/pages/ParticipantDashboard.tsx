@@ -4526,8 +4526,6 @@ const ParticipantDashboard = () => {
   // Helper function to force a location update (heartbeat)
   const forceLocationUpdate = async (eventId: string) => {
     try {
-      console.log('💓 Heartbeat: Forcing location update...');
-
       if (Capacitor.isNativePlatform()) {
         const position = await Geolocation.getCurrentPosition({
           enableHighAccuracy: true,
@@ -4556,7 +4554,6 @@ const ParticipantDashboard = () => {
           batteryLevel
         );
         setLastLocationUpdateTime(new Date());
-        console.log('✅ Heartbeat update successful');
       } else {
         // For web platforms
         if (navigator.geolocation) {
@@ -4584,10 +4581,9 @@ const ParticipantDashboard = () => {
                 batteryLevel
               );
               setLastLocationUpdateTime(new Date());
-              console.log('✅ Heartbeat update successful');
             },
-            (error) => {
-              console.error('❌ Heartbeat failed:', error);
+            () => {
+              // Heartbeat failed - silently ignore
             },
             {
               enableHighAccuracy: true,
@@ -4598,21 +4594,17 @@ const ParticipantDashboard = () => {
         }
       }
     } catch (error) {
-      console.error('❌ Force location update failed:', error);
+      // Force location update failed - silently ignore
     }
   };
 
   // Location tracking functions
   const startLocationWatching = async (eventId: string, attendanceLogId: string) => {
     try {
-      console.log('🎯 Starting location tracking for:', { eventId, attendanceLogId, userId: user._id });
-
       // Check location permissions first
       const hasPermission = await checkLocationPermissions();
-      console.log('📍 Location permission status:', hasPermission);
 
       if (!hasPermission) {
-        console.error('❌ Location permission denied');
         toast({
           title: "Location Permission Required",
           description: "Location tracking requires permission to work properly.",
@@ -4621,10 +4613,8 @@ const ParticipantDashboard = () => {
         return;
       }
 
-      console.log('🚀 Initializing location tracking on server...');
       // Initialize location tracking on server
       await startLocationTracking(eventId, user._id, attendanceLogId);
-      console.log('✅ Location tracking initialized successfully');
 
       toast({
         title: "Location Tracking Started",
@@ -4639,11 +4629,6 @@ const ParticipantDashboard = () => {
           timeout: 10000
         }, (position) => {
           if (position) {
-            console.log('📱 Native position update:', {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-              accuracy: position.coords.accuracy
-            });
             // Get battery level if available
             const getBatteryLevel = async () => {
               try {
@@ -4679,12 +4664,6 @@ const ParticipantDashboard = () => {
         if (navigator.geolocation) {
           const watchId = navigator.geolocation.watchPosition(
             (position) => {
-              console.log('🌐 Web position update:', {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-                accuracy: position.coords.accuracy
-              });
-
               // Get battery level if available
               const getBatteryLevel = async () => {
                 try {
@@ -4734,7 +4713,6 @@ const ParticipantDashboard = () => {
       // Set up heartbeat to force location updates every 2 minutes
       // This ensures updates continue even if watchPosition stops sending updates
       const heartbeatInterval = setInterval(() => {
-        console.log('💓 Heartbeat triggered - checking last update time');
         const now = new Date();
         const timeSinceLastUpdate = lastLocationUpdateTime
           ? (now.getTime() - lastLocationUpdateTime.getTime()) / 1000 / 60
@@ -4742,22 +4720,17 @@ const ParticipantDashboard = () => {
 
         // Force update if more than 2 minutes since last update
         if (timeSinceLastUpdate > 2) {
-          console.log(`⚠️ ${timeSinceLastUpdate.toFixed(1)} minutes since last update, forcing update...`);
           forceLocationUpdate(eventId);
-        } else {
-          console.log(`✅ Last update was ${timeSinceLastUpdate.toFixed(1)} minutes ago, no action needed`);
         }
       }, 120000); // Check every 2 minutes
 
       setLocationHeartbeatInterval(heartbeatInterval);
-      console.log('💓 Heartbeat interval started');
 
       toast({
         title: "Location Tracking Started",
         description: "Your location is now being tracked for this event.",
       });
-    } catch (error) {
-      console.error('❌ Failed to start location tracking:', error);
+    } catch (error: any) {
       toast({
         title: "Location Tracking Failed",
         description: `Failed to start location tracking: ${error.message || 'Unknown error'}`,
@@ -4785,7 +4758,6 @@ const ParticipantDashboard = () => {
       if (locationHeartbeatInterval) {
         clearInterval(locationHeartbeatInterval);
         setLocationHeartbeatInterval(null);
-        console.log('💓 Heartbeat interval cleared');
       }
 
       setCurrentLocationStatus(null);
@@ -4796,7 +4768,7 @@ const ParticipantDashboard = () => {
         description: "Location tracking has been disabled for this event.",
       });
     } catch (error) {
-      console.error('Error stopping location tracking:', error);
+      // Error stopping location tracking - silently ignore
     }
   };
 
