@@ -61,7 +61,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
     }
   };
 
-  const getStatusColor = (status: string): string => {
+  const getStatusColor = (status: string): "default" | "destructive" | "secondary" | "outline" => {
     switch (status) {
       case 'inside': return 'default';
       case 'outside': return 'secondary';
@@ -263,8 +263,24 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     </div>
                     <div>
                       <p className="font-medium text-gray-700">Within Geofence</p>
-                      <p className="text-gray-600">
+                      <p className={`${
+                        (() => {
+                          const lastUpdate = new Date(status.lastLocationUpdate);
+                          const now = new Date();
+                          const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+                          return minutesSinceUpdate > 5 ? 'text-gray-400' : 'text-gray-600';
+                        })()
+                      }`}>
                         {status.isWithinGeofence ? 'Yes' : 'No'}
+                        {(() => {
+                          const lastUpdate = new Date(status.lastLocationUpdate);
+                          const now = new Date();
+                          const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+                          if (minutesSinceUpdate > 5) {
+                            return <span className="text-yellow-600 ml-1">(stale)</span>;
+                          }
+                          return null;
+                        })()}
                       </p>
                     </div>
                     <div>
@@ -278,11 +294,40 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     </div>
                     <div>
                       <p className="font-medium text-gray-700">Last Update</p>
-                      <p className="text-gray-600">
+                      <p className={`${
+                        (() => {
+                          const lastUpdate = new Date(status.lastLocationUpdate);
+                          const now = new Date();
+                          const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+                          if (minutesSinceUpdate > 10) return 'text-red-600 font-semibold';
+                          if (minutesSinceUpdate > 5) return 'text-yellow-600 font-semibold';
+                          return 'text-gray-600';
+                        })()
+                      }`}>
                         {new Date(status.lastLocationUpdate).toLocaleTimeString('en-US', { hour12: true })}
                       </p>
                     </div>
                   </div>
+
+                  {/* Stale Data Warning */}
+                  {(() => {
+                    const lastUpdate = new Date(status.lastLocationUpdate);
+                    const now = new Date();
+                    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+                    if (minutesSinceUpdate > 5) {
+                      return (
+                        <Alert variant="destructive" className="mt-3">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription>
+                            <strong>Location data is stale!</strong> Last update was {Math.round(minutesSinceUpdate)} minutes ago.
+                            The participant's device may be offline, in power-saving mode, or the browser tab may be backgrounded.
+                            Current location status may not be accurate.
+                          </AlertDescription>
+                        </Alert>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   {/* Timer Display */}
                   {console.log('🔍 [TIMER-DEBUG] Checking timer for', status.participant.name, ':', {

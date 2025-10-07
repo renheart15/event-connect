@@ -456,6 +456,8 @@ const ParticipantDashboard = () => {
   
   // Location tracking state
   const [locationWatchId, setLocationWatchId] = useState<number | null>(null);
+  const [locationHeartbeatInterval, setLocationHeartbeatInterval] = useState<NodeJS.Timeout | null>(null);
+  const [lastLocationUpdateTime, setLastLocationUpdateTime] = useState<Date | null>(null);
   const [currentLocationStatus, setCurrentLocationStatus] = useState<any>(null);
   const [locationPermissionStatus, setLocationPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [scanningStatus, setScanningStatus] = useState('Ready to scan');
@@ -4521,6 +4523,85 @@ const ParticipantDashboard = () => {
     }
   };
 
+  // Helper function to force a location update (heartbeat)
+  const forceLocationUpdate = async (eventId: string) => {
+    try {
+      console.log('💓 Heartbeat: Forcing location update...');
+
+      if (Capacitor.isNativePlatform()) {
+        const position = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 10000
+        });
+
+        const getBatteryLevel = async () => {
+          try {
+            if ('getBattery' in navigator) {
+              const battery = await (navigator as any).getBattery();
+              return Math.round(battery.level * 100);
+            }
+            return null;
+          } catch (error) {
+            return null;
+          }
+        };
+
+        const batteryLevel = await getBatteryLevel();
+        await updateLocation(
+          eventId,
+          user._id,
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.accuracy,
+          batteryLevel
+        );
+        setLastLocationUpdateTime(new Date());
+        console.log('✅ Heartbeat update successful');
+      } else {
+        // For web platforms
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const getBatteryLevel = async () => {
+                try {
+                  if ('getBattery' in navigator) {
+                    const battery = await (navigator as any).getBattery();
+                    return Math.round(battery.level * 100);
+                  }
+                  return null;
+                } catch (error) {
+                  return null;
+                }
+              };
+
+              const batteryLevel = await getBatteryLevel();
+              await updateLocation(
+                eventId,
+                user._id,
+                position.coords.latitude,
+                position.coords.longitude,
+                position.coords.accuracy,
+                batteryLevel
+              );
+              setLastLocationUpdateTime(new Date());
+              console.log('✅ Heartbeat update successful');
+            },
+            (error) => {
+              console.error('❌ Heartbeat failed:', error);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            }
+          );
+        }
+      }
+    } catch (error) {
+      console.error('❌ Force location update failed:', error);
+    }
+  };
+
   // Location tracking functions
   const startLocationWatching = async (eventId: string, attendanceLogId: string) => {
     try {
@@ -4544,12 +4625,12 @@ const ParticipantDashboard = () => {
       // Initialize location tracking on server
       await startLocationTracking(eventId, user._id, attendanceLogId);
       console.log('✅ Location tracking initialized successfully');
-      
+
       toast({
         title: "Location Tracking Started",
         description: "Your location is being tracked for this event.",
       });
-      
+
       // Start watching location
       if (Capacitor.isNativePlatform()) {
         // For native platforms, use Capacitor Geolocation
@@ -4584,7 +4665,9 @@ const ParticipantDashboard = () => {
                 position.coords.longitude,
                 position.coords.accuracy,
                 batteryLevel
-              ).catch((error) => {
+              ).then(() => {
+                setLastLocationUpdateTime(new Date());
+              }).catch((error) => {
                 console.error('Location update failed:', error);
               });
             });
@@ -4623,7 +4706,9 @@ const ParticipantDashboard = () => {
                   position.coords.longitude,
                   position.coords.accuracy,
                   batteryLevel
-                ).catch((error) => {
+                ).then(() => {
+                  setLastLocationUpdateTime(new Date());
+                }).catch((error) => {
                   console.error('Web location update failed:', error);
                 });
               });
@@ -4646,6 +4731,27 @@ const ParticipantDashboard = () => {
         }
       }
 
+      // Set up heartbeat to force location updates every 2 minutes
+      // This ensures updates continue even if watchPosition stops sending updates
+      const heartbeatInterval = setInterval(() => {
+        console.log('💓 Heartbeat triggered - checking last update time');
+        const now = new Date();
+        const timeSinceLastUpdate = lastLocationUpdateTime
+          ? (now.getTime() - lastLocationUpdateTime.getTime()) / 1000 / 60
+          : 999;
+
+        // Force update if more than 2 minutes since last update
+        if (timeSinceLastUpdate > 2) {
+          console.log(`⚠️ ${timeSinceLastUpdate.toFixed(1)} minutes since last update, forcing update...`);
+          forceLocationUpdate(eventId);
+        } else {
+          console.log(`✅ Last update was ${timeSinceLastUpdate.toFixed(1)} minutes ago, no action needed`);
+        }
+      }, 120000); // Check every 2 minutes
+
+      setLocationHeartbeatInterval(heartbeatInterval);
+      console.log('💓 Heartbeat interval started');
+
       toast({
         title: "Location Tracking Started",
         description: "Your location is now being tracked for this event.",
@@ -4664,7 +4770,7 @@ const ParticipantDashboard = () => {
     try {
       // Stop location tracking on server
       await stopLocationTracking(eventId, user._id);
-      
+
       // Stop watching location
       if (locationWatchId) {
         if (Capacitor.isNativePlatform()) {
@@ -4675,13 +4781,22 @@ const ParticipantDashboard = () => {
         setLocationWatchId(null);
       }
 
+      // Clear heartbeat interval
+      if (locationHeartbeatInterval) {
+        clearInterval(locationHeartbeatInterval);
+        setLocationHeartbeatInterval(null);
+        console.log('💓 Heartbeat interval cleared');
+      }
+
       setCurrentLocationStatus(null);
-      
+      setLastLocationUpdateTime(null);
+
       toast({
         title: "Location Tracking Stopped",
         description: "Location tracking has been disabled for this event.",
       });
     } catch (error) {
+      console.error('Error stopping location tracking:', error);
     }
   };
 
