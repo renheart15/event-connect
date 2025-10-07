@@ -25,11 +25,26 @@ router.post('/initialize', [
 
       const { eventId, participantId, attendanceLogId } = req.body;
 
+      console.log('🔍 [LOCATION-INIT] Request data:', {
+        eventId,
+        participantId,
+        attendanceLogId,
+        hasEventId: !!eventId,
+        hasParticipantId: !!participantId,
+        hasAttendanceLogId: !!attendanceLogId
+      });
+
       // Verify attendance log exists and belongs to the participant
       const attendanceLog = await AttendanceLog.findOne({
         _id: attendanceLogId,
         event: eventId,
         participant: participantId
+      });
+
+      console.log('🔍 [LOCATION-INIT] Attendance log query result:', {
+        found: !!attendanceLog,
+        status: attendanceLog?.status,
+        logId: attendanceLog?._id
       });
 
       if (!attendanceLog) {
