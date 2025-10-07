@@ -271,7 +271,7 @@ router.get('/event/:eventId/alerts',
       const { acknowledged } = req.query;
 
       const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
-      
+
       let matchCondition = {
         event: eventId,
         isActive: true,
@@ -304,8 +304,8 @@ router.get('/event/:eventId/alerts',
               acknowledged: alert.acknowledged,
               currentStatus: status.status,
               isWithinGeofence: status.isWithinGeofence,
-              currentTimeOutside: status.outsideTimer.isActive 
-                ? status.calculateTotalTimeOutside() 
+              currentTimeOutside: status.outsideTimer.isActive
+                ? status.calculateTotalTimeOutside()
                 : status.outsideTimer.totalTimeOutside
             });
           }
@@ -329,5 +329,217 @@ router.get('/event/:eventId/alerts',
     }
   }
 );
+
+// DEBUG ENDPOINT: Get comprehensive location debugging data for an event
+router.get('/debug/event/:eventId',
+  auth,
+  async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const Event = require('../models/Event');
+      const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
+
+      // Get event details
+      const event = await Event.findById(eventId).populate('organizer', 'name email');
+
+      if (!event) {
+        return res.status(404).json({
+          success: false,
+          message: 'Event not found'
+        });
+      }
+
+      // Get all location statuses (both active and inactive)
+      const allLocationStatuses = await ParticipantLocationStatus.find({
+        event: eventId
+      })
+      .populate('participant', 'name email phone')
+      .populate('attendanceLog', 'checkInTime checkOutTime status')
+      .sort({ 'participant.name': 1 });
+
+      // Get active tracking info from service
+      const activeTracking = locationTrackingService.activeTracking.get(eventId);
+      const activeTimers = [];
+
+      allLocationStatuses.forEach(status => {
+        const timerId = status._id.toString();
+        if (locationTrackingService.timers.has(timerId)) {
+          activeTimers.push({
+            statusId: timerId,
+            participantId: status.participant._id,
+            participantName: status.participant.name
+          });
+        }
+      });
+
+      // Build detailed participant data
+      const participants = allLocationStatuses.map(status => {
+        const currentTimeOutside = status.outsideTimer.isActive
+          ? status.calculateTotalTimeOutside()
+          : status.outsideTimer.totalTimeOutside;
+
+        const maxTimeOutsideSeconds = event.maxTimeOutside * 60;
+        const timeRemaining = Math.max(0, maxTimeOutsideSeconds - currentTimeOutside);
+        const percentTimeUsed = maxTimeOutsideSeconds > 0
+          ? ((currentTimeOutside / maxTimeOutsideSeconds) * 100).toFixed(1)
+          : 0;
+
+        return {
+          participantId: status.participant._id,
+          participantName: status.participant.name,
+          participantEmail: status.participant.email,
+          participantPhone: status.participant.phone,
+
+          // Location data
+          currentLocation: {
+            latitude: status.currentLocation.latitude,
+            longitude: status.currentLocation.longitude,
+            accuracy: status.currentLocation.accuracy,
+            timestamp: status.currentLocation.timestamp,
+            ageSeconds: Math.floor((Date.now() - new Date(status.currentLocation.timestamp)) / 1000)
+          },
+
+          // Distance and geofence info
+          distanceFromCenter: status.distanceFromCenter,
+          isWithinGeofence: status.isWithinGeofence,
+          geofenceRadius: event.geofenceRadius,
+
+          // Status info
+          status: status.status,
+          isActive: status.isActive,
+
+          // Timer info
+          outsideTimer: {
+            isActive: status.outsideTimer.isActive,
+            startTime: status.outsideTimer.startTime,
+            currentSessionStart: status.outsideTimer.currentSessionStart,
+            totalTimeOutsideSeconds: status.outsideTimer.totalTimeOutside,
+            currentTimeOutsideSeconds: currentTimeOutside,
+            currentTimeOutsideFormatted: formatSeconds(currentTimeOutside),
+            timeRemainingSeconds: timeRemaining,
+            timeRemainingFormatted: formatSeconds(timeRemaining),
+            percentTimeUsed: percentTimeUsed,
+            maxAllowedSeconds: maxTimeOutsideSeconds,
+            maxAllowedFormatted: formatSeconds(maxTimeOutsideSeconds)
+          },
+
+          // Alerts
+          alerts: status.alertsSent.map(alert => ({
+            id: alert._id,
+            type: alert.type,
+            timestamp: alert.timestamp,
+            acknowledged: alert.acknowledged,
+            ageSeconds: Math.floor((Date.now() - new Date(alert.timestamp)) / 1000)
+          })),
+
+          // Attendance info
+          attendanceLog: status.attendanceLog ? {
+            id: status.attendanceLog._id,
+            checkInTime: status.attendanceLog.checkInTime,
+            checkOutTime: status.attendanceLog.checkOutTime,
+            status: status.attendanceLog.status
+          } : null,
+
+          // Has monitoring timer active
+          hasActiveMonitoringTimer: locationTrackingService.timers.has(status._id.toString()),
+
+          // Metadata
+          createdAt: status.createdAt,
+          updatedAt: status.updatedAt,
+          lastLocationUpdate: status.lastLocationUpdate,
+          lastUpdateAgeSeconds: Math.floor((Date.now() - new Date(status.lastLocationUpdate)) / 1000)
+        };
+      });
+
+      // Build summary statistics
+      const summary = {
+        totalParticipants: participants.length,
+        activeParticipants: participants.filter(p => p.isActive).length,
+        inactiveParticipants: participants.filter(p => !p.isActive).length,
+        insideGeofence: participants.filter(p => p.isWithinGeofence).length,
+        outsideGeofence: participants.filter(p => !p.isWithinGeofence).length,
+        statusBreakdown: {
+          inside: participants.filter(p => p.status === 'inside').length,
+          outside: participants.filter(p => p.status === 'outside').length,
+          warning: participants.filter(p => p.status === 'warning').length,
+          exceeded_limit: participants.filter(p => p.status === 'exceeded_limit').length
+        },
+        activeTimersCount: activeTimers.length,
+        participantsWithAlerts: participants.filter(p => p.alerts.length > 0).length,
+        totalAlerts: participants.reduce((sum, p) => sum + p.alerts.length, 0),
+        unacknowledgedAlerts: participants.reduce((sum, p) =>
+          sum + p.alerts.filter(a => !a.acknowledged).length, 0
+        )
+      };
+
+      // Event configuration
+      const eventConfig = {
+        eventId: event._id,
+        eventTitle: event.title,
+        eventStatus: event.status,
+        organizer: event.organizer ? {
+          id: event.organizer._id,
+          name: event.organizer.name,
+          email: event.organizer.email
+        } : null,
+        location: {
+          name: event.location.name,
+          coordinates: {
+            longitude: event.location.coordinates.coordinates[0],
+            latitude: event.location.coordinates.coordinates[1]
+          }
+        },
+        geofenceRadius: event.geofenceRadius,
+        maxTimeOutside: event.maxTimeOutside,
+        maxTimeOutsideFormatted: formatSeconds(event.maxTimeOutside * 60),
+        startDate: event.startDate,
+        endDate: event.endDate
+      };
+
+      // Service state
+      const serviceState = {
+        activeEventsInMemory: Array.from(locationTrackingService.activeTracking.keys()),
+        activeParticipantsByEvent: activeTracking ? Array.from(activeTracking) : [],
+        totalActiveTimers: activeTimers.length,
+        activeTimers: activeTimers
+      };
+
+      // Response
+      res.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        data: {
+          event: eventConfig,
+          summary,
+          participants,
+          serviceState
+        }
+      });
+    } catch (error) {
+      console.error('Error in debug endpoint:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve debug data',
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
+  }
+);
+
+// Helper function to format seconds into human-readable time
+function formatSeconds(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${secs}s`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${secs}s`;
+  } else {
+    return `${secs}s`;
+  }
+}
 
 module.exports = router;
