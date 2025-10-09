@@ -243,8 +243,12 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
           description: mode === 'edit' ? "Your changes have been saved" : "Participants can now register for your event",
         });
 
-        // Navigate back to dashboard after successful save
+        // Navigate back to dashboard and refresh the page
         navigate('/organizer-dashboard');
+        // Small delay to ensure navigation completes before refresh
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
       } else {
         throw new Error(result.message || 'Failed to save form');
       }
