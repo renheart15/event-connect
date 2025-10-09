@@ -84,28 +84,37 @@ const CreateEvent = () => {
       }
     }
 
-    const selectedDate = new Date(`${formData.date}T${formData.startTime}`);
+    // Parse date and time as Singapore timezone (UTC+8)
+    const dateParts = formData.date.split('-').map(Number);
+    const [startHour, startMin] = formData.startTime.split(':').map(Number);
+    const [endHour, endMin] = formData.endTime ? formData.endTime.split(':').map(Number) : [0, 0];
+
+    // Create UTC timestamps for Singapore time (subtract 8 hours to convert to UTC)
+    const selectedDateUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], startHour - 8, startMin, 0, 0));
     const now = new Date();
 
-    if (selectedDate < now) {
+    if (selectedDateUTC < now) {
       toast({
         title: "Invalid Date",
-        description: "You cannot create an event in the past.",
+        description: "You cannot create an event in the past (Singapore time).",
         variant: "destructive",
       });
       return;
     }
 
-    const start = new Date(`${formData.date}T${formData.startTime}`);
-    const end = new Date(`${formData.date}T${formData.endTime}`);
+    // Validate end time is after start time
+    if (formData.endTime) {
+      const startUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], startHour - 8, startMin, 0, 0));
+      const endUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], endHour - 8, endMin, 0, 0));
 
-    if (formData.endTime && start >= end) {
-      toast({
-        title: "Invalid Time",
-        description: "End time must be later than start time.",
-        variant: "destructive",
-      });
-      return;
+      if (endUTC <= startUTC) {
+        toast({
+          title: "Invalid Time",
+          description: "End time must be later than start time.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {

@@ -95,17 +95,42 @@ router.post('/checkin', [
       });
     }
 
-    // Check if event is today (within 24 hours)
-    const eventDate = new Date(invitation.event.date);
+    // Check if check-in is within allowed time window
+    const event = invitation.event;
     const now = new Date();
-    const timeDiff = Math.abs(now - eventDate);
-    const hoursDiff = timeDiff / (1000 * 60 * 60);
 
-    if (hoursDiff > 24) {
-      return res.status(400).json({
-        success: false,
-        message: 'Check-in is only allowed on the event day'
-      });
+    if (event.startTime && event.date) {
+      // Parse event start time in Singapore timezone
+      const dateParts = new Date(event.date).toISOString().split('T')[0].split('-').map(Number);
+      const [startHour, startMin] = event.startTime.split(':').map(Number);
+
+      // Convert Singapore time to UTC
+      const eventStartUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], startHour - 8, startMin, 0, 0));
+
+      // Allow check-in from 2 hours before event start up to 24 hours after
+      const twoHoursBefore = new Date(eventStartUTC.getTime() - (2 * 60 * 60 * 1000));
+      const twentyFourHoursAfter = new Date(eventStartUTC.getTime() + (24 * 60 * 60 * 1000));
+
+      if (now < twoHoursBefore || now > twentyFourHoursAfter) {
+        return res.status(400).json({
+          success: false,
+          message: 'Check-in is only allowed from 2 hours before event start to 24 hours after event start'
+        });
+      }
+    } else {
+      // Fallback: If no startTime, use simple date check (allow same day)
+      const eventDate = new Date(event.date);
+      const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+      const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const daysDiff = Math.floor((nowDateOnly - eventDateOnly) / (1000 * 60 * 60 * 24));
+
+      if (Math.abs(daysDiff) > 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Check-in is only allowed on the event day'
+        });
+      }
     }
 
     // Check if already checked in
