@@ -19,6 +19,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { Capacitor } from '@capacitor/core';
 import jsQR from 'jsqr';
+import { fromZonedTime } from 'date-fns-tz';
 
 const ParticipantDashboard = () => {
   const [eventCode, setEventCode] = useState('');
@@ -221,34 +222,39 @@ const ParticipantDashboard = () => {
   // Helper function to check attendance availability and get timing info
   const getAttendanceAvailability = (event: any) => {
     if (!event.date) {
-      return { 
-        available: false, 
+      return {
+        available: false,
         reason: 'Event date not available',
-        opensAt: null 
+        opensAt: null
       };
     }
 
     const now = new Date();
-    const eventDate = new Date(event.date);
-    
-    // If event has startTime, use it; otherwise use event date
-    let eventStartTime = eventDate;
+    const eventDateStr = typeof event.date === 'string'
+      ? event.date.split('T')[0]
+      : new Date(event.date).toISOString().split('T')[0];
+
+    // Convert Singapore time to UTC using date-fns-tz
+    let eventStartTime: Date;
     if (event.startTime) {
-      const [hours, minutes] = event.startTime.split(':');
-      eventStartTime = new Date(eventDate);
-      eventStartTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      const startDateTimeStr = `${eventDateStr}T${event.startTime}:00`;
+      eventStartTime = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
+    } else {
+      eventStartTime = new Date(event.date);
     }
-    
+
     // Attendance opens 1 hour before event start
     const attendanceOpenTime = new Date(eventStartTime.getTime() - 60 * 60 * 1000);
-    
+
     // Check if event has already ended
-    const eventEndTime = event.endTime ? (() => {
-      const [hours, minutes] = event.endTime.split(':');
-      const endTime = new Date(eventDate);
-      endTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-      return endTime;
-    })() : new Date(eventStartTime.getTime() + 3 * 60 * 60 * 1000); // Default 3 hours if no end time
+    let eventEndTime: Date;
+    if (event.endTime) {
+      const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
+      eventEndTime = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
+    } else {
+      // Default 3 hours if no end time
+      eventEndTime = new Date(eventStartTime.getTime() + 3 * 60 * 60 * 1000);
+    }
 
     if (now > eventEndTime) {
       return {
@@ -884,34 +890,34 @@ const ParticipantDashboard = () => {
       const now = new Date();
       const activeInvitedEvents = myInvitations.filter(invitation => {
         const event = invitation.event;
-        const eventDate = new Date(event.date);
-        
-        // Calculate event start and end times properly
+
+        // Don't include completed events in monitoring
+        if (event.status === 'completed') {
+          return false;
+        }
+
+        const eventDateStr = typeof event.date === 'string'
+          ? event.date.split('T')[0]
+          : new Date(event.date).toISOString().split('T')[0];
+
+        // Calculate event start and end times properly with timezone conversion
         let eventStartTime: Date, eventEndTime: Date;
-        
+
         if (event.startTime && event.endTime) {
           // Use actual start and end times
-          const [startHour, startMin] = event.startTime.split(':').map(Number);
-          const [endHour, endMin] = event.endTime.split(':').map(Number);
-          
-          eventStartTime = new Date(eventDate);
-          eventStartTime.setHours(startHour, startMin, 0, 0);
-          
-          eventEndTime = new Date(eventDate);
-          eventEndTime.setHours(endHour, endMin, 0, 0);
-          
+          const startDateTimeStr = `${eventDateStr}T${event.startTime}:00`;
+          eventStartTime = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
+
+          const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
+          eventEndTime = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
+
           // Allow check-in 30 minutes before start time
           const checkInStartTime = new Date(eventStartTime.getTime() - 30 * 60 * 1000);
-          
-          
-          // Don't include completed events in monitoring
-          if (event.status === 'completed') {
-            return false;
-          }
-          
+
           return now >= checkInStartTime && (invitation.status === 'accepted' || invitation.status === 'pending');
         } else {
           // Fallback to old logic if times are not available
+          const eventDate = new Date(event.date);
           const eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000));
           const eventStartTime = new Date(eventDate.getTime() - 30 * 60 * 1000);
           
@@ -1110,7 +1116,6 @@ const ParticipantDashboard = () => {
         const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
 
         // Convert Singapore time to UTC using date-fns-tz
-        const { fromZonedTime } = await import('date-fns-tz');
         const eventEndUTC = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
 
         // Check if event has ended
@@ -2304,23 +2309,26 @@ const ParticipantDashboard = () => {
   const isInvitationExpired = (invitation: any) => {
     // Don't consider accepted invitations or invitations from participants who attended as expired
     if (invitation.status === 'accepted' || invitation.hasAttended) return false;
-    
+
     const now = new Date();
     const event = invitation.event;
-    const eventDate = new Date(event.date);
-    
+
+    const eventDateStr = typeof event.date === 'string'
+      ? event.date.split('T')[0]
+      : new Date(event.date).toISOString().split('T')[0];
+
     let eventEndTime: Date;
-    
+
     if (event.startTime && event.endTime) {
-      // Use actual end time if available
-      const [endHour, endMin] = event.endTime.split(':').map(Number);
-      eventEndTime = new Date(eventDate);
-      eventEndTime.setHours(endHour, endMin, 0, 0);
+      // Use actual end time if available with proper timezone conversion
+      const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
+      eventEndTime = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
     } else {
       // Fallback to duration-based calculation
+      const eventDate = new Date(event.date);
       eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
     }
-    
+
     return now > eventEndTime;
   };
 
