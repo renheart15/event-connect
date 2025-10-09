@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import GeofenceMap from '@/components/GeofenceMap';
+import { fromZonedTime } from 'date-fns-tz';
 
 const CreateEvent = () => {
   const navigate = useNavigate();
@@ -84,13 +85,11 @@ const CreateEvent = () => {
       }
     }
 
-    // Parse date and time as Singapore timezone (UTC+8)
-    const dateParts = formData.date.split('-').map(Number);
-    const [startHour, startMin] = formData.startTime.split(':').map(Number);
-    const [endHour, endMin] = formData.endTime ? formData.endTime.split(':').map(Number) : [0, 0];
+    // Parse date and time as Singapore timezone using date-fns-tz
+    const startDateTimeStr = `${formData.date}T${formData.startTime}:00`;
 
-    // Create UTC timestamps for Singapore time (subtract 8 hours to convert to UTC)
-    const selectedDateUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], startHour - 8, startMin, 0, 0));
+    // Convert Singapore time to UTC
+    const selectedDateUTC = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
     const now = new Date();
 
     if (selectedDateUTC < now) {
@@ -104,8 +103,9 @@ const CreateEvent = () => {
 
     // Validate end time is after start time
     if (formData.endTime) {
-      const startUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], startHour - 8, startMin, 0, 0));
-      const endUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], endHour - 8, endMin, 0, 0));
+      const endDateTimeStr = `${formData.date}T${formData.endTime}:00`;
+      const startUTC = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
+      const endUTC = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
 
       if (endUTC <= startUTC) {
         toast({

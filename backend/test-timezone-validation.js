@@ -1,4 +1,7 @@
 // Test timezone validation fixes
+const { fromZonedTime, toZonedTime, format } = require('date-fns-tz');
+const SINGAPORE_TZ = 'Asia/Singapore';
+
 console.log('🧪 Testing Timezone Validation Fixes\n' + '='.repeat(60));
 
 // Test 1: Frontend date validation logic (simulated)
@@ -6,11 +9,9 @@ console.log('\n📱 Test 1: Frontend Date Validation (Singapore Timezone)');
 console.log('-'.repeat(60));
 
 function testFrontendValidation(dateStr, timeStr, description) {
-  const dateParts = dateStr.split('-').map(Number);
-  const [hour, min] = timeStr.split(':').map(Number);
-
-  // Convert Singapore time to UTC (subtract 8 hours)
-  const selectedDateUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], hour - 8, min, 0, 0));
+  // Convert Singapore time to UTC using date-fns-tz
+  const dateTimeStr = `${dateStr}T${timeStr}:00`;
+  const selectedDateUTC = fromZonedTime(dateTimeStr, SINGAPORE_TZ);
   const now = new Date();
 
   const isPast = selectedDateUTC < now;
@@ -28,22 +29,23 @@ function testFrontendValidation(dateStr, timeStr, description) {
   return !isPast;
 }
 
-// Get current Singapore time
+// Get current Singapore time using date-fns-tz
 const now = new Date();
-const nowSG = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-const currentHourSG = nowSG.getUTCHours();
-const currentMinSG = nowSG.getUTCMinutes();
+const nowSG = toZonedTime(now, SINGAPORE_TZ);
+const currentHourSG = nowSG.getHours();
+const currentMinSG = nowSG.getMinutes();
 
 // Test cases
+const todaySG = format(nowSG, 'yyyy-MM-dd', { timeZone: SINGAPORE_TZ });
 testFrontendValidation(
-  nowSG.toISOString().split('T')[0],
+  todaySG,
   `${(currentHourSG + 1).toString().padStart(2, '0')}:00`,
   'Event in 1 hour (should be allowed)'
 );
 
 testFrontendValidation(
-  nowSG.toISOString().split('T')[0],
-  `${(currentHourSG - 1).toString().padStart(2, '0')}:00`,
+  todaySG,
+  `${Math.max(0, currentHourSG - 1).toString().padStart(2, '0')}:00`,
   'Event 1 hour ago (should be blocked)'
 );
 
@@ -54,12 +56,9 @@ console.log('-'.repeat(60));
 function testCheckinWindow(eventDate, eventStartTime, description) {
   const now = new Date();
 
-  // Parse event start time in Singapore timezone
-  const dateParts = eventDate.split('-').map(Number);
-  const [startHour, startMin] = eventStartTime.split(':').map(Number);
-
-  // Convert Singapore time to UTC
-  const eventStartUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], startHour - 8, startMin, 0, 0));
+  // Convert Singapore time to UTC using date-fns-tz
+  const startDateTimeStr = `${eventDate}T${eventStartTime}:00`;
+  const eventStartUTC = fromZonedTime(startDateTimeStr, SINGAPORE_TZ);
 
   // Check-in window: 2 hours before to 24 hours after
   const twoHoursBefore = new Date(eventStartUTC.getTime() - (2 * 60 * 60 * 1000));
@@ -93,20 +92,20 @@ function testCheckinWindow(eventDate, eventStartTime, description) {
 
 // Test check-in windows
 testCheckinWindow(
-  nowSG.toISOString().split('T')[0],
+  todaySG,
   `${(currentHourSG + 1).toString().padStart(2, '0')}:00`,
   'Event starting in 1 hour (should allow check-in)'
 );
 
 testCheckinWindow(
-  nowSG.toISOString().split('T')[0],
-  `${(currentHourSG - 1).toString().padStart(2, '0')}:00`,
+  todaySG,
+  `${Math.max(0, currentHourSG - 1).toString().padStart(2, '0')}:00`,
   'Event started 1 hour ago (should allow check-in)'
 );
 
 testCheckinWindow(
-  nowSG.toISOString().split('T')[0],
-  `${(currentHourSG + 3).toString().padStart(2, '0')}:00`,
+  todaySG,
+  `${Math.min(23, currentHourSG + 3).toString().padStart(2, '0')}:00`,
   'Event starting in 3 hours (should block - too early)'
 );
 
@@ -115,14 +114,14 @@ console.log('\n\n⏰ Test 3: End Time Validation');
 console.log('-'.repeat(60));
 
 function testEndTimeValidation(startTime, endTime, description) {
-  const dateStr = nowSG.toISOString().split('T')[0];
-  const dateParts = dateStr.split('-').map(Number);
+  const dateStr = todaySG;
 
-  const [startHour, startMin] = startTime.split(':').map(Number);
-  const [endHour, endMin] = endTime.split(':').map(Number);
+  // Convert Singapore times to UTC using date-fns-tz
+  const startDateTimeStr = `${dateStr}T${startTime}:00`;
+  const endDateTimeStr = `${dateStr}T${endTime}:00`;
 
-  const startUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], startHour - 8, startMin, 0, 0));
-  const endUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], endHour - 8, endMin, 0, 0));
+  const startUTC = fromZonedTime(startDateTimeStr, SINGAPORE_TZ);
+  const endUTC = fromZonedTime(endDateTimeStr, SINGAPORE_TZ);
 
   const isValid = endUTC > startUTC;
   const durationMinutes = Math.floor((endUTC - startUTC) / 60000);

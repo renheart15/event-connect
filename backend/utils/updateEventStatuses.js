@@ -1,5 +1,10 @@
 const cron = require('node-cron');
 const Event = require('../models/Event');
+const { fromZonedTime, toZonedTime, format } = require('date-fns-tz');
+const { parseISO } = require('date-fns');
+
+// Singapore timezone constant
+const SINGAPORE_TZ = 'Asia/Singapore';
 
 // Function to calculate expected status for an event
 const calculateEventStatus = (event, currentTime = null) => {
@@ -12,31 +17,28 @@ const calculateEventStatus = (event, currentTime = null) => {
     // Use provided time or current time
     const now = currentTime || new Date();
 
-    // Parse event date (format: YYYY-MM-DD)
-    const dateParts = event.date.split('-').map(Number);
-    const year = dateParts[0];
-    const month = dateParts[1] - 1; // Convert to 0-indexed (0 = January)
-    const day = dateParts[2];
+    // Parse event date (format: YYYY-MM-DD or ISO string)
+    const eventDateStr = typeof event.date === 'string'
+      ? event.date.split('T')[0]
+      : event.date.toISOString().split('T')[0];
 
-    // Parse start and end times (format: HH:mm)
-    const [startHour, startMin] = event.startTime.split(':').map(Number);
-    const [endHour, endMin] = event.endTime.split(':').map(Number);
+    // Combine date and time strings in Singapore timezone
+    const startDateTimeStr = `${eventDateStr}T${event.startTime}:00`;
+    const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
 
-    // Create UTC timestamps for start and end times
-    // Singapore is UTC+8, so to convert Singapore time to UTC, subtract 8 hours
-    // Example: 10:00 Singapore time = 02:00 UTC
-    const startUTC = new Date(Date.UTC(year, month, day, startHour - 8, startMin, 0, 0));
-    const endUTC = new Date(Date.UTC(year, month, day, endHour - 8, endMin, 0, 0));
+    // Convert Singapore time to UTC
+    const startUTC = fromZonedTime(startDateTimeStr, SINGAPORE_TZ);
+    const endUTC = fromZonedTime(endDateTimeStr, SINGAPORE_TZ);
 
     // Format times for logging in Singapore timezone
     const formatSGTime = (date) => {
-      return new Date(date.getTime() + (8 * 60 * 60 * 1000)).toISOString().replace('T', ' ').substring(0, 19) + ' SGT';
+      return format(toZonedTime(date, SINGAPORE_TZ), 'yyyy-MM-dd HH:mm:ss zzz', { timeZone: SINGAPORE_TZ });
     };
 
     console.log(`📅 Status calculation for "${event.title}":`, {
       currentTime: formatSGTime(now),
       currentTime_UTC: now.toISOString(),
-      eventDate: event.date,
+      eventDate: eventDateStr,
       startTime: event.startTime,
       endTime: event.endTime,
       startUTC: startUTC.toISOString(),

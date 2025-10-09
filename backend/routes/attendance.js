@@ -8,6 +8,7 @@ const RegistrationForm = require('../models/RegistrationForm');
 const RegistrationResponse = require('../models/RegistrationResponse');
 const { auth, requireOrganizer } = require('../middleware/auth');
 const { updateSingleEventStatus } = require('../utils/updateEventStatuses');
+const { fromZonedTime } = require('date-fns-tz');
 
 const router = express.Router();
 
@@ -100,12 +101,14 @@ router.post('/checkin', [
     const now = new Date();
 
     if (event.startTime && event.date) {
-      // Parse event start time in Singapore timezone
-      const dateParts = new Date(event.date).toISOString().split('T')[0].split('-').map(Number);
-      const [startHour, startMin] = event.startTime.split(':').map(Number);
+      // Parse event start time in Singapore timezone using date-fns-tz
+      const eventDateStr = typeof event.date === 'string'
+        ? event.date.split('T')[0]
+        : event.date.toISOString().split('T')[0];
+      const startDateTimeStr = `${eventDateStr}T${event.startTime}:00`;
 
       // Convert Singapore time to UTC
-      const eventStartUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], startHour - 8, startMin, 0, 0));
+      const eventStartUTC = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
 
       // Allow check-in from 2 hours before event start up to 24 hours after
       const twoHoursBefore = new Date(eventStartUTC.getTime() - (2 * 60 * 60 * 1000));

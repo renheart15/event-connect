@@ -1,4 +1,7 @@
 // Test frontend timezone validation logic
+const { fromZonedTime, toZonedTime, format } = require('date-fns-tz');
+const SINGAPORE_TZ = 'Asia/Singapore';
+
 console.log('🧪 Testing Frontend Timezone Validation\n' + '='.repeat(60));
 
 // Simulate the frontend validation logic
@@ -6,13 +9,9 @@ function testFrontendValidation(dateStr, startTime, endTime, description) {
   console.log(`\n📝 Test: ${description}`);
   console.log(`Input: ${dateStr} ${startTime} - ${endTime} (Singapore time)`);
 
-  // Parse date and time as Singapore timezone (UTC+8)
-  const dateParts = dateStr.split('-').map(Number);
-  const [startHour, startMin] = startTime.split(':').map(Number);
-  const [endHour, endMin] = endTime ? endTime.split(':').map(Number) : [0, 0];
-
-  // Create UTC timestamps for Singapore time (subtract 8 hours to convert to UTC)
-  const selectedDateUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], startHour - 8, startMin, 0, 0));
+  // Convert Singapore time to UTC using date-fns-tz
+  const startDateTimeStr = `${dateStr}T${startTime}:00`;
+  const selectedDateUTC = fromZonedTime(startDateTimeStr, SINGAPORE_TZ);
   const now = new Date();
 
   console.log(`  Start UTC: ${selectedDateUTC.toISOString()}`);
@@ -24,8 +23,9 @@ function testFrontendValidation(dateStr, startTime, endTime, description) {
 
   // Validate end time is after start time
   if (endTime) {
-    const startUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], startHour - 8, startMin, 0, 0));
-    const endUTC = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], endHour - 8, endMin, 0, 0));
+    const endDateTimeStr = `${dateStr}T${endTime}:00`;
+    const startUTC = fromZonedTime(startDateTimeStr, SINGAPORE_TZ);
+    const endUTC = fromZonedTime(endDateTimeStr, SINGAPORE_TZ);
 
     console.log(`  End UTC:   ${endUTC.toISOString()}`);
 
@@ -38,13 +38,13 @@ function testFrontendValidation(dateStr, startTime, endTime, description) {
   return !isPast;
 }
 
-// Get current Singapore time for testing
+// Get current Singapore time for testing using date-fns-tz
 const now = new Date();
-const nowSG = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-const today = nowSG.toISOString().split('T')[0];
-const currentHourSG = nowSG.getUTCHours();
+const nowSG = toZonedTime(now, SINGAPORE_TZ);
+const today = format(nowSG, 'yyyy-MM-dd', { timeZone: SINGAPORE_TZ });
+const currentHourSG = nowSG.getHours();
 
-console.log(`\n⏰ Current Singapore Time: ${nowSG.toISOString().replace('T', ' ').substring(0, 19)} SGT`);
+console.log(`\n⏰ Current Singapore Time: ${format(nowSG, 'yyyy-MM-dd HH:mm:ss zzz', { timeZone: SINGAPORE_TZ })}`);
 console.log(`   Current Singapore Hour: ${currentHourSG}:00\n`);
 
 // Test Cases
