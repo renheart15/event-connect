@@ -1,5 +1,5 @@
 // API Configuration for different environments
-const _baseUrl = 'https://backend.event-connect.site'; // Use Railway backend deployment
+const _baseUrl = 'https://event-connect-backend.onrender.com'; // Use Render backend deployment
 
 export const API_CONFIG = {
   get BASE_URL() {
