@@ -161,15 +161,19 @@ const ParticipantDashboard = () => {
       return { status: 'unknown', message: 'Unknown', color: 'text-gray-500 dark:text-gray-400' };
     }
 
-    const eventDate = new Date(attendance.event.date);
     const checkInTime = new Date(attendance.checkInTime);
-    
-    // If event has startTime, use it; otherwise use event date
-    let eventStartTime = eventDate;
+
+    // If event has startTime, use it with proper timezone conversion
+    let eventStartTime: Date;
     if (attendance.event.startTime) {
-      const [hours, minutes] = attendance.event.startTime.split(':');
-      eventStartTime = new Date(eventDate);
-      eventStartTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      const eventDateStr = typeof attendance.event.date === 'string'
+        ? attendance.event.date.split('T')[0]
+        : new Date(attendance.event.date).toISOString().split('T')[0];
+
+      const startDateTimeStr = `${eventDateStr}T${attendance.event.startTime}:00`;
+      eventStartTime = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
+    } else {
+      eventStartTime = new Date(attendance.event.date);
     }
     
     // Allow 30 minutes before event start for early check-in
