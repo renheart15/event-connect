@@ -155,7 +155,8 @@ router.post('/checkin', [
       participant: participantId,
       invitation: invitationId,
       checkInTime: new Date(),
-      checkInLocation: location || null
+      checkInLocation: location || null,
+      status: 'checked-in'
     });
 
     // Reset location tracking timer for this participant/event
