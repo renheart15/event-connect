@@ -529,7 +529,10 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
         // Convert Singapore time to UTC
         const eventEndUTC = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
 
-        return now > eventEndUTC;
+        const hasEnded = now > eventEndUTC;
+        console.log(`[AUTO-CHECKOUT] Event "${event.title}": endTime=${event.endTime} endUTC=${eventEndUTC.toISOString()} now=${now.toISOString()} hasEnded=${hasEnded}`);
+
+        return hasEnded;
       } catch (error) {
         console.error(`Error parsing event end time for ${event.title}:`, error);
         return false; // Don't auto-checkout if we can't parse the time
