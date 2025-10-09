@@ -708,7 +708,7 @@ router.post('/join', auth, [
       const attendanceRecord = new AttendanceLog({
         event: event._id,
         participant: userId,
-        status: 'registered', // Just registered
+        status: event.status === 'active' ? 'checked-in' : 'registered', // Auto check-in for active events
         // For active events, automatically check them in so they appear in "Currently Attending"
         checkInTime: event.status === 'active' ? new Date() : undefined
         // invitation will be null/undefined (optional field)
