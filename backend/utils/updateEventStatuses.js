@@ -2,74 +2,66 @@ const cron = require('node-cron');
 const Event = require('../models/Event');
 
 // Function to calculate expected status for an event
-const calculateEventStatus = (event, nowSG = null) => {
+const calculateEventStatus = (event, currentTime = null) => {
   // Handle cases where startTime or endTime might be missing
   if (!event.startTime || !event.endTime || !event.date) {
     return 'upcoming';
   }
 
   try {
-    // Get current time in Singapore timezone if not provided
-    if (!nowSG) {
-      const now = new Date();
-      // Convert UTC to Singapore timezone (UTC+8)
-      nowSG = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-    }
+    // Use provided time or current time
+    const now = currentTime || new Date();
 
+    // Parse event date (format: YYYY-MM-DD)
+    const dateParts = event.date.split('-').map(Number);
+    const year = dateParts[0];
+    const month = dateParts[1] - 1; // Convert to 0-indexed (0 = January)
+    const day = dateParts[2];
+
+    // Parse start and end times (format: HH:mm)
     const [startHour, startMin] = event.startTime.split(':').map(Number);
     const [endHour, endMin] = event.endTime.split(':').map(Number);
 
-    // Create dates in Singapore timezone using the same date as the event
-    const eventDate = new Date(event.date);
+    // Create UTC timestamps for start and end times
+    // Singapore is UTC+8, so to convert Singapore time to UTC, subtract 8 hours
+    // Example: 10:00 Singapore time = 02:00 UTC
+    const startUTC = new Date(Date.UTC(year, month, day, startHour - 8, startMin, 0, 0));
+    const endUTC = new Date(Date.UTC(year, month, day, endHour - 8, endMin, 0, 0));
 
-    // Create start and end times in Singapore timezone using UTC+8 offset
-    const startSG = new Date(eventDate.getTime() + (startHour * 60 * 60 * 1000) + (startMin * 60 * 1000));
-    const endSG = new Date(eventDate.getTime() + (endHour * 60 * 60 * 1000) + (endMin * 60 * 1000));
+    // Format times for logging in Singapore timezone
+    const formatSGTime = (date) => {
+      return new Date(date.getTime() + (8 * 60 * 60 * 1000)).toISOString().replace('T', ' ').substring(0, 19) + ' SGT';
+    };
 
     console.log(`📅 Status calculation for "${event.title}":`, {
-      nowSG: nowSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour12: false }),
-      nowSG_ISO: nowSG.toISOString(),
-      nowSG_timestamp: nowSG.getTime(),
+      currentTime: formatSGTime(now),
+      currentTime_UTC: now.toISOString(),
       eventDate: event.date,
       startTime: event.startTime,
       endTime: event.endTime,
-      calculatedStart: startSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour12: false }),
-      calculatedStart_ISO: startSG.toISOString(),
-      calculatedStart_timestamp: startSG.getTime(),
-      calculatedEnd: endSG.toLocaleString('en-SG', { timeZone: 'Asia/Singapore', hour12: false }),
-      calculatedEnd_ISO: endSG.toISOString(),
-      calculatedEnd_timestamp: endSG.getTime(),
-      nowVsStart: nowSG >= startSG ? 'now >= start' : 'now < start',
-      nowVsStart_diff: nowSG.getTime() - startSG.getTime(),
-      nowVsEnd: nowSG >= endSG ? 'now >= end' : 'now < end',
-      nowVsEnd_diff: nowSG.getTime() - endSG.getTime()
+      startUTC: startUTC.toISOString(),
+      startSGT: formatSGTime(startUTC),
+      endUTC: endUTC.toISOString(),
+      endSGT: formatSGTime(endUTC),
+      nowVsStart: now >= startUTC ? `now >= start (+${Math.floor((now - startUTC) / 60000)} min)` : `now < start (-${Math.floor((startUTC - now) / 60000)} min)`,
+      nowVsEnd: now >= endUTC ? `now >= end (+${Math.floor((now - endUTC) / 60000)} min)` : `now < end (-${Math.floor((endUTC - now) / 60000)} min)`
     });
 
-    console.log(`🔍 Debug calculations for "${event.title}":`, {
-      eventDateParsed: new Date(event.date),
-      eventDateTimestamp: new Date(event.date).getTime(),
-      startHour, startMin, endHour, endMin,
-      startSG_check: `${eventDate.getTime()} + ${startHour * 60 * 60 * 1000} + ${startMin * 60 * 1000} = ${startSG.getTime()}`,
-      endSG_check: `${eventDate.getTime()} + ${endHour * 60 * 60 * 1000} + ${endMin * 60 * 1000} = ${endSG.getTime()}`
-    });
-
-    if (!isNaN(startSG) && !isNaN(endSG)) {
-      if (nowSG >= endSG) {
-        console.log(`🎯 Final status for "${event.title}": COMPLETED (nowSG >= endSG)`);
-        return 'completed';
-      } else if (nowSG >= startSG) {
-        console.log(`🎯 Final status for "${event.title}": ACTIVE (nowSG >= startSG)`);
-        return 'active';
-      } else {
-        console.log(`🎯 Final status for "${event.title}": UPCOMING (nowSG < startSG)`);
-        return 'upcoming';
-      }
+    // Determine status based on current time vs event times
+    if (now >= endUTC) {
+      console.log(`🎯 Final status for "${event.title}": COMPLETED`);
+      return 'completed';
+    } else if (now >= startUTC) {
+      console.log(`🎯 Final status for "${event.title}": ACTIVE`);
+      return 'active';
     } else {
-      console.log(`❌ Invalid dates for "${event.title}": startSG=${startSG}, endSG=${endSG}`);
+      console.log(`🎯 Final status for "${event.title}": UPCOMING`);
+      return 'upcoming';
     }
   } catch (error) {
-    console.error('Error calculating event status:', error);
+    console.error(`❌ Error calculating event status for "${event.title}":`, error);
   }
+
   console.log(`🎯 Final status for "${event.title}": UPCOMING (fallback)`);
   return 'upcoming';
 };
@@ -80,10 +72,7 @@ const updateSingleEventStatus = async (eventId, forceUpdate = false, eventInstan
     const event = eventInstance || await Event.findById(eventId);
     if (!event) return null;
 
-    // Get current time in Singapore timezone (UTC+8)
-    const now = new Date();
-    const nowSG = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-    const expectedStatus = calculateEventStatus(event, nowSG);
+    const expectedStatus = calculateEventStatus(event);
 
     console.log(`🔍 Status check for "${event.title}": current="${event.status}" expected="${expectedStatus}" statusMode="${event.statusMode}" forceUpdate=${forceUpdate}`);
 
@@ -105,10 +94,6 @@ const updateSingleEventStatus = async (eventId, forceUpdate = false, eventInstan
 
 // Function to update all event statuses (used by cron and manual triggers)
 const updateAllEventStatuses = async () => {
-  // Get current time in Singapore timezone (UTC+8)
-  const now = new Date();
-  const nowSG = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-
   try {
     // Fetch all events with auto mode that might need status updates
     const events = await Event.find({
@@ -117,7 +102,7 @@ const updateAllEventStatuses = async () => {
     let updatedCount = 0;
 
     for (const event of events) {
-      const expectedStatus = calculateEventStatus(event, nowSG);
+      const expectedStatus = calculateEventStatus(event);
 
       if (event.status !== expectedStatus) {
         event.status = expectedStatus;
