@@ -509,6 +509,7 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
   try {
     const now = new Date();
     console.log('============================================');
+    console.log('[AUTO-CHECKOUT] VERSION: 2.0 (with date-fns-tz fix)');
     console.log('[AUTO-CHECKOUT] Called at:', now.toISOString());
     console.log('[AUTO-CHECKOUT] Called by user:', req.user.email);
     console.log('============================================');
