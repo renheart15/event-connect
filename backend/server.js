@@ -107,7 +107,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 })
 .then(() => {
   const timestamp = new Date().toISOString();
-  console.log(`🚀 [RAILWAY BACKEND ${timestamp}] Connected to MongoDB - Railway backend is online!`);
+  console.log(`🚀 [RENDER BACKEND ${timestamp}] Connected to MongoDB - Render backend is online!`);
   console.log(`📊 Database logging enabled - all queries will be tracked`);
 
   // ✅ Start cron job after successful DB connection
@@ -116,7 +116,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 .catch((err) => console.error('MongoDB connection error:', err));
 
 // Routes
-console.log('🔧 [RAILWAY] Registering API routes...');
+console.log('🔧 [RENDER] Registering API routes...');
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/attendance', attendanceRoutes);
@@ -126,11 +126,11 @@ app.use('/api/registration-responses', registrationResponseRoutes);
 app.use('/api/feedback-forms', feedbackFormRoutes); // ✅ Added this line
 app.use('/api/user-settings', userSettingsRoutes);
 app.use('/api/location-tracking', locationTrackingRoutes);
-console.log('🎯 [RAILWAY] Location tracking routes registered successfully');
+console.log('🎯 [RENDER] Location tracking routes registered successfully');
 app.use('/api/email-credentials', emailCredentialsRoutes);
 app.use('/api/organizations', organizationsRoutes);
 app.use('/api/organization-membership', organizationMembershipRoutes);
-console.log('✅ [RAILWAY] All API routes registered');
+console.log('✅ [RENDER] All API routes registered');
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -174,10 +174,10 @@ app.use('*', (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   const timestamp = new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' });
-  console.log(`🚀 [RAILWAY BACKEND ${timestamp}] Server running on port ${PORT}, accessible from all network interfaces`);
-  console.log(`🔍 [RAILWAY BACKEND] Use browser DevTools to see database fetch logs in real-time`);
-  console.log(`📍 [RAILWAY BACKEND] Backend URL: https://backend.event-connect.site`);
-  console.log(`🎯 [RAILWAY BACKEND] Location tracking routes enabled`);
+  console.log(`🚀 [RENDER BACKEND ${timestamp}] Server running on port ${PORT}, accessible from all network interfaces`);
+  console.log(`🔍 [RENDER BACKEND] Use browser DevTools to see database fetch logs in real-time`);
+  console.log(`📍 [RENDER BACKEND] Backend URL: https://event-connect-backend.onrender.com`);
+  console.log(`🎯 [RENDER BACKEND] Location tracking routes enabled`);
 });
 
 module.exports = app;

@@ -218,4 +218,5 @@ curl -X POST http://localhost:5000/api/invitations \
 ## License
 
 This project is licensed under the MIT License.
-# Force Railway redeploy - Sun, Sep 21, 2025  10:45:00 PM
+# Deployed on Render - Free tier backend hosting
+

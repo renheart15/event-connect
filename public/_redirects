@@ -1,2 +1,2 @@
 # API requests should go to the backend
-/api/* https://backend.event-connect.site/api/:splat 200
+/api/* https://event-connect-backend.onrender.com/api/:splat 200
