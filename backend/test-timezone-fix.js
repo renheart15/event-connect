@@ -1,25 +1,30 @@
 const { calculateEventStatus } = require('./utils/updateEventStatuses');
+const { toZonedTime, format } = require('date-fns-tz');
+
+const SINGAPORE_TZ = 'Asia/Singapore';
 
 console.log('🧪 Testing Timezone Fix\n' + '='.repeat(50));
 
-// Get current Singapore time
+// Get current Singapore time using date-fns-tz
 const now = new Date();
-const nowSG = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-const currentHour = nowSG.getUTCHours();
-const currentMin = nowSG.getUTCMinutes();
+const nowSG = toZonedTime(now, SINGAPORE_TZ);
+const currentHour = nowSG.getHours();
+const currentMin = nowSG.getMinutes();
 
-console.log(`Current time: ${nowSG.toISOString().replace('T', ' ').substring(0, 19)} SGT`);
+console.log(`Current time: ${format(nowSG, 'yyyy-MM-dd HH:mm:ss zzz', { timeZone: SINGAPORE_TZ })}`);
 console.log(`Current hour: ${currentHour}:${currentMin.toString().padStart(2, '0')} SGT\n`);
 
 // Test cases
+const todaySG = format(nowSG, 'yyyy-MM-dd', { timeZone: SINGAPORE_TZ });
+
 const testCases = [
   {
     name: 'Event happening RIGHT NOW',
     event: {
       title: 'Active Event',
-      date: nowSG.toISOString().split('T')[0],
-      startTime: `${(currentHour - 1).toString().padStart(2, '0')}:00`, // Started 1 hour ago
-      endTime: `${(currentHour + 1).toString().padStart(2, '0')}:00`,   // Ends in 1 hour
+      date: todaySG,
+      startTime: `${Math.max(0, currentHour - 1).toString().padStart(2, '0')}:00`, // Started 1 hour ago
+      endTime: `${Math.min(23, currentHour + 1).toString().padStart(2, '0')}:00`,   // Ends in 1 hour
     },
     expectedStatus: 'active'
   },
@@ -27,9 +32,9 @@ const testCases = [
     name: 'Event completed 1 hour ago',
     event: {
       title: 'Completed Event',
-      date: nowSG.toISOString().split('T')[0],
-      startTime: `${(currentHour - 2).toString().padStart(2, '0')}:00`,
-      endTime: `${(currentHour - 1).toString().padStart(2, '0')}:00`,
+      date: todaySG,
+      startTime: `${Math.max(0, currentHour - 2).toString().padStart(2, '0')}:00`,
+      endTime: `${Math.max(0, currentHour - 1).toString().padStart(2, '0')}:00`,
     },
     expectedStatus: 'completed'
   },
@@ -37,9 +42,9 @@ const testCases = [
     name: 'Event starting in 1 hour',
     event: {
       title: 'Upcoming Event',
-      date: nowSG.toISOString().split('T')[0],
-      startTime: `${(currentHour + 1).toString().padStart(2, '0')}:00`,
-      endTime: `${(currentHour + 2).toString().padStart(2, '0')}:00`,
+      date: todaySG,
+      startTime: `${Math.min(23, currentHour + 1).toString().padStart(2, '0')}:00`,
+      endTime: `${Math.min(23, currentHour + 2).toString().padStart(2, '0')}:00`,
     },
     expectedStatus: 'upcoming'
   },

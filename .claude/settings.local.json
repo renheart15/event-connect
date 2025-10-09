@@ -67,7 +67,9 @@
       "Bash(railway login:*)",
       "Bash(where gh)",
       "Bash(git remote add:*)",
-      "Bash(git remote set-url:*)"
+      "Bash(git remote set-url:*)",
+      "Bash(move test-frontend-validation.js test-frontend-validation.cjs)",
+      "Bash(ren:*)"
     ],
     "deny": [],
     "ask": []
