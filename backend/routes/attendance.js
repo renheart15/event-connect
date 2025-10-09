@@ -508,22 +508,32 @@ router.get('/scan-history', auth, async (req, res) => {
 router.post('/auto-checkout-ended-events', auth, async (req, res) => {
   try {
     const now = new Date();
-    
+
     // Find all events that have ended (simplified approach)
     const allEvents = await Event.find({
       date: { $exists: true },
       endTime: { $exists: true }
     });
 
-    // Filter events that have ended
+    // Filter events that have ended using proper timezone conversion
     const endedEvents = allEvents.filter(event => {
-      const eventDate = new Date(event.date);
-      const [endHour, endMin] = event.endTime.split(':').map(Number);
-      
-      const eventEndTime = new Date(eventDate);
-      eventEndTime.setHours(endHour, endMin, 0, 0);
-      
-      return now > eventEndTime;
+      try {
+        // Parse event date (format: YYYY-MM-DD or ISO string)
+        const eventDateStr = typeof event.date === 'string'
+          ? event.date.split('T')[0]
+          : event.date.toISOString().split('T')[0];
+
+        // Combine date and end time in Singapore timezone
+        const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
+
+        // Convert Singapore time to UTC
+        const eventEndUTC = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
+
+        return now > eventEndUTC;
+      } catch (error) {
+        console.error(`Error parsing event end time for ${event.title}:`, error);
+        return false; // Don't auto-checkout if we can't parse the time
+      }
     });
 
     console.log(`Found ${endedEvents.length} ended events`);
