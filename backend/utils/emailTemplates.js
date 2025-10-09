@@ -99,10 +99,7 @@ const generateInvitationEmail = (invitation, event, organizer, qrCodeDataURL) =>
                       month: 'long',
                       day: 'numeric'
                     })}</li>
-                    <li><strong>Time:</strong> ${new Date(event.date).toLocaleTimeString('en-US', {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}</li>
+                    <li><strong>Time:</strong> ${event.startTime || 'TBA'}${event.endTime ? ` - ${event.endTime}` : ''}</li>
                     <li><strong>Location:</strong> ${event.location.address}</li>
                     ${event.description ? `<li><strong>Description:</strong> ${event.description}</li>` : ''}
                 </ul>
