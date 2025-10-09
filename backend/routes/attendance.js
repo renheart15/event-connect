@@ -508,6 +508,10 @@ router.get('/scan-history', auth, async (req, res) => {
 router.post('/auto-checkout-ended-events', auth, async (req, res) => {
   try {
     const now = new Date();
+    console.log('============================================');
+    console.log('[AUTO-CHECKOUT] Called at:', now.toISOString());
+    console.log('[AUTO-CHECKOUT] Called by user:', req.user.email);
+    console.log('============================================');
 
     // Find all events that have ended (simplified approach)
     const allEvents = await Event.find({
@@ -530,7 +534,14 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
         const eventEndUTC = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
 
         const hasEnded = now > eventEndUTC;
-        console.log(`[AUTO-CHECKOUT] Event "${event.title}": endTime=${event.endTime} endUTC=${eventEndUTC.toISOString()} now=${now.toISOString()} hasEnded=${hasEnded}`);
+        const minutesRemaining = Math.floor((eventEndUTC - now) / 60000);
+        console.log(`[AUTO-CHECKOUT] Event "${event.title}":`, {
+          endTime: event.endTime,
+          endUTC: eventEndUTC.toISOString(),
+          nowUTC: now.toISOString(),
+          hasEnded: hasEnded,
+          minutesRemaining: minutesRemaining
+        });
 
         return hasEnded;
       } catch (error) {
@@ -539,7 +550,10 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
       }
     });
 
-    console.log(`Found ${endedEvents.length} ended events`);
+    console.log(`[AUTO-CHECKOUT] Found ${endedEvents.length} ended events out of ${allEvents.length} total events`);
+    if (endedEvents.length > 0) {
+      console.log('[AUTO-CHECKOUT] Ended events:', endedEvents.map(e => e.title).join(', '));
+    }
 
     let totalCheckedOut = 0;
     const results = [];
