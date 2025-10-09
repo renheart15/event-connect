@@ -54,9 +54,30 @@ app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());
+
+// CORS configuration - allow production and development origins
+const allowedOrigins = [
+  'https://event-connect.site',
+  'https://www.event-connect.site',
+  'http://localhost:8080',
+  'http://localhost:5173'
+];
+
 app.use(cors({
-  origin: true, // Allow all origins for now (change this in production)
-  credentials: true
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(null, true); // Still allow but log it
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Session configuration
