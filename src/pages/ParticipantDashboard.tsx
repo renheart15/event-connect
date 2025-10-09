@@ -1099,11 +1099,22 @@ const ParticipantDashboard = () => {
       const attendingEvents = myAttendance.filter(attendance => attendance.status === 'checked-in');
 
       for (const attendance of attendingEvents) {
-        const eventDate = new Date(attendance.event.date);
-        const eventEndTime = new Date(eventDate.getTime() + (attendance.event.duration || 3600000));
+        // Use endTime field with proper timezone conversion
+        const event = attendance.event;
+        if (!event.endTime) continue; // Skip if no end time specified
+
+        const eventDateStr = typeof event.date === 'string'
+          ? event.date.split('T')[0]
+          : new Date(event.date).toISOString().split('T')[0];
+
+        const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
+
+        // Convert Singapore time to UTC using date-fns-tz
+        const { fromZonedTime } = await import('date-fns-tz');
+        const eventEndUTC = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
 
         // Check if event has ended
-        if (now > eventEndTime) {
+        if (now > eventEndUTC) {
           
           try {
             const response = await fetch(`${API_CONFIG.API_BASE}/attendance/${attendance._id}/checkout`, {
