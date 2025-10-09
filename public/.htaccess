@@ -1,7 +1,7 @@
 RewriteEngine On
 
 # Handle API requests
-RewriteRule ^api/(.*)$ https://event-connect-backend.onrender.com/api/$1 [P,L]
+RewriteRule ^api/(.*)$ https://event-connect-jin2.onrender.com/api/$1 [P,L]
 
 # Handle static assets - don't rewrite
 RewriteRule ^assets/ - [L]

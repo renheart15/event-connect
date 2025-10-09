@@ -4,7 +4,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://event-connect-backend.onrender.com/api/$1"
+      "destination": "https://event-connect-jin2.onrender.com/api/$1"
     },
     {
       "source": "/assets/(.*)",

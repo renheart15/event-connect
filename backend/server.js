@@ -197,7 +197,7 @@ app.listen(PORT, '0.0.0.0', () => {
   const timestamp = new Date().toLocaleString('en-SG', { timeZone: 'Asia/Singapore' });
   console.log(`🚀 [RENDER BACKEND ${timestamp}] Server running on port ${PORT}, accessible from all network interfaces`);
   console.log(`🔍 [RENDER BACKEND] Use browser DevTools to see database fetch logs in real-time`);
-  console.log(`📍 [RENDER BACKEND] Backend URL: https://event-connect-backend.onrender.com`);
+  console.log(`📍 [RENDER BACKEND] Backend URL: https://event-connect-jin2.onrender.com`);
   console.log(`🎯 [RENDER BACKEND] Location tracking routes enabled`);
 });
 
