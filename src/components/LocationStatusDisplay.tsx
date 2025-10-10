@@ -278,6 +278,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                 const now = new Date();
                 const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
                 const isStale = minutesSinceUpdate > 5;
+                const isAbsent = status.status === 'absent';
 
                 console.log('🕐 [TIMER DEBUG]', {
                   participant: status.participant.name,
@@ -285,11 +286,17 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                   minutesSinceUpdate: Math.round(minutesSinceUpdate),
                   timerActive: status.outsideTimer?.isActive,
                   currentTimeOutside: status.currentTimeOutside,
-                  shouldShowTimer: isStale || status.outsideTimer?.isActive
+                  shouldShowTimer: isStale || status.outsideTimer?.isActive,
+                  isAbsent
                 });
 
                 return (
-                  <div key={status._id} className="border rounded-lg p-4 space-y-3">
+                  <div
+                    key={status._id}
+                    className={`border rounded-lg p-4 space-y-3 ${
+                      isAbsent ? 'opacity-50 bg-gray-100 dark:bg-gray-800' : ''
+                    }`}
+                  >
                     {/* Participant Info and Status */}
                     <div className="flex justify-between items-start">
                     <div>

@@ -364,9 +364,9 @@ class LocationTrackingService {
   // Get all participants location status for an event
   async getEventLocationStatus(eventId) {
     try {
+      // Get ALL participants (including inactive/absent) for display
       const locationStatuses = await ParticipantLocationStatus.find({
-        event: eventId,
-        isActive: true
+        event: eventId
       })
       .populate('participant', 'name email')
       .populate('event', 'title maxTimeOutside')
