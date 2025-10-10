@@ -24,7 +24,7 @@ interface LocationStatus {
     totalTimeOutside: number;
     currentSessionStart?: string;
   };
-  status: 'inside' | 'outside' | 'warning' | 'exceeded_limit';
+  status: 'inside' | 'outside' | 'warning' | 'exceeded_limit' | 'absent';
   alertsSent: Array<{
     _id: string;
     type: 'warning' | 'exceeded_limit' | 'returned';
@@ -41,6 +41,7 @@ interface LocationSummary {
   outsideGeofence: number;
   warningStatus: number;
   exceededLimit: number;
+  absent: number;
 }
 
 interface UseLocationTrackingReturn {

@@ -206,7 +206,7 @@ class LocationTrackingService {
 
     // Check if limit exceeded
     if (totalTime >= maxTimeOutsideSeconds) {
-      locationStatus.status = 'exceeded_limit';
+      locationStatus.status = 'absent';
 
       // Send exceeded limit alert if not already sent
       const hasExceededAlert = locationStatus.alertsSent.some(
@@ -215,8 +215,15 @@ class LocationTrackingService {
       if (!hasExceededAlert) {
         locationStatus.addAlert('exceeded_limit');
 
-        // Mark attendance as absent
+        // Mark attendance as absent and deactivate tracking
         await this.markAttendanceAsAbsent(locationStatus, isStale);
+
+        // Deactivate location tracking for this participant
+        locationStatus.isActive = false;
+        locationStatus.stopOutsideTimer();
+
+        // Clear monitoring timer
+        this.clearMonitoringTimer(locationStatus._id);
       }
     } else if (totalTime >= maxTimeOutsideSeconds * 0.8) {
       locationStatus.status = 'warning';

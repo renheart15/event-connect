@@ -65,7 +65,7 @@ const participantLocationStatusSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['inside', 'outside', 'warning', 'exceeded_limit'],
+    enum: ['inside', 'outside', 'warning', 'exceeded_limit', 'absent'],
     default: 'inside'
   },
   alertsSent: [{

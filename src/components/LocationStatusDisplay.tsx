@@ -110,6 +110,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
       case 'outside': return 'secondary';
       case 'warning': return 'destructive';
       case 'exceeded_limit': return 'destructive';
+      case 'absent': return 'destructive';
       default: return 'outline';
     }
   };
@@ -120,6 +121,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
       case 'outside': return <MapPin className="w-4 h-4" />;
       case 'warning': return <AlertTriangle className="w-4 h-4" />;
       case 'exceeded_limit': return <XCircle className="w-4 h-4" />;
+      case 'absent': return <XCircle className="w-4 h-4" />;
       default: return <MapPin className="w-4 h-4" />;
     }
   };
@@ -130,6 +132,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
       case 'outside': return 'Outside Premises';
       case 'warning': return 'Warning - Time Limit Approaching';
       case 'exceeded_limit': return 'Exceeded Time Limit';
+      case 'absent': return 'Marked Absent';
       default: return 'Unknown Status';
     }
   };
@@ -239,8 +242,8 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
           <Card>
             <CardContent className="pt-4">
               <div className="text-center">
-                <p className="text-2xl font-bold text-red-600">{summary.exceededLimit}</p>
-                <p className="text-xs text-gray-600">Exceeded Limit</p>
+                <p className="text-2xl font-bold text-red-600">{summary.absent || summary.exceededLimit || 0}</p>
+                <p className="text-xs text-gray-600">Marked Absent</p>
               </div>
             </CardContent>
           </Card>

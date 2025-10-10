@@ -147,7 +147,8 @@ router.get('/event/:eventId/status',
         insideGeofence: locationStatuses.filter(s => s.isWithinGeofence).length,
         outsideGeofence: locationStatuses.filter(s => !s.isWithinGeofence).length,
         warningStatus: locationStatuses.filter(s => s.status === 'warning').length,
-        exceededLimit: locationStatuses.filter(s => s.status === 'exceeded_limit').length
+        exceededLimit: locationStatuses.filter(s => s.status === 'exceeded_limit').length,
+        absent: locationStatuses.filter(s => s.status === 'absent').length
       };
 
       res.json({
