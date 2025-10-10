@@ -307,6 +307,15 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
       });
     }
 
+    // Check for stale location data and mark participants absent if needed
+    const locationTrackingService = require('../services/locationTrackingService');
+    try {
+      await locationTrackingService.checkStaleParticipantsForEvent(req.params.eventId);
+    } catch (err) {
+      console.error('Error checking stale participants:', err);
+      // Continue even if stale check fails
+    }
+
     const attendanceLogs = await AttendanceLog.find({ event: req.params.eventId })
       .populate('participant', 'name email')
       .populate('invitation', 'invitationCode')

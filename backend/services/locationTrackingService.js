@@ -425,6 +425,44 @@ class LocationTrackingService {
     }
   }
 
+  // Check for stale participants and mark absent if needed
+  async checkStaleParticipantsForEvent(eventId) {
+    try {
+      console.log(`🔍 [STALE CHECK] Checking stale participants for event ${eventId}`);
+
+      const locationStatuses = await ParticipantLocationStatus.find({
+        event: eventId,
+        isActive: true
+      })
+      .populate('participant', 'name email')
+      .populate('event', 'title maxTimeOutside');
+
+      if (locationStatuses.length === 0) {
+        console.log('📭 [STALE CHECK] No active participants to check');
+        return;
+      }
+
+      console.log(`📊 [STALE CHECK] Found ${locationStatuses.length} active participants`);
+
+      for (const status of locationStatuses) {
+        const now = new Date();
+        const minutesSinceUpdate = (now - new Date(status.lastLocationUpdate)) / (1000 * 60);
+        const isStale = minutesSinceUpdate > 5;
+
+        if (isStale || status.outsideTimer.isActive) {
+          console.log(`⚠️ [STALE CHECK] Checking ${status.participant.name}: ${Math.round(minutesSinceUpdate)} min since last update`);
+          await this.updateParticipantStatus(status, status.event);
+          await status.save();
+        }
+      }
+
+      console.log('✅ [STALE CHECK] Completed stale participant check');
+    } catch (error) {
+      console.error('❌ [STALE CHECK] Error checking stale participants:', error);
+      throw error;
+    }
+  }
+
   // Cleanup inactive tracking
   cleanup() {
     // Clear all timers
