@@ -183,13 +183,23 @@ export const useParticipantLocationUpdater = () => {
         throw new Error('No authentication token found');
       }
 
+      const requestData = {
+        eventId,
+        participantId,
+        attendanceLogId,
+      };
+
+      const endpoint = `${API_BASE}/location-tracking/initialize`;
+
+      console.log('🚀 [LOCATION TRACKING] Initializing location tracking:', {
+        endpoint,
+        requestData,
+        timestamp: new Date().toISOString()
+      });
+
       const response = await axios.post(
-        `${API_BASE}/location-tracking/initialize`,
-        {
-          eventId,
-          participantId,
-          attendanceLogId,
-        },
+        endpoint,
+        requestData,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -197,9 +207,18 @@ export const useParticipantLocationUpdater = () => {
         }
       );
 
+      console.log('✅ [LOCATION TRACKING] Initialize successful:', {
+        response: response.data,
+        timestamp: new Date().toISOString()
+      });
+
       setIsTracking(true);
     } catch (err: any) {
-      console.error('Error starting location tracking:', err.response?.data?.message || err.message);
+      console.error('❌ [LOCATION TRACKING] Initialize failed:', {
+        error: err.response?.data?.message || err.message,
+        fullError: err,
+        timestamp: new Date().toISOString()
+      });
       setError(err.response?.data?.message || 'Failed to start location tracking');
       throw err;
     }
@@ -233,8 +252,22 @@ export const useParticipantLocationUpdater = () => {
         payload.batteryLevel = batteryLevel;
       }
 
+      const endpoint = `${API_BASE}/location-tracking/update-location`;
+
+      console.log('📍 [LOCATION UPDATE] Sending location update:', {
+        endpoint,
+        payload,
+        timestamp: new Date().toISOString(),
+        coords: {
+          lat: latitude,
+          lng: longitude,
+          accuracy: accuracy || 'N/A',
+          battery: batteryLevel !== null ? `${batteryLevel}%` : 'N/A'
+        }
+      });
+
       const response = await axios.post(
-        `${API_BASE}/location-tracking/update-location`,
+        endpoint,
         payload,
         {
           headers: {
@@ -243,9 +276,18 @@ export const useParticipantLocationUpdater = () => {
         }
       );
 
+      console.log('✅ [LOCATION UPDATE] Update successful:', {
+        response: response.data,
+        timestamp: new Date().toISOString()
+      });
+
       return response.data;
     } catch (err: any) {
-      console.error('Error updating location:', err.response?.data?.message || err.message);
+      console.error('❌ [LOCATION UPDATE] Update failed:', {
+        error: err.response?.data?.message || err.message,
+        fullError: err,
+        timestamp: new Date().toISOString()
+      });
       setError(err.response?.data?.message || 'Failed to update location');
       throw err;
     }
