@@ -15,7 +15,7 @@ interface LocationStatus {
     longitude: number;
     accuracy: number;
     timestamp: string;
-  };
+  } | null;
   isWithinGeofence: boolean;
   distanceFromCenter: number;
   outsideTimer: {

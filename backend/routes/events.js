@@ -1178,12 +1178,12 @@ router.get('/:eventId/location-status', auth, async (req, res) => {
           name: log.participant.name,
           email: log.participant.email
         },
-        currentLocation: {
-          latitude: locationData?.latitude || 0,
-          longitude: locationData?.longitude || 0,
-          accuracy: locationData?.accuracy || 0,
-          timestamp: locationData?.timestamp || new Date().toISOString()
-        },
+        currentLocation: hasLocationData ? {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          accuracy: locationData.accuracy,
+          timestamp: locationData.timestamp
+        } : null,
         isWithinGeofence: isWithinGeofence,
         distanceFromCenter: distanceFromCenter,
         outsideTimer: {

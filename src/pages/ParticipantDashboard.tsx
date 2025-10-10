@@ -4639,6 +4639,64 @@ const ParticipantDashboard = () => {
       // Initialize location tracking on server
       await startLocationTracking(eventId, user._id, attendanceLogId);
 
+      // Get battery level helper function
+      const getBatteryLevel = async () => {
+        try {
+          if ('getBattery' in navigator) {
+            const battery = await (navigator as any).getBattery();
+            return Math.round(battery.level * 100);
+          }
+          return null;
+        } catch (error) {
+          return null;
+        }
+      };
+
+      // Get and send initial location immediately
+      try {
+        if (Capacitor.isNativePlatform()) {
+          const position = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 10000
+          });
+          const batteryLevel = await getBatteryLevel();
+          await updateLocation(
+            eventId,
+            user._id,
+            position.coords.latitude,
+            position.coords.longitude,
+            position.coords.accuracy,
+            batteryLevel
+          );
+          setLastLocationUpdateTime(new Date());
+        } else {
+          // For web platforms
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const batteryLevel = await getBatteryLevel();
+              await updateLocation(
+                eventId,
+                user._id,
+                position.coords.latitude,
+                position.coords.longitude,
+                position.coords.accuracy,
+                batteryLevel
+              );
+              setLastLocationUpdateTime(new Date());
+            },
+            (error) => {
+              console.error('Initial location fetch failed:', error);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000
+            }
+          );
+        }
+      } catch (error) {
+        console.error('Failed to get initial location:', error);
+      }
+
       toast({
         title: "Location Tracking Started",
         description: "Your location is being tracked for this event.",
