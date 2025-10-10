@@ -68,7 +68,10 @@ const attendanceLogSchema = new mongoose.Schema({
 attendanceLogSchema.pre('save', function(next) {
   if (this.checkOutTime && this.checkInTime) {
     this.duration = Math.round((this.checkOutTime - this.checkInTime) / (1000 * 60));
-    this.status = 'checked-out';
+    // Only set to 'checked-out' if status is not already 'absent'
+    if (this.status !== 'absent') {
+      this.status = 'checked-out';
+    }
   }
   next();
 });
