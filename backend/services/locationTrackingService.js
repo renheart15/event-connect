@@ -192,11 +192,16 @@ class LocationTrackingService {
     const minutesSinceUpdate = (now - new Date(locationStatus.lastLocationUpdate)) / (1000 * 60);
     const isStale = minutesSinceUpdate > 5;
 
+    console.log(`🔍 [STATUS CHECK] Participant: ${locationStatus.participant?.name || locationStatus.participant}`);
+    console.log(`📊 [STATUS CHECK] Minutes since update: ${Math.round(minutesSinceUpdate)}, Is stale: ${isStale}`);
+    console.log(`📊 [STATUS CHECK] Event max time outside: ${event.maxTimeOutside} minutes`);
+
     // Calculate total time (outside + stale time)
     let totalTime = 0;
 
     if (locationStatus.outsideTimer.isActive) {
       totalTime = locationStatus.calculateTotalTimeOutside();
+      console.log(`⏱️ [TIMER] Active outside timer: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
     } else if (isStale) {
       // If stale, activate timer and count time since last update
       console.log(`⚠️ [STALE DATA] Participant data is stale (${Math.round(minutesSinceUpdate)} min). Activating timer.`);
@@ -213,6 +218,15 @@ class LocationTrackingService {
     }
 
     const maxTimeOutsideSeconds = event.maxTimeOutside * 60; // Convert minutes to seconds
+
+    console.log(`📊 [LIMIT CHECK] Total time: ${totalTime}s (${Math.floor(totalTime / 60)} min) / Max: ${maxTimeOutsideSeconds}s (${event.maxTimeOutside} min)`);
+    console.log(`📊 [LIMIT CHECK] Will trigger absence: ${totalTime >= maxTimeOutsideSeconds}`);
+
+    // Safety check: If maxTimeOutside is 0 or not set, use default of 15 minutes
+    if (!event.maxTimeOutside || event.maxTimeOutside === 0) {
+      console.log(`⚠️ [WARNING] Event maxTimeOutside not set, using default 15 minutes`);
+      event.maxTimeOutside = 15;
+    }
 
     // Check if limit exceeded
     if (totalTime >= maxTimeOutsideSeconds) {
