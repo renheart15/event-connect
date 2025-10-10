@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  MapPin, 
-  Clock, 
-  AlertTriangle, 
-  CheckCircle, 
+import {
+  MapPin,
+  Clock,
+  AlertTriangle,
+  CheckCircle,
   XCircle,
   Bell,
   BellOff
@@ -18,6 +18,49 @@ import { useToast } from '@/hooks/use-toast';
 interface LocationStatusDisplayProps {
   eventId: string;
 }
+
+// Live Timer Component that counts up in real-time
+const LiveTimer: React.FC<{
+  startTime: Date;
+  isStale: boolean;
+  baseSeconds: number;
+}> = ({ startTime, isStale, baseSeconds }) => {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    // Update every second for live counting
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const elapsedSeconds = isStale
+    ? baseSeconds + Math.floor((currentTime.getTime() - new Date().getTime()) / 1000)
+    : Math.floor((currentTime.getTime() - startTime.getTime()) / 1000);
+
+  const formatTime = (seconds: number): string => {
+    const absSeconds = Math.abs(seconds);
+    const hours = Math.floor(absSeconds / 3600);
+    const minutes = Math.floor((absSeconds % 3600) / 60);
+    const secs = absSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${secs}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    } else {
+      return `${secs}s`;
+    }
+  };
+
+  return (
+    <span className="font-mono">
+      {formatTime(elapsedSeconds)}
+    </span>
+  );
+};
 
 const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }) => {
   const { toast } = useToast();
@@ -286,10 +329,36 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     <div>
                       <p className="font-medium text-gray-700">Time Outside</p>
                       <p className="text-gray-600">
-                        {formatTime(status.currentTimeOutside)}
-                        {status.outsideTimer.isActive && (
-                          <span className="text-orange-600 ml-1">(counting...)</span>
-                        )}
+                        {(() => {
+                          const lastUpdate = new Date(status.lastLocationUpdate);
+                          const now = new Date();
+                          const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+                          const isStale = minutesSinceUpdate > 5;
+
+                          // If stale and timer is active, show live counting timer
+                          if (isStale && status.outsideTimer.isActive) {
+                            return (
+                              <>
+                                <LiveTimer
+                                  startTime={new Date(status.outsideTimer.startTime || status.lastLocationUpdate)}
+                                  isStale={isStale}
+                                  baseSeconds={status.currentTimeOutside}
+                                />
+                                <span className="text-orange-600 ml-1">(counting...)</span>
+                              </>
+                            );
+                          }
+
+                          // Otherwise show static time
+                          return (
+                            <>
+                              {formatTime(status.currentTimeOutside)}
+                              {status.outsideTimer.isActive && !isStale && (
+                                <span className="text-orange-600 ml-1">(counting...)</span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </p>
                     </div>
                     <div>
@@ -335,7 +404,27 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       <div className="flex items-center gap-2 text-orange-700">
                         <Clock className="w-4 h-4" />
                         <span className="font-medium">
-                          {status.outsideTimer?.isActive ? 'Timer Active' : 'Time Outside'}: {formatTime(status.currentTimeOutside)}
+                          {status.outsideTimer?.isActive ? 'Timer Active' : 'Time Outside'}:{' '}
+                          {(() => {
+                            const lastUpdate = new Date(status.lastLocationUpdate);
+                            const now = new Date();
+                            const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+                            const isStale = minutesSinceUpdate > 5;
+
+                            // If stale and timer active, show live timer
+                            if (isStale && status.outsideTimer.isActive) {
+                              return (
+                                <LiveTimer
+                                  startTime={new Date(status.outsideTimer.startTime || status.lastLocationUpdate)}
+                                  isStale={isStale}
+                                  baseSeconds={status.currentTimeOutside}
+                                />
+                              );
+                            }
+
+                            // Otherwise show static time
+                            return formatTime(status.currentTimeOutside);
+                          })()}
                         </span>
                       </div>
                       {status.outsideTimer?.startTime && (
