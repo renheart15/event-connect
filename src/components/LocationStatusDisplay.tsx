@@ -269,10 +269,26 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                 <p className="text-sm">Location tracking starts when participants check in.</p>
               </div>
             ) : (
-              locationStatuses.map((status) => (
-                <div key={status._id} className="border rounded-lg p-4 space-y-3">
-                  {/* Participant Info and Status */}
-                  <div className="flex justify-between items-start">
+              locationStatuses.map((status) => {
+                // Debug: Check if timer should show
+                const lastUpdate = new Date(status.lastLocationUpdate);
+                const now = new Date();
+                const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+                const isStale = minutesSinceUpdate > 5;
+
+                console.log('🕐 [TIMER DEBUG]', {
+                  participant: status.participant.name,
+                  isStale,
+                  minutesSinceUpdate: Math.round(minutesSinceUpdate),
+                  timerActive: status.outsideTimer?.isActive,
+                  currentTimeOutside: status.currentTimeOutside,
+                  shouldShowTimer: isStale && status.outsideTimer?.isActive
+                });
+
+                return (
+                  <div key={status._id} className="border rounded-lg p-4 space-y-3">
+                    {/* Participant Info and Status */}
+                    <div className="flex justify-between items-start">
                     <div>
                       <h3 className="font-semibold text-lg">{status.participant.name}</h3>
                       <p className="text-sm text-gray-600">{status.participant.email}</p>
@@ -478,7 +494,8 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     </div>
                   )}
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </CardContent>
