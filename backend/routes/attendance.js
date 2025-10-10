@@ -325,9 +325,10 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
       totalCheckedIn: attendanceLogs.length,
       currentlyPresent: attendanceLogs.filter(log => log.status === 'checked-in').length,
       totalCheckedOut: attendanceLogs.filter(log => log.status === 'checked-out').length,
+      totalAbsent: attendanceLogs.filter(log => log.status === 'absent').length,
       averageDuration: attendanceLogs
         .filter(log => log.duration > 0)
-        .reduce((sum, log) => sum + log.duration, 0) / 
+        .reduce((sum, log) => sum + log.duration, 0) /
         attendanceLogs.filter(log => log.duration > 0).length || 0
     };
 

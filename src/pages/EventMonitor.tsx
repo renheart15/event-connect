@@ -21,6 +21,7 @@ const EventMonitor = () => {
     totalCheckedIn: 0,
     currentlyPresent: 0,
     totalCheckedOut: 0,
+    totalAbsent: 0,
     averageDuration: 0
   });
   const [isConnected, setIsConnected] = useState(true);
@@ -534,10 +535,10 @@ const EventMonitor = () => {
               <Card>
                 <CardContent className="pt-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-purple-600">
-                      {Math.round(stats.averageDuration / 60) || 0}min
+                    <p className="text-2xl font-bold text-red-600">
+                      {stats.totalAbsent || 0}
                     </p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Avg Duration</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Absent</p>
                   </div>
                 </CardContent>
               </Card>
