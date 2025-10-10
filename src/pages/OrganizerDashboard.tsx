@@ -303,22 +303,34 @@ const OrganizerDashboard = () => {
   const handleExportReports = async () => {
     try {
       const token = localStorage.getItem('token');
+
+      // Fetch attendance data for all events in parallel
+      const fetchPromises = events.map(event =>
+        fetch(`/api/attendance/event/${event._id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+          .then(response => response.ok ? response.json() : null)
+          .then(result => ({ event, result }))
+          .catch(error => {
+            console.error(`Error fetching data for event ${event.title}:`, error);
+            return { event, result: null, error };
+          })
+      );
+
+      // Wait for all requests to complete
+      const responses = await Promise.all(fetchPromises);
+
+      // Process results into report data
       const detailedReportData = [];
 
-      for (const event of events) {
-        try {
-          // Fetch attendance data for each event
-          const response = await fetch(`/api/attendance/event/${event._id}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
+      responses.forEach(({ event, result, error }) => {
+        if (result?.success) {
+          const attendanceLogs = result.data?.attendanceLogs || [];
 
-          if (response.ok) {
-            const result = await response.json();
-            const attendanceLogs = result.data?.attendanceLogs || [];
-            
+          if (attendanceLogs.length > 0) {
             // Add each participant as a separate row
             attendanceLogs.forEach(log => {
               if (log.participant) {
@@ -336,30 +348,14 @@ const OrganizerDashboard = () => {
                 });
               }
             });
-
-            // If no attendance data, still include event summary
-            if (attendanceLogs.length === 0) {
-              detailedReportData.push({
-                eventTitle: event.title,
-                eventDate: event.date,
-                eventLocation: event.location,
-                eventStatus: event.status,
-                participantName: 'No participants',
-                participantEmail: '',
-                checkInTime: '',
-                checkOutTime: '',
-                duration: '',
-                attendanceStatus: ''
-              });
-            }
           } else {
-            // If API fails, include event summary only
+            // No participants
             detailedReportData.push({
               eventTitle: event.title,
               eventDate: event.date,
               eventLocation: event.location,
               eventStatus: event.status,
-              participantName: 'Data not available',
+              participantName: 'No participants',
               participantEmail: '',
               checkInTime: '',
               checkOutTime: '',
@@ -367,15 +363,14 @@ const OrganizerDashboard = () => {
               attendanceStatus: ''
             });
           }
-        } catch (error) {
-          console.error(`Error fetching data for event ${event.title}:`, error);
-          // Include event summary with error note
+        } else {
+          // API failed or error occurred
           detailedReportData.push({
             eventTitle: event.title,
             eventDate: event.date,
             eventLocation: event.location,
             eventStatus: event.status,
-            participantName: 'Error fetching data',
+            participantName: error ? 'Error fetching data' : 'Data not available',
             participantEmail: '',
             checkInTime: '',
             checkOutTime: '',
@@ -383,7 +378,7 @@ const OrganizerDashboard = () => {
             attendanceStatus: ''
           });
         }
-      }
+      });
 
       const success = exportDetailedEventReport(detailedReportData);
       if (success) {

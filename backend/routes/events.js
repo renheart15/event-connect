@@ -156,10 +156,52 @@ router.get('/', auth, async (req, res) => {
       .skip(skip)
       .limit(limit);
 
-    // Auto-update status and calculate attendance stats
+    // Collect event IDs for batch queries
+    const eventIds = events.map(e => e._id);
+
+    // Batch fetch attendance statistics for all events (organizers only)
+    let invitationStats = new Map();
+    let attendanceStats = new Map();
+
+    if (req.user.role === 'organizer' && eventIds.length > 0) {
+      try {
+        // Aggregate invitation counts
+        const invitationCounts = await Invitation.aggregate([
+          { $match: { event: { $in: eventIds } } },
+          { $group: { _id: '$event', count: { $sum: 1 } } }
+        ]);
+        invitationCounts.forEach(stat => {
+          invitationStats.set(stat._id.toString(), stat.count);
+        });
+
+        // Aggregate attendance counts and currently present counts in one query
+        const attendanceCounts = await AttendanceLog.aggregate([
+          { $match: { event: { $in: eventIds } } },
+          {
+            $group: {
+              _id: '$event',
+              totalAttendees: { $sum: 1 },
+              currentlyPresent: {
+                $sum: { $cond: [{ $eq: ['$status', 'checked-in'] }, 1, 0] }
+              }
+            }
+          }
+        ]);
+        attendanceCounts.forEach(stat => {
+          attendanceStats.set(stat._id.toString(), {
+            totalAttendees: stat.totalAttendees,
+            currentlyPresent: stat.currentlyPresent
+          });
+        });
+      } catch (aggregateError) {
+        console.error('Error batch fetching attendance stats:', aggregateError);
+      }
+    }
+
+    // Process events with pre-fetched stats
     const eventsWithStats = [];
     console.log(`Processing ${events.length} events for user role: ${req.user.role}`);
-    
+
     for (let event of events) {
       // Auto-update status only if statusMode is 'auto'
       if (event.statusMode === 'auto') {
@@ -172,29 +214,17 @@ router.get('/', auth, async (req, res) => {
         }
       }
 
-      // Calculate attendance statistics for organizers
+      // Attach pre-fetched statistics for organizers
       let eventData = event.toObject();
       if (req.user.role === 'organizer') {
-        try {
-          const totalInvitations = await Invitation.countDocuments({ event: event._id });
-          const totalAttendees = await AttendanceLog.countDocuments({ event: event._id });
-          const currentlyPresent = await AttendanceLog.countDocuments({ 
-            event: event._id, 
-            status: 'checked-in' 
-          });
+        const eventIdStr = event._id.toString();
+        const attendance = attendanceStats.get(eventIdStr) || { totalAttendees: 0, currentlyPresent: 0 };
 
-          eventData.totalParticipants = totalInvitations;
-          eventData.checkedIn = totalAttendees;
-          eventData.currentlyPresent = currentlyPresent;
-        } catch (attendanceError) {
-          console.error('Error calculating attendance for event:', event._id, attendanceError);
-          // Fallback to default values if attendance calculation fails
-          eventData.totalParticipants = 0;
-          eventData.checkedIn = 0;
-          eventData.currentlyPresent = 0;
-        }
+        eventData.totalParticipants = invitationStats.get(eventIdStr) || 0;
+        eventData.checkedIn = attendance.totalAttendees;
+        eventData.currentlyPresent = attendance.currentlyPresent;
       }
-      
+
       eventsWithStats.push(eventData);
     }
     
@@ -254,6 +284,24 @@ router.get('/public', async (req, res) => {
 
     console.log('🔍 [PUBLIC EVENTS DEBUG] Found events:', events.length);
 
+    // Batch fetch invitation counts for all events
+    const eventIds = events.map(e => e._id);
+    let invitationStats = new Map();
+
+    if (eventIds.length > 0) {
+      try {
+        const invitationCounts = await Invitation.aggregate([
+          { $match: { event: { $in: eventIds } } },
+          { $group: { _id: '$event', count: { $sum: 1 } } }
+        ]);
+        invitationCounts.forEach(stat => {
+          invitationStats.set(stat._id.toString(), stat.count);
+        });
+      } catch (aggregateError) {
+        console.error('Error batch fetching invitation counts:', aggregateError);
+      }
+    }
+
     // Calculate attendance statistics for public display
     const eventsWithStats = [];
 
@@ -294,15 +342,9 @@ router.get('/public', async (req, res) => {
 
       let eventData = event.toObject();
       eventData.status = currentStatus; // Ensure status is set correctly
-      
-      // Get total invitations for public display
-      try {
-        const totalInvitations = await Invitation.countDocuments({ event: event._id });
-        eventData.totalParticipants = totalInvitations;
-      } catch (error) {
-        console.error('Error calculating public event stats:', error);
-        eventData.totalParticipants = 0;
-      }
+
+      // Use pre-fetched invitation count
+      eventData.totalParticipants = invitationStats.get(event._id.toString()) || 0;
 
       console.log(`🔍 [PUBLIC EVENTS DEBUG] Adding event "${event.title}" to results with status: ${eventData.status}`);
       eventsWithStats.push(eventData);

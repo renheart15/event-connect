@@ -559,29 +559,31 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
     let totalCheckedOut = 0;
     const results = [];
 
+    // Batch update all attendances for ended events
     for (const event of endedEvents) {
       try {
-        // Find all participants still checked in for this event
-        const activeAttendanceLogs = await AttendanceLog.find({
-          event: event._id,
-          status: 'checked-in',
-          checkOutTime: { $exists: false }
-        }).populate(['participant', 'event']);
+        // Use updateMany to batch update all checked-in participants
+        const updateResult = await AttendanceLog.updateMany(
+          {
+            event: event._id,
+            status: 'checked-in',
+            checkOutTime: { $exists: false }
+          },
+          {
+            $set: {
+              checkOutTime: now,
+              status: 'checked-out'
+            },
+            $push: {
+              notes: { $each: [' [Auto-checkout: Event ended]'] }
+            }
+          }
+        );
 
-        console.log(`Event ${event.title}: ${activeAttendanceLogs.length} participants still checked in`);
+        const eventCheckedOut = updateResult.modifiedCount;
+        totalCheckedOut += eventCheckedOut;
 
-        let eventCheckedOut = 0;
-        
-        for (const log of activeAttendanceLogs) {
-          // Auto checkout with current time
-          log.checkOutTime = now;
-          log.status = 'checked-out';
-          log.notes = (log.notes || '') + ' [Auto-checkout: Event ended]';
-          await log.save();
-          
-          eventCheckedOut++;
-          totalCheckedOut++;
-        }
+        console.log(`Event ${event.title}: ${eventCheckedOut} participants auto-checked out`);
 
         results.push({
           eventId: event._id,
