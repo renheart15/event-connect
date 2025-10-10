@@ -34,7 +34,7 @@ const attendanceLogSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['registered', 'checked-in', 'checked-out'],
+    enum: ['registered', 'checked-in', 'checked-out', 'absent'],
     default: 'registered'
   },
   duration: {

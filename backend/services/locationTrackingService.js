@@ -268,8 +268,8 @@ class LocationTrackingService {
         return;
       }
 
-      // Only mark as absent if currently marked as present
-      if (attendanceLog.status === 'present') {
+      // Only mark as absent if currently checked in
+      if (attendanceLog.status === 'checked-in') {
         attendanceLog.status = 'absent';
         attendanceLog.checkOutTime = new Date();
 
