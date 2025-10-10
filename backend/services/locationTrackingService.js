@@ -198,14 +198,26 @@ class LocationTrackingService {
     if (locationStatus.outsideTimer.isActive) {
       totalTime = locationStatus.calculateTotalTimeOutside();
     } else if (isStale) {
-      // If stale, count time since last update
+      // If stale, activate timer and count time since last update
+      console.log(`⚠️ [STALE DATA] Participant data is stale (${Math.round(minutesSinceUpdate)} min). Activating timer.`);
+
+      // Activate the timer starting from last update time
+      locationStatus.outsideTimer.isActive = true;
+      locationStatus.outsideTimer.startTime = new Date(locationStatus.lastLocationUpdate);
+      locationStatus.outsideTimer.currentSessionStart = new Date(locationStatus.lastLocationUpdate);
+
+      // Count time since last update
       totalTime = Math.floor(minutesSinceUpdate * 60); // Convert minutes to seconds
+
+      console.log(`⏱️ [STALE TIMER] Total stale time: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
     }
 
     const maxTimeOutsideSeconds = event.maxTimeOutside * 60; // Convert minutes to seconds
 
     // Check if limit exceeded
     if (totalTime >= maxTimeOutsideSeconds) {
+      console.log(`🚫 [ABSENCE TRIGGER] Time limit exceeded! Total: ${totalTime}s / Max: ${maxTimeOutsideSeconds}s`);
+
       locationStatus.status = 'absent';
 
       // Send exceeded limit alert if not already sent
@@ -213,6 +225,7 @@ class LocationTrackingService {
         alert => alert.type === 'exceeded_limit' && !alert.acknowledged
       );
       if (!hasExceededAlert) {
+        console.log(`📢 [ALERT] Sending exceeded limit alert and marking absent`);
         locationStatus.addAlert('exceeded_limit');
 
         // Mark attendance as absent and deactivate tracking
@@ -224,6 +237,8 @@ class LocationTrackingService {
 
         // Clear monitoring timer
         this.clearMonitoringTimer(locationStatus._id);
+
+        console.log(`✅ [TRACKING STOPPED] Participant removed from active tracking`);
       }
     } else if (totalTime >= maxTimeOutsideSeconds * 0.8) {
       locationStatus.status = 'warning';
@@ -364,23 +379,17 @@ class LocationTrackingService {
         const minutesSinceUpdate = (now - new Date(status.lastLocationUpdate)) / (1000 * 60);
         const isStale = minutesSinceUpdate > 5;
 
-        // Calculate current time outside or stale time
-        if (status.outsideTimer.isActive) {
-          statusObj.currentTimeOutside = status.calculateTotalTimeOutside();
-        } else if (isStale) {
-          // Show stale time as "time outside"
-          statusObj.currentTimeOutside = Math.floor(minutesSinceUpdate * 60); // seconds
-          // Start timer if not already active
-          if (!status.outsideTimer.isActive) {
-            status.outsideTimer.isActive = true;
-            status.outsideTimer.startTime = new Date(status.lastLocationUpdate);
-            status.outsideTimer.currentSessionStart = new Date(status.lastLocationUpdate);
-          }
-          // Check if should be marked absent
+        // Check if should be marked absent (this will activate timer if stale)
+        if (isStale || status.outsideTimer.isActive) {
           await this.updateParticipantStatus(status, status.event);
           await status.save();
           statusObj.outsideTimer = status.outsideTimer;
           statusObj.status = status.status;
+        }
+
+        // Calculate current time outside
+        if (status.outsideTimer.isActive) {
+          statusObj.currentTimeOutside = status.calculateTotalTimeOutside();
         } else {
           statusObj.currentTimeOutside = status.outsideTimer.totalTimeOutside;
         }
