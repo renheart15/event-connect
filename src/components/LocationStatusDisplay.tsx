@@ -282,7 +282,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                   minutesSinceUpdate: Math.round(minutesSinceUpdate),
                   timerActive: status.outsideTimer?.isActive,
                   currentTimeOutside: status.currentTimeOutside,
-                  shouldShowTimer: isStale && status.outsideTimer?.isActive
+                  shouldShowTimer: isStale || status.outsideTimer?.isActive
                 });
 
                 return (
@@ -351,28 +351,23 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
                           const isStale = minutesSinceUpdate > 5;
 
-                          // If stale and timer is active, show live counting timer
-                          if (isStale && status.outsideTimer.isActive) {
+                          // Show live timer if either stale OR timer is active
+                          if (isStale || status.outsideTimer.isActive) {
                             return (
                               <>
                                 <LiveTimer
                                   startTime={new Date(status.outsideTimer.startTime || status.lastLocationUpdate)}
                                   baseSeconds={status.currentTimeOutside}
                                 />
-                                <span className="text-orange-600 ml-1">(counting...)</span>
+                                <span className="text-orange-600 ml-1">
+                                  {isStale ? '(stale - counting...)' : '(counting...)'}
+                                </span>
                               </>
                             );
                           }
 
                           // Otherwise show static time
-                          return (
-                            <>
-                              {formatTime(status.currentTimeOutside)}
-                              {status.outsideTimer.isActive && !isStale && (
-                                <span className="text-orange-600 ml-1">(counting...)</span>
-                              )}
-                            </>
-                          );
+                          return formatTime(status.currentTimeOutside);
                         })()}
                       </p>
                     </div>
@@ -414,20 +409,28 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                   })()}
 
                   {/* Timer Display */}
-                  {(status.outsideTimer?.isActive || status.currentTimeOutside > 0) && (
-                    <div className="bg-orange-50 border border-orange-200 rounded p-3">
-                      <div className="flex items-center gap-2 text-orange-700">
-                        <Clock className="w-4 h-4" />
-                        <span className="font-medium">
-                          {status.outsideTimer?.isActive ? 'Timer Active' : 'Time Outside'}:{' '}
+                  {(() => {
+                    const lastUpdate = new Date(status.lastLocationUpdate);
+                    const now = new Date();
+                    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+                    const isStale = minutesSinceUpdate > 5;
+
+                    if (status.outsideTimer?.isActive || status.currentTimeOutside > 0 || isStale) {
+                      return (
+                        <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                          <div className="flex items-center gap-2 text-orange-700">
+                            <Clock className="w-4 h-4" />
+                            <span className="font-medium">
+                              {isStale && !status.outsideTimer?.isActive ? 'Stale Data - Timer Active' :
+                               status.outsideTimer?.isActive ? 'Timer Active' : 'Time Outside'}:{' '}
                           {(() => {
                             const lastUpdate = new Date(status.lastLocationUpdate);
                             const now = new Date();
                             const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
                             const isStale = minutesSinceUpdate > 5;
 
-                            // If stale and timer active, show live timer
-                            if (isStale && status.outsideTimer.isActive) {
+                            // Show live timer if either stale OR timer active
+                            if (isStale || status.outsideTimer.isActive) {
                               return (
                                 <LiveTimer
                                   startTime={new Date(status.outsideTimer.startTime || status.lastLocationUpdate)}
@@ -446,13 +449,21 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           Started at: {new Date(status.outsideTimer.startTime).toLocaleTimeString('en-US', { hour12: true })}
                         </p>
                       )}
-                      {!status.outsideTimer?.isActive && status.currentTimeOutside > 0 && (
+                      {isStale && (
+                        <p className="text-sm text-red-600 mt-1">
+                          ⚠️ Location data stale - counting time since last update ({Math.round(minutesSinceUpdate)} min ago)
+                        </p>
+                      )}
+                      {!status.outsideTimer?.isActive && status.currentTimeOutside > 0 && !isStale && (
                         <p className="text-sm text-orange-600 mt-1">
                           No recent location data - timer started from check-in
                         </p>
                       )}
                     </div>
-                  )}
+                      );
+                    }
+                    return null;
+                  })()}
 
                   {/* Alerts */}
                   {status.alertsSent.length > 0 && (

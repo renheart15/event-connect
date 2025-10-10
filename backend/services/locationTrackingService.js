@@ -187,31 +187,84 @@ class LocationTrackingService {
 
   // Update participant status based on timer and limits
   async updateParticipantStatus(locationStatus, event) {
-    if (!locationStatus.isWithinGeofence && locationStatus.outsideTimer.isActive) {
-      const totalTimeOutside = locationStatus.calculateTotalTimeOutside();
-      const maxTimeOutsideSeconds = event.maxTimeOutside * 60; // Convert minutes to seconds
+    // Check if data is stale (>5 minutes since last update)
+    const now = new Date();
+    const minutesSinceUpdate = (now - new Date(locationStatus.lastLocationUpdate)) / (1000 * 60);
+    const isStale = minutesSinceUpdate > 5;
 
-      if (totalTimeOutside >= maxTimeOutsideSeconds) {
-        locationStatus.status = 'exceeded_limit';
-        
-        // Send exceeded limit alert if not already sent
-        const hasExceededAlert = locationStatus.alertsSent.some(
-          alert => alert.type === 'exceeded_limit' && !alert.acknowledged
-        );
-        if (!hasExceededAlert) {
-          locationStatus.addAlert('exceeded_limit');
-        }
-      } else if (totalTimeOutside >= maxTimeOutsideSeconds * 0.8) {
-        locationStatus.status = 'warning';
-        
-        // Send warning alert if not already sent
-        const hasWarningAlert = locationStatus.alertsSent.some(
-          alert => alert.type === 'warning' && !alert.acknowledged
-        );
-        if (!hasWarningAlert) {
-          locationStatus.addAlert('warning');
-        }
+    // Calculate total time (outside + stale time)
+    let totalTime = 0;
+
+    if (locationStatus.outsideTimer.isActive) {
+      totalTime = locationStatus.calculateTotalTimeOutside();
+    } else if (isStale) {
+      // If stale, count time since last update
+      totalTime = Math.floor(minutesSinceUpdate * 60); // Convert minutes to seconds
+    }
+
+    const maxTimeOutsideSeconds = event.maxTimeOutside * 60; // Convert minutes to seconds
+
+    // Check if limit exceeded
+    if (totalTime >= maxTimeOutsideSeconds) {
+      locationStatus.status = 'exceeded_limit';
+
+      // Send exceeded limit alert if not already sent
+      const hasExceededAlert = locationStatus.alertsSent.some(
+        alert => alert.type === 'exceeded_limit' && !alert.acknowledged
+      );
+      if (!hasExceededAlert) {
+        locationStatus.addAlert('exceeded_limit');
+
+        // Mark attendance as absent
+        await this.markAttendanceAsAbsent(locationStatus, isStale);
       }
+    } else if (totalTime >= maxTimeOutsideSeconds * 0.8) {
+      locationStatus.status = 'warning';
+
+      // Send warning alert if not already sent
+      const hasWarningAlert = locationStatus.alertsSent.some(
+        alert => alert.type === 'warning' && !alert.acknowledged
+      );
+      if (!hasWarningAlert) {
+        locationStatus.addAlert('warning');
+      }
+    } else if (!locationStatus.isWithinGeofence) {
+      locationStatus.status = 'outside';
+    } else {
+      locationStatus.status = 'inside';
+    }
+  }
+
+  // Mark attendance as absent when limit exceeded
+  async markAttendanceAsAbsent(locationStatus, isStale) {
+    try {
+      const AttendanceLog = require('../models/AttendanceLog');
+
+      const attendanceLog = await AttendanceLog.findById(locationStatus.attendanceLog);
+      if (!attendanceLog) {
+        console.error('Attendance log not found:', locationStatus.attendanceLog);
+        return;
+      }
+
+      // Only mark as absent if currently marked as present
+      if (attendanceLog.status === 'present') {
+        attendanceLog.status = 'absent';
+        attendanceLog.checkOutTime = new Date();
+
+        const reason = isStale
+          ? 'Automatically marked absent - location data became stale and exceeded time limit'
+          : 'Automatically marked absent - exceeded maximum time outside premises';
+
+        attendanceLog.notes = attendanceLog.notes
+          ? `${attendanceLog.notes}\n\n${reason}`
+          : reason;
+
+        await attendanceLog.save();
+
+        console.log(`✅ Marked attendance as absent for participant ${locationStatus.participant} - ${reason}`);
+      }
+    } catch (error) {
+      console.error('Error marking attendance as absent:', error);
     }
   }
 
@@ -297,16 +350,36 @@ class LocationTrackingService {
       .populate('event', 'title maxTimeOutside')
       .sort({ 'participant.name': 1 });
 
-      // Calculate real-time values for active timers
-      const statusesWithRealtime = locationStatuses.map(status => {
+      // Calculate real-time values and check for stale data
+      const statusesWithRealtime = await Promise.all(locationStatuses.map(async status => {
         const statusObj = status.toObject();
+        const now = new Date();
+        const minutesSinceUpdate = (now - new Date(status.lastLocationUpdate)) / (1000 * 60);
+        const isStale = minutesSinceUpdate > 5;
+
+        // Calculate current time outside or stale time
         if (status.outsideTimer.isActive) {
           statusObj.currentTimeOutside = status.calculateTotalTimeOutside();
+        } else if (isStale) {
+          // Show stale time as "time outside"
+          statusObj.currentTimeOutside = Math.floor(minutesSinceUpdate * 60); // seconds
+          // Start timer if not already active
+          if (!status.outsideTimer.isActive) {
+            status.outsideTimer.isActive = true;
+            status.outsideTimer.startTime = new Date(status.lastLocationUpdate);
+            status.outsideTimer.currentSessionStart = new Date(status.lastLocationUpdate);
+          }
+          // Check if should be marked absent
+          await this.updateParticipantStatus(status, status.event);
+          await status.save();
+          statusObj.outsideTimer = status.outsideTimer;
+          statusObj.status = status.status;
         } else {
           statusObj.currentTimeOutside = status.outsideTimer.totalTimeOutside;
         }
+
         return statusObj;
-      });
+      }));
 
       return statusesWithRealtime;
     } catch (error) {
