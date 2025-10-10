@@ -22,23 +22,23 @@ interface LocationStatusDisplayProps {
 // Live Timer Component that counts up in real-time
 const LiveTimer: React.FC<{
   startTime: Date;
-  isStale: boolean;
   baseSeconds: number;
-}> = ({ startTime, isStale, baseSeconds }) => {
-  const [currentTime, setCurrentTime] = useState(new Date());
+}> = ({ startTime, baseSeconds }) => {
+  const [elapsedSeconds, setElapsedSeconds] = useState(baseSeconds);
 
   useEffect(() => {
-    // Update every second for live counting
+    // Calculate initial elapsed time
+    const now = new Date();
+    const initialElapsed = baseSeconds + Math.floor((now.getTime() - startTime.getTime()) / 1000);
+    setElapsedSeconds(initialElapsed);
+
+    // Update every second
     const interval = setInterval(() => {
-      setCurrentTime(new Date());
+      setElapsedSeconds(prev => prev + 1);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
-
-  const elapsedSeconds = isStale
-    ? baseSeconds + Math.floor((currentTime.getTime() - new Date().getTime()) / 1000)
-    : Math.floor((currentTime.getTime() - startTime.getTime()) / 1000);
+  }, [startTime, baseSeconds]);
 
   const formatTime = (seconds: number): string => {
     const absSeconds = Math.abs(seconds);
@@ -341,7 +341,6 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                               <>
                                 <LiveTimer
                                   startTime={new Date(status.outsideTimer.startTime || status.lastLocationUpdate)}
-                                  isStale={isStale}
                                   baseSeconds={status.currentTimeOutside}
                                 />
                                 <span className="text-orange-600 ml-1">(counting...)</span>
@@ -416,7 +415,6 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                               return (
                                 <LiveTimer
                                   startTime={new Date(status.outsideTimer.startTime || status.lastLocationUpdate)}
-                                  isStale={isStale}
                                   baseSeconds={status.currentTimeOutside}
                                 />
                               );
