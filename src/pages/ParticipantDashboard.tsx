@@ -3779,12 +3779,12 @@ const ParticipantDashboard = () => {
                           const attendanceStatus = getEventAttendanceStatus(event.eventCode);
 
                           if (isJoinedToEvent(event.eventCode)) {
-                            // Don't show button if marked absent
-                            if (attendanceStatus?.status === 'absent') {
+                            // Don't show button if marked absent or completed
+                            if (attendanceStatus?.status === 'absent' || attendanceStatus?.status === 'completed') {
                               return null;
                             }
 
-                            // Normal cancel button for joined events
+                            // Normal cancel button for joined events (only for checked-in or registered)
                             return (
                               <Button
                                 onClick={() => handleLeavePublicEvent(event.eventCode, event.title)}
