@@ -19,45 +19,46 @@ interface LocationStatusDisplayProps {
   eventId: string;
 }
 
-// Live Timer Component that counts up in real-time
-const LiveTimer: React.FC<{
+// Live Countdown Timer Component that counts down from maxTimeOutside to zero
+const LiveCountdownTimer: React.FC<{
   startTime: Date;
   baseSeconds: number;
-}> = ({ startTime, baseSeconds }) => {
-  const [elapsedSeconds, setElapsedSeconds] = useState(baseSeconds);
+  maxTimeSeconds: number;
+}> = ({ startTime, baseSeconds, maxTimeSeconds }) => {
+  const [remainingSeconds, setRemainingSeconds] = useState(maxTimeSeconds - baseSeconds);
 
   useEffect(() => {
-    // Calculate initial elapsed time
+    // Calculate initial remaining time
     const now = new Date();
-    const initialElapsed = baseSeconds + Math.floor((now.getTime() - startTime.getTime()) / 1000);
-    setElapsedSeconds(initialElapsed);
+    const elapsedSinceStart = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+    const totalElapsed = baseSeconds + elapsedSinceStart;
+    const remaining = Math.max(0, maxTimeSeconds - totalElapsed);
+    setRemainingSeconds(remaining);
 
-    // Update every second
+    // Update every second (countdown)
     const interval = setInterval(() => {
-      setElapsedSeconds(prev => prev + 1);
+      setRemainingSeconds(prev => Math.max(0, prev - 1));
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [startTime, baseSeconds]);
+  }, [startTime, baseSeconds, maxTimeSeconds]);
 
   const formatTime = (seconds: number): string => {
-    const absSeconds = Math.abs(seconds);
-    const hours = Math.floor(absSeconds / 3600);
-    const minutes = Math.floor((absSeconds % 3600) / 60);
-    const secs = absSeconds % 60;
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
 
+    // Format as HH:MM:SS or MM:SS
     if (hours > 0) {
-      return `${hours}h ${minutes}m ${secs}s`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${secs}s`;
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     } else {
-      return `${secs}s`;
+      return `${minutes}:${String(secs).padStart(2, '0')}`;
     }
   };
 
   return (
-    <span className="font-mono">
-      {formatTime(elapsedSeconds)}
+    <span className={`font-mono font-bold ${remainingSeconds <= 60 ? 'text-red-600' : remainingSeconds <= 180 ? 'text-orange-600' : ''}`}>
+      {formatTime(remainingSeconds)}
     </span>
   );
 };
@@ -353,7 +354,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       </p>
                     </div>
                     <div>
-                      <p className="font-medium text-gray-700">Time Outside</p>
+                      <p className="font-medium text-gray-700">Time Remaining</p>
                       <p className="text-gray-600">
                         {(() => {
                           const lastUpdate = new Date(status.lastLocationUpdate);
@@ -366,23 +367,29 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                             return <span className="text-gray-400">N/A (Absent)</span>;
                           }
 
-                          // Show live timer if either stale OR timer is active
+                          const maxTimeSeconds = status.event.maxTimeOutside * 60;
+                          const remainingSeconds = Math.max(0, maxTimeSeconds - status.currentTimeOutside);
+
+                          // Show live countdown timer if either stale OR timer is active
                           if (isStale || status.outsideTimer.isActive) {
                             return (
                               <>
-                                <LiveTimer
+                                <LiveCountdownTimer
                                   startTime={new Date(status.outsideTimer.startTime || status.lastLocationUpdate)}
                                   baseSeconds={status.currentTimeOutside}
+                                  maxTimeSeconds={maxTimeSeconds}
                                 />
                                 <span className="text-orange-600 ml-1">
-                                  {isStale ? '(stale - counting...)' : '(counting...)'}
+                                  {isStale ? '(stale)' : ''}
                                 </span>
                               </>
                             );
                           }
 
-                          // Otherwise show static time
-                          return formatTime(status.currentTimeOutside);
+                          // Otherwise show static remaining time
+                          const minutes = Math.floor(remainingSeconds / 60);
+                          const secs = remainingSeconds % 60;
+                          return <span className="font-mono">{minutes}:{String(secs).padStart(2, '0')}</span>;
                         })()}
                       </p>
                     </div>
@@ -436,31 +443,36 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     }
 
                     if (status.outsideTimer?.isActive || status.currentTimeOutside > 0 || isStale) {
+                      const maxTimeSeconds = status.event.maxTimeOutside * 60;
+                      const remainingSeconds = Math.max(0, maxTimeSeconds - status.currentTimeOutside);
+
                       return (
                         <div className="bg-orange-50 border border-orange-200 rounded p-3">
                           <div className="flex items-center gap-2 text-orange-700">
                             <Clock className="w-4 h-4" />
                             <span className="font-medium">
-                              {isStale && !status.outsideTimer?.isActive ? 'Stale Data - Timer Active' :
-                               status.outsideTimer?.isActive ? 'Timer Active' : 'Time Outside'}:{' '}
+                              Time Remaining:{' '}
                           {(() => {
                             const lastUpdate = new Date(status.lastLocationUpdate);
                             const now = new Date();
                             const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
                             const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3 minutes
 
-                            // Show live timer if either stale OR timer active
+                            // Show live countdown timer if either stale OR timer active
                             if (isStale || status.outsideTimer.isActive) {
                               return (
-                                <LiveTimer
+                                <LiveCountdownTimer
                                   startTime={new Date(status.outsideTimer.startTime || status.lastLocationUpdate)}
                                   baseSeconds={status.currentTimeOutside}
+                                  maxTimeSeconds={maxTimeSeconds}
                                 />
                               );
                             }
 
-                            // Otherwise show static time
-                            return formatTime(status.currentTimeOutside);
+                            // Otherwise show static remaining time
+                            const minutes = Math.floor(remainingSeconds / 60);
+                            const secs = remainingSeconds % 60;
+                            return <span className="font-mono font-bold">{minutes}:{String(secs).padStart(2, '0')}</span>;
                           })()}
                         </span>
                       </div>

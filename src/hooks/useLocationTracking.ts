@@ -4,7 +4,12 @@ import { API_CONFIG } from '@/config';
 
 interface LocationStatus {
   _id: string;
-  event: string;
+  event: {
+    _id: string;
+    title: string;
+    maxTimeOutside: number; // in minutes
+    geofenceRadius: number;
+  };
   participant: {
     _id: string;
     name: string;
