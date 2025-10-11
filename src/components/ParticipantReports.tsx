@@ -18,7 +18,7 @@ interface Participant {
   };
   checkInTime: string;
   checkOutTime?: string;
-  status: 'checked-in' | 'checked-out';
+  status: 'checked-in' | 'checked-out' | 'absent';
   duration: number;
   invitation?: {
     _id: string;
@@ -130,7 +130,9 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
       .map(p => [
         p.participant.name,
         p.participant.email,
-        p.status === 'checked-in' ? 'Currently Attending' : 'Completed',
+        p.status === 'checked-in' ? 'Currently Attending' :
+        p.status === 'absent' ? 'Absent' :
+        'Completed',
         new Date(p.checkInTime).toLocaleString(),
         p.checkOutTime ? new Date(p.checkOutTime).toLocaleString() : 'N/A',
         p.duration ? `${p.duration} minutes` : 'N/A',
@@ -161,7 +163,8 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
   const stats = {
     total: participants.length,
     checkedIn: participants.length, // All participants in the list are checked in
-    currentlyPresent: participants.filter(p => p.status === 'checked-in').length
+    currentlyPresent: participants.filter(p => p.status === 'checked-in').length,
+    absent: participants.filter(p => p.status === 'absent').length
   };
 
   return (
@@ -179,7 +182,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
         <div className="space-y-4">
           {/* Stats Cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-4">
                 <div className="text-center">
@@ -207,6 +210,16 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                     {loading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : stats.currentlyPresent}
                   </p>
                   <p className="text-sm text-gray-600">Currently Present</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-red-600">
+                    {loading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : stats.absent}
+                  </p>
+                  <p className="text-sm text-gray-600">Marked Absent</p>
                 </div>
               </CardContent>
             </Card>
@@ -300,8 +313,14 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                             {participant?.participant?.email || 'Unknown'}
                           </TableCell>
                           <TableCell>
-                            <Badge variant={participant.status === 'checked-in' ? "default" : "secondary"}>
-                              {participant.status === 'checked-in' ? "Currently Attending" : "Completed"}
+                            <Badge variant={
+                              participant.status === 'checked-in' ? "default" :
+                              participant.status === 'absent' ? "destructive" :
+                              "secondary"
+                            }>
+                              {participant.status === 'checked-in' ? "Currently Attending" :
+                               participant.status === 'absent' ? "Absent" :
+                               "Completed"}
                             </Badge>
                           </TableCell>
                           <TableCell>{new Date(participant.checkInTime).toLocaleString()}</TableCell>
