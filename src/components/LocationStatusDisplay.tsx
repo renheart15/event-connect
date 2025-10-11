@@ -375,25 +375,16 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           const maxTimeSeconds = maxTimeOutside * 60;
                           const remainingSeconds = Math.max(0, maxTimeSeconds - status.currentTimeOutside);
 
-                          // Show live countdown timer if either stale OR timer is active
-                          if (isStale || status.outsideTimer.isActive) {
-                            // If data is stale, reset timer to start from maxTimeOutside
-                            const timerBaseSeconds = isStale ? 0 : status.currentTimeOutside;
-                            const timerStartTime = isStale
-                              ? new Date(status.lastLocationUpdate)
-                              : new Date(status.outsideTimer.startTime || status.lastLocationUpdate);
+                          // Show live countdown timer if timer is active
+                          if (status.outsideTimer.isActive) {
+                            const timerStartTime = new Date(status.outsideTimer.startTime || status.lastLocationUpdate);
 
                             return (
-                              <>
-                                <LiveCountdownTimer
-                                  startTime={timerStartTime}
-                                  baseSeconds={timerBaseSeconds}
-                                  maxTimeSeconds={maxTimeSeconds}
-                                />
-                                <span className="text-orange-600 ml-1">
-                                  {isStale ? '(stale - reset)' : ''}
-                                </span>
-                              </>
+                              <LiveCountdownTimer
+                                startTime={timerStartTime}
+                                baseSeconds={status.currentTimeOutside}
+                                maxTimeSeconds={maxTimeSeconds}
+                              />
                             );
                           }
 
@@ -453,7 +444,8 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       return null;
                     }
 
-                    if (status.outsideTimer?.isActive || status.currentTimeOutside > 0 || isStale) {
+                    // Only show timer if backend has activated it (not just because data is stale)
+                    if (status.outsideTimer?.isActive || status.currentTimeOutside > 0) {
                       // Get maxTimeOutside from event (with fallback to 15 minutes)
                       const maxTimeOutside = status.event?.maxTimeOutside || 15;
                       const maxTimeSeconds = maxTimeOutside * 60;
@@ -466,23 +458,14 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                             <span className="font-medium">
                               Time Remaining:{' '}
                           {(() => {
-                            const lastUpdate = new Date(status.lastLocationUpdate);
-                            const now = new Date();
-                            const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                            const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3 minutes
-
-                            // Show live countdown timer if either stale OR timer active
-                            if (isStale || status.outsideTimer.isActive) {
-                              // If data is stale, reset timer to start from maxTimeOutside
-                              const timerBaseSeconds = isStale ? 0 : status.currentTimeOutside;
-                              const timerStartTime = isStale
-                                ? new Date(status.lastLocationUpdate)
-                                : new Date(status.outsideTimer.startTime || status.lastLocationUpdate);
+                            // Show live countdown timer if timer is active
+                            if (status.outsideTimer.isActive) {
+                              const timerStartTime = new Date(status.outsideTimer.startTime || status.lastLocationUpdate);
 
                               return (
                                 <LiveCountdownTimer
                                   startTime={timerStartTime}
-                                  baseSeconds={timerBaseSeconds}
+                                  baseSeconds={status.currentTimeOutside}
                                   maxTimeSeconds={maxTimeSeconds}
                                 />
                               );
@@ -498,16 +481,6 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       {status.outsideTimer?.startTime && (
                         <p className="text-sm text-orange-600 mt-1">
                           Started at: {new Date(status.outsideTimer.startTime).toLocaleTimeString('en-US', { hour12: true })}
-                        </p>
-                      )}
-                      {isStale && (
-                        <p className="text-sm text-red-600 mt-1">
-                          ⚠️ Location data stale - counting time since last update ({Math.round(minutesSinceUpdate)} min ago)
-                        </p>
-                      )}
-                      {!status.outsideTimer?.isActive && status.currentTimeOutside > 0 && !isStale && (
-                        <p className="text-sm text-orange-600 mt-1">
-                          No recent location data - timer started from check-in
                         </p>
                       )}
                     </div>
