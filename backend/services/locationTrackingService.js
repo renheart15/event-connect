@@ -222,7 +222,7 @@ class LocationTrackingService {
       totalTime = Math.floor(Math.max(0, timeAfterStaleThreshold) * 60); // Convert to seconds, ensure non-negative
 
       console.log(`⏱️ [STALE TIMER] Stale threshold reached 3 min ago. Countdown started: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
-      console.log(`⏱️ [STALE TIMER] Started monitoring timer to check every 30 seconds`);
+      console.log(`⏱️ [STALE TIMER] Started monitoring timer to check every 5 seconds`);
     }
 
     const maxTimeOutsideSeconds = event.maxTimeOutside * 60; // Convert minutes to seconds
@@ -335,7 +335,7 @@ class LocationTrackingService {
       } catch (error) {
         console.error('Error in monitoring timer:', error);
       }
-    }, 30000); // Check every 30 seconds
+    }, 5000); // Check every 5 seconds for immediate response
 
     this.timers.set(statusId.toString(), timer);
   }
