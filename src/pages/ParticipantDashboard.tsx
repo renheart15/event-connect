@@ -3775,26 +3775,41 @@ const ParticipantDashboard = () => {
                             return null;
                           })()}
                         </div>
-                        {isJoinedToEvent(event.eventCode) ? (
-                          <Button
-                            onClick={() => handleLeavePublicEvent(event.eventCode, event.title)}
-                            size="sm"
-                            variant="destructive"
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                          >
-                            <X className="w-3 h-3 mr-1" />
-                            Cancel
-                          </Button>
-                        ) : (
-                          <Button
-                            onClick={() => handleJoinPublicEvent(event.eventCode, event.title, event._id)}
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            <QrCode className="w-3 h-3 mr-1" />
-                            Join
-                          </Button>
-                        )}
+                        {(() => {
+                          const attendanceStatus = getEventAttendanceStatus(event.eventCode);
+
+                          if (isJoinedToEvent(event.eventCode)) {
+                            // Don't show button if marked absent
+                            if (attendanceStatus?.status === 'absent') {
+                              return null;
+                            }
+
+                            // Normal cancel button for joined events
+                            return (
+                              <Button
+                                onClick={() => handleLeavePublicEvent(event.eventCode, event.title)}
+                                size="sm"
+                                variant="destructive"
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                              >
+                                <X className="w-3 h-3 mr-1" />
+                                Cancel
+                              </Button>
+                            );
+                          } else {
+                            // Join button for events not joined
+                            return (
+                              <Button
+                                onClick={() => handleJoinPublicEvent(event.eventCode, event.title, event._id)}
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                <QrCode className="w-3 h-3 mr-1" />
+                                Join
+                              </Button>
+                            );
+                          }
+                        })()}
                       </div>
                     </div>
                   </div>
