@@ -288,7 +288,10 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                   timerActive: status.outsideTimer?.isActive,
                   currentTimeOutside: status.currentTimeOutside,
                   shouldShowTimer: isStale || status.outsideTimer?.isActive,
-                  isAbsent
+                  isAbsent,
+                  eventData: status.event,
+                  maxTimeOutside: status.event?.maxTimeOutside,
+                  hasEventObject: typeof status.event === 'object'
                 });
 
                 return (
