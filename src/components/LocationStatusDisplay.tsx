@@ -370,7 +370,9 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                             return <span className="text-gray-400">N/A (Absent)</span>;
                           }
 
-                          const maxTimeSeconds = status.event.maxTimeOutside * 60;
+                          // Get maxTimeOutside from event (with fallback to 15 minutes)
+                          const maxTimeOutside = status.event?.maxTimeOutside || 15;
+                          const maxTimeSeconds = maxTimeOutside * 60;
                           const remainingSeconds = Math.max(0, maxTimeSeconds - status.currentTimeOutside);
 
                           // Show live countdown timer if either stale OR timer is active
@@ -446,7 +448,9 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     }
 
                     if (status.outsideTimer?.isActive || status.currentTimeOutside > 0 || isStale) {
-                      const maxTimeSeconds = status.event.maxTimeOutside * 60;
+                      // Get maxTimeOutside from event (with fallback to 15 minutes)
+                      const maxTimeOutside = status.event?.maxTimeOutside || 15;
+                      const maxTimeSeconds = maxTimeOutside * 60;
                       const remainingSeconds = Math.max(0, maxTimeSeconds - status.currentTimeOutside);
 
                       return (
