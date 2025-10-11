@@ -2736,6 +2736,40 @@ const ParticipantDashboard = () => {
     );
   };
 
+  // Get attendance status for an event
+  const getEventAttendanceStatus = (eventCode: string) => {
+    const attendance = myAttendance.find((att: any) =>
+      att.event?.eventCode === eventCode
+    );
+
+    if (!attendance) return null;
+
+    // Check if currently attending (checked in but not checked out)
+    if (attendance.checkInTime && !attendance.checkOutTime) {
+      return {
+        status: attendance.status, // 'checked-in' or 'absent'
+        checkInTime: attendance.checkInTime,
+        isCurrentlyAttending: true
+      };
+    }
+
+    // Checked out
+    if (attendance.checkOutTime) {
+      return {
+        status: 'completed',
+        checkInTime: attendance.checkInTime,
+        checkOutTime: attendance.checkOutTime,
+        isCurrentlyAttending: false
+      };
+    }
+
+    // Just joined but not checked in yet
+    return {
+      status: 'registered',
+      isCurrentlyAttending: false
+    };
+  };
+
   // Handle profile editing
   const handleEditProfile = () => {
     const currentUser = userProfile || user;
@@ -3696,17 +3730,50 @@ const ParticipantDashboard = () => {
                       </div>
                       
                       <div className="flex items-center justify-between mt-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-mono bg-gray-100 dark:bg-gray-900/20 px-2 py-1 rounded text-gray-700 dark:text-gray-300">
                             {event.eventCode}
                           </span>
                           <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            event.status === 'active' 
+                            event.status === 'active'
                               ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
                               : 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
                           }`}>
                             {event.status === 'active' ? 'Active' : 'Upcoming'}
                           </span>
+                          {(() => {
+                            const attendanceStatus = getEventAttendanceStatus(event.eventCode);
+                            if (!attendanceStatus) return null;
+
+                            if (attendanceStatus.status === 'absent') {
+                              return (
+                                <span className="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                                  <AlertTriangle className="w-3 h-3 mr-1" />
+                                  Marked Absent
+                                </span>
+                              );
+                            } else if (attendanceStatus.status === 'checked-in') {
+                              return (
+                                <span className="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Currently Attending
+                                </span>
+                              );
+                            } else if (attendanceStatus.status === 'completed') {
+                              return (
+                                <span className="text-xs px-2 py-1 rounded-full font-medium bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-400">
+                                  Completed
+                                </span>
+                              );
+                            } else if (attendanceStatus.status === 'registered') {
+                              return (
+                                <span className="text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+                                  Registered
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                         {isJoinedToEvent(event.eventCode) ? (
                           <Button
