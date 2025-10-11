@@ -157,6 +157,15 @@ const ParticipantDashboard = () => {
 
   // Helper function to determine if participant was late or on time
   const getAttendanceStatus = (attendance: any) => {
+    // Check if marked absent first
+    if (attendance.status === 'absent') {
+      return {
+        status: 'absent',
+        message: 'Marked Absent',
+        color: 'text-red-600 dark:text-red-400'
+      };
+    }
+
     if (!attendance.event.date || !attendance.checkInTime) {
       return { status: 'unknown', message: 'Unknown', color: 'text-gray-500 dark:text-gray-400' };
     }
@@ -3554,13 +3563,22 @@ const ParticipantDashboard = () => {
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-white" />
-                    </div>
+                    {selectedEventRecord.status === 'absent' ? (
+                      <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+                        <AlertTriangle className="w-5 h-5 text-white" />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center">
+                        <CheckCircle className="w-5 h-5 text-white" />
+                      </div>
+                    )}
                     {selectedEventRecord.event.title}
                   </DialogTitle>
                   <DialogDescription>
-                    Your attendance record for this completed event
+                    {selectedEventRecord.status === 'absent'
+                      ? 'You were marked absent at this event'
+                      : 'Your attendance record for this completed event'
+                    }
                   </DialogDescription>
                 </DialogHeader>
                 
