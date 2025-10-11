@@ -3405,9 +3405,17 @@ const ParticipantDashboard = () => {
                     }}
                   >
                     <div className="flex flex-col">
-                      <span className="font-medium text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors truncate">
-                        {attendance.event.title}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors truncate">
+                          {attendance.event.title}
+                        </span>
+                        {attendance.status === 'absent' && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300 flex-shrink-0">
+                            <AlertTriangle className="w-3 h-3 mr-1" />
+                            Absent
+                          </span>
+                        )}
+                      </div>
                       <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
                         {attendance.event.location?.address || attendance.event.location}
                       </span>
