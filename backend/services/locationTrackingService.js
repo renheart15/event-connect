@@ -214,11 +214,15 @@ class LocationTrackingService {
       locationStatus.outsideTimer.startTime = staleThresholdTime;
       locationStatus.outsideTimer.currentSessionStart = staleThresholdTime;
 
+      // Start monitoring timer for stale participants (if not already running)
+      this.startMonitoringTimer(locationStatus._id, event.maxTimeOutside);
+
       // Count time AFTER the 3-minute stale threshold (not the entire stale time)
       const timeAfterStaleThreshold = minutesSinceUpdate - 3; // Minutes after stale threshold
       totalTime = Math.floor(Math.max(0, timeAfterStaleThreshold) * 60); // Convert to seconds, ensure non-negative
 
       console.log(`⏱️ [STALE TIMER] Stale threshold reached 3 min ago. Countdown started: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
+      console.log(`⏱️ [STALE TIMER] Started monitoring timer to check every 30 seconds`);
     }
 
     const maxTimeOutsideSeconds = event.maxTimeOutside * 60; // Convert minutes to seconds
