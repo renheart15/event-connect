@@ -203,18 +203,22 @@ class LocationTrackingService {
       totalTime = locationStatus.calculateTotalTimeOutside();
       console.log(`⏱️ [TIMER] Active outside timer: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
     } else if (isStale) {
-      // If stale, activate timer and count time since last update
+      // If stale, activate timer and count time AFTER the 3-minute stale threshold
       console.log(`⚠️ [STALE DATA] Participant data is stale (${Math.round(minutesSinceUpdate)} min). Activating timer.`);
 
-      // Activate the timer starting from last update time
+      // Calculate the time when data became stale (3 minutes after last update)
+      const staleThresholdTime = new Date(new Date(locationStatus.lastLocationUpdate).getTime() + (3 * 60 * 1000));
+
+      // Activate the timer starting from when data became stale (not from last update)
       locationStatus.outsideTimer.isActive = true;
-      locationStatus.outsideTimer.startTime = new Date(locationStatus.lastLocationUpdate);
-      locationStatus.outsideTimer.currentSessionStart = new Date(locationStatus.lastLocationUpdate);
+      locationStatus.outsideTimer.startTime = staleThresholdTime;
+      locationStatus.outsideTimer.currentSessionStart = staleThresholdTime;
 
-      // Count time since last update
-      totalTime = Math.floor(minutesSinceUpdate * 60); // Convert minutes to seconds
+      // Count time AFTER the 3-minute stale threshold (not the entire stale time)
+      const timeAfterStaleThreshold = minutesSinceUpdate - 3; // Minutes after stale threshold
+      totalTime = Math.floor(Math.max(0, timeAfterStaleThreshold) * 60); // Convert to seconds, ensure non-negative
 
-      console.log(`⏱️ [STALE TIMER] Total stale time: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
+      console.log(`⏱️ [STALE TIMER] Stale threshold reached 3 min ago. Countdown started: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
     }
 
     const maxTimeOutsideSeconds = event.maxTimeOutside * 60; // Convert minutes to seconds
