@@ -361,6 +361,11 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
                           const isStale = minutesSinceUpdate > 5;
 
+                          // Don't show timer if marked absent
+                          if (isAbsent) {
+                            return <span className="text-gray-400">N/A (Absent)</span>;
+                          }
+
                           // Show live timer if either stale OR timer is active
                           if (isStale || status.outsideTimer.isActive) {
                             return (
@@ -424,6 +429,11 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     const now = new Date();
                     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
                     const isStale = minutesSinceUpdate > 5;
+
+                    // Don't show timer if marked absent
+                    if (isAbsent) {
+                      return null;
+                    }
 
                     if (status.outsideTimer?.isActive || status.currentTimeOutside > 0 || isStale) {
                       return (
