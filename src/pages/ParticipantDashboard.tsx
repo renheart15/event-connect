@@ -2304,6 +2304,8 @@ const ParticipantDashboard = () => {
       attendance.checkInTime &&
       !attendance.checkOutTime &&
       attendance.event?.status === 'active'
+      // Include all statuses: 'checked-in', 'absent', etc.
+      // This ensures participants marked absent still appear in "Currently Attending"
     );
 
     return result;
@@ -2365,6 +2367,7 @@ const ParticipantDashboard = () => {
 
   const getActiveEvents = () => {
     // Events that are currently active AND you are attending (checked in but not checked out)
+    // Includes participants with 'absent' status to show them in Currently Attending section
     return myAttendance.filter(attendance =>
       attendance.checkInTime &&
       !attendance.checkOutTime &&
@@ -3217,9 +3220,15 @@ const ParticipantDashboard = () => {
                       <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{attendance.event.description}</p>
                       
                       <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
-                          • Currently Attending
-                        </span>
+                        {attendance.status === 'absent' ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                            • Marked Absent
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                            • Currently Attending
+                          </span>
+                        )}
                         <span className="ml-2">
                           Duration: {formatDuration(attendance.checkInTime)}
                         </span>
@@ -3228,6 +3237,19 @@ const ParticipantDashboard = () => {
                       <div className="flex items-center mt-3 text-xs text-gray-500 dark:text-gray-400">
                         <span>Checked in: {new Date(attendance.checkInTime).toLocaleString()}</span>
                       </div>
+
+                      {/* Absent Status Alert */}
+                      {attendance.status === 'absent' && (
+                        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-xs text-red-800 dark:text-red-300">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="font-semibold">You have been marked absent</p>
+                              <p className="mt-1">This may be due to exceeding the allowed time outside the event premises or location data becoming unavailable. Please contact the event organizer if you believe this is an error.</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Action Buttons */}
                       <div className="flex gap-2 mt-3">
@@ -3250,9 +3272,15 @@ const ParticipantDashboard = () => {
                     </div>
                     
                     <div className="flex flex-col items-center space-y-2">
-                      <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center">
-                        <CheckCircle className="w-5 h-5 text-white" />
-                      </div>
+                      {attendance.status === 'absent' ? (
+                        <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+                          <AlertTriangle className="w-5 h-5 text-white" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center">
+                          <CheckCircle className="w-5 h-5 text-white" />
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         <button 
                           onClick={() => handleOpenFeedbackForm(attendance.event._id, attendance.event.title)}
@@ -5338,7 +5366,14 @@ const ParticipantDashboard = () => {
             <h3 className="text-green-800 dark:text-green-200 font-semibold text-xs mb-1">Currently Attending</h3>
             {getCurrentlyAttending().map(attendance => (
               <div key={attendance._id} className="space-y-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{attendance.event.title}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{attendance.event.title}</p>
+                  {attendance.status === 'absent' && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                      Absent
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-gray-600 dark:text-gray-400">
                   Duration: {formatDuration(attendance.checkInTime)}
                 </p>
