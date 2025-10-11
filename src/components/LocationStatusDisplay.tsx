@@ -277,7 +277,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                 const lastUpdate = new Date(status.lastLocationUpdate);
                 const now = new Date();
                 const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                const isStale = minutesSinceUpdate > 5;
+                const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3 minutes
                 const isAbsent = status.status === 'absent';
 
                 console.log('🕐 [TIMER DEBUG]', {
@@ -337,7 +337,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           const lastUpdate = new Date(status.lastLocationUpdate);
                           const now = new Date();
                           const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                          return minutesSinceUpdate > 5 ? 'text-gray-400' : 'text-gray-600';
+                          return minutesSinceUpdate > 3 ? 'text-gray-400' : 'text-gray-600';
                         })()
                       }`}>
                         {status.isWithinGeofence ? 'Yes' : 'No'}
@@ -345,7 +345,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           const lastUpdate = new Date(status.lastLocationUpdate);
                           const now = new Date();
                           const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                          if (minutesSinceUpdate > 5) {
+                          if (minutesSinceUpdate > 3) {
                             return <span className="text-yellow-600 ml-1">(stale)</span>;
                           }
                           return null;
@@ -359,7 +359,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           const lastUpdate = new Date(status.lastLocationUpdate);
                           const now = new Date();
                           const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                          const isStale = minutesSinceUpdate > 5;
+                          const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3 minutes
 
                           // Don't show timer if marked absent
                           if (isAbsent) {
@@ -394,7 +394,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           const now = new Date();
                           const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
                           if (minutesSinceUpdate > 10) return 'text-red-600 font-semibold';
-                          if (minutesSinceUpdate > 5) return 'text-yellow-600 font-semibold';
+                          if (minutesSinceUpdate > 3) return 'text-yellow-600 font-semibold'; // Changed from 5 to 3
                           return 'text-gray-600';
                         })()
                       }`}>
@@ -408,7 +408,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     const lastUpdate = new Date(status.lastLocationUpdate);
                     const now = new Date();
                     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                    if (minutesSinceUpdate > 5) {
+                    if (minutesSinceUpdate > 3) { // Changed from 5 to 3 minutes
                       return (
                         <Alert variant="destructive" className="mt-3">
                           <AlertTriangle className="h-4 w-4" />
@@ -428,7 +428,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     const lastUpdate = new Date(status.lastLocationUpdate);
                     const now = new Date();
                     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                    const isStale = minutesSinceUpdate > 5;
+                    const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3 minutes
 
                     // Don't show timer if marked absent
                     if (isAbsent) {
@@ -447,7 +447,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                             const lastUpdate = new Date(status.lastLocationUpdate);
                             const now = new Date();
                             const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                            const isStale = minutesSinceUpdate > 5;
+                            const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3 minutes
 
                             // Show live timer if either stale OR timer active
                             if (isStale || status.outsideTimer.isActive) {

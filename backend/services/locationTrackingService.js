@@ -187,10 +187,10 @@ class LocationTrackingService {
 
   // Update participant status based on timer and limits
   async updateParticipantStatus(locationStatus, event) {
-    // Check if data is stale (>5 minutes since last update)
+    // Check if data is stale (>3 minutes since last update) - Changed from 5 to 3
     const now = new Date();
     const minutesSinceUpdate = (now - new Date(locationStatus.lastLocationUpdate)) / (1000 * 60);
-    const isStale = minutesSinceUpdate > 5;
+    const isStale = minutesSinceUpdate > 3;
 
     console.log(`🔍 [STATUS CHECK] Participant: ${locationStatus.participant?.name || locationStatus.participant}`);
     console.log(`📊 [STATUS CHECK] Minutes since update: ${Math.round(minutesSinceUpdate)}, Is stale: ${isStale}`);
@@ -391,7 +391,7 @@ class LocationTrackingService {
         const statusObj = status.toObject();
         const now = new Date();
         const minutesSinceUpdate = (now - new Date(status.lastLocationUpdate)) / (1000 * 60);
-        const isStale = minutesSinceUpdate > 5;
+        const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3
 
         // Check if should be marked absent (this will activate timer if stale)
         if (isStale || status.outsideTimer.isActive) {
@@ -461,7 +461,7 @@ class LocationTrackingService {
       for (const status of locationStatuses) {
         const now = new Date();
         const minutesSinceUpdate = (now - new Date(status.lastLocationUpdate)) / (1000 * 60);
-        const isStale = minutesSinceUpdate > 5;
+        const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3
 
         if (isStale || status.outsideTimer.isActive) {
           console.log(`⚠️ [STALE CHECK] Checking ${status.participant.name}: ${Math.round(minutesSinceUpdate)} min since last update`);
