@@ -2744,17 +2744,28 @@ const ParticipantDashboard = () => {
 
     if (!attendance) return null;
 
+    // Check the actual status field first
+    // If marked absent, return absent regardless of checkInTime/checkOutTime
+    if (attendance.status === 'absent') {
+      return {
+        status: 'absent',
+        checkInTime: attendance.checkInTime,
+        checkOutTime: attendance.checkOutTime,
+        isCurrentlyAttending: true // Still considered attending but marked absent
+      };
+    }
+
     // Check if currently attending (checked in but not checked out)
     if (attendance.checkInTime && !attendance.checkOutTime) {
       return {
-        status: attendance.status, // 'checked-in' or 'absent'
+        status: attendance.status || 'checked-in',
         checkInTime: attendance.checkInTime,
         isCurrentlyAttending: true
       };
     }
 
-    // Checked out
-    if (attendance.checkOutTime) {
+    // Checked out (completed)
+    if (attendance.checkOutTime && attendance.status === 'checked-out') {
       return {
         status: 'completed',
         checkInTime: attendance.checkInTime,
