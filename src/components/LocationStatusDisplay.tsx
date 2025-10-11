@@ -377,15 +377,21 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
 
                           // Show live countdown timer if either stale OR timer is active
                           if (isStale || status.outsideTimer.isActive) {
+                            // If data is stale, reset timer to start from maxTimeOutside
+                            const timerBaseSeconds = isStale ? 0 : status.currentTimeOutside;
+                            const timerStartTime = isStale
+                              ? new Date(status.lastLocationUpdate)
+                              : new Date(status.outsideTimer.startTime || status.lastLocationUpdate);
+
                             return (
                               <>
                                 <LiveCountdownTimer
-                                  startTime={new Date(status.outsideTimer.startTime || status.lastLocationUpdate)}
-                                  baseSeconds={status.currentTimeOutside}
+                                  startTime={timerStartTime}
+                                  baseSeconds={timerBaseSeconds}
                                   maxTimeSeconds={maxTimeSeconds}
                                 />
                                 <span className="text-orange-600 ml-1">
-                                  {isStale ? '(stale)' : ''}
+                                  {isStale ? '(stale - reset)' : ''}
                                 </span>
                               </>
                             );
@@ -467,10 +473,16 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
 
                             // Show live countdown timer if either stale OR timer active
                             if (isStale || status.outsideTimer.isActive) {
+                              // If data is stale, reset timer to start from maxTimeOutside
+                              const timerBaseSeconds = isStale ? 0 : status.currentTimeOutside;
+                              const timerStartTime = isStale
+                                ? new Date(status.lastLocationUpdate)
+                                : new Date(status.outsideTimer.startTime || status.lastLocationUpdate);
+
                               return (
                                 <LiveCountdownTimer
-                                  startTime={new Date(status.outsideTimer.startTime || status.lastLocationUpdate)}
-                                  baseSeconds={status.currentTimeOutside}
+                                  startTime={timerStartTime}
+                                  baseSeconds={timerBaseSeconds}
                                   maxTimeSeconds={maxTimeSeconds}
                                 />
                               );
