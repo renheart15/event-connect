@@ -12,6 +12,7 @@ import ParticipantNotifications from '@/components/ParticipantNotifications';
 import FeedbackFormView from '@/components/FeedbackFormView';
 import RegistrationFormModal from '@/components/RegistrationFormModal';
 import ProgressIndicator from '@/components/ProgressIndicator';
+import ParticipantTimerModal from '@/components/ParticipantTimerModal';
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -5256,7 +5257,10 @@ const ParticipantDashboard = () => {
           <span>📡 Offline Mode - Some features may be limited</span>
         </div>
       )}
-      
+
+      {/* Timer Modal */}
+      {user._id && <ParticipantTimerModal participantId={user._id} />}
+
       {/* Top Header Bar */}
       <div className={`flex items-center justify-between px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 ${!isOnline ? 'mt-6' : ''}`}>
         <button 

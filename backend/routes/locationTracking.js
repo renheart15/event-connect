@@ -215,6 +215,64 @@ router.get('/participant/:participantId/event/:eventId/status',
   }
 );
 
+// Get timer data for participant (for popup modal)
+router.get('/participant/:participantId/timer',
+  auth,
+  async (req, res) => {
+    try {
+      const { participantId } = req.params;
+
+      const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
+      const locationStatus = await ParticipantLocationStatus.findOne({
+        participant: participantId,
+        isActive: true
+      })
+      .populate('event', 'title maxTimeOutside')
+      .sort({ createdAt: -1 }); // Get most recent active status
+
+      // If no active location status or timer not active, return null
+      if (!locationStatus || !locationStatus.outsideTimer.isActive) {
+        return res.json({
+          success: true,
+          data: null
+        });
+      }
+
+      // Check if data is stale
+      const now = new Date();
+      const minutesSinceUpdate = (now - new Date(locationStatus.lastLocationUpdate)) / (1000 * 60);
+      const isStale = minutesSinceUpdate > 3;
+
+      // Calculate current time outside
+      const currentTimeOutside = locationStatus.calculateTotalTimeOutside();
+
+      // Build timer data
+      const timerData = {
+        eventId: locationStatus.event._id,
+        eventTitle: locationStatus.event.title,
+        maxTimeOutside: locationStatus.event.maxTimeOutside,
+        currentTimeOutside: currentTimeOutside,
+        status: locationStatus.status,
+        isStale: isStale,
+        timerActive: locationStatus.outsideTimer.isActive,
+        startTime: locationStatus.outsideTimer.startTime
+      };
+
+      res.json({
+        success: true,
+        data: timerData
+      });
+    } catch (error) {
+      console.error('Error getting participant timer data:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get timer data',
+        error: error.message
+      });
+    }
+  }
+);
+
 // Stop location tracking (called when checking out)
 router.post('/stop', [
   body('eventId').isMongoId().withMessage('Valid event ID is required'),
