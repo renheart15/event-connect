@@ -6,10 +6,13 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, Settings, LogOut, Building2, Check } from 'lucide-react';
+import { User, Settings, LogOut, Building2, Check, ChevronRight } from 'lucide-react';
 import Profile from './Profile';
 import SettingsComponent from './Settings';
 import { API_CONFIG } from '@/config';
@@ -186,20 +189,29 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
             </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-80">
+        <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem onClick={handleProfile} className="cursor-pointer">
             <User className="mr-2 h-4 w-4" />
             Profile
           </DropdownMenuItem>
 
-          {/* Organization Switcher - Only for organizers with organizations */}
+          {/* Organization Switcher Submenu - Only for organizers with organizations */}
           {user?.role === 'organizer' && organizations.length > 0 && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-gray-500">
-                Switch Organization ({organizations.length})
-              </DropdownMenuLabel>
-              <div className="max-h-[300px] overflow-y-auto">
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="cursor-pointer">
+                <Building2 className="mr-2 h-4 w-4" />
+                <span>Organizations</span>
+                {selectedOrg && (
+                  <span className="ml-auto text-xs text-gray-500 truncate max-w-[100px]">
+                    {selectedOrg.name}
+                  </span>
+                )}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-80 max-h-[400px] overflow-y-auto">
+                <DropdownMenuLabel className="text-xs text-gray-500">
+                  Switch Organization ({organizations.length})
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
                 {organizations.map((org) => (
                   <DropdownMenuItem
                     key={org._id}
@@ -236,9 +248,8 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => 
                     </div>
                   </DropdownMenuItem>
                 ))}
-              </div>
-              <DropdownMenuSeparator />
-            </>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
           )}
 
           <DropdownMenuItem onClick={handleSettings} className="cursor-pointer">
