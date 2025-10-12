@@ -5342,22 +5342,30 @@ const ParticipantDashboard = () => {
 
         {/* Center: Flash Button */}
         <div className="flex justify-center">
-          {(isCameraActive || isScanning) && (
-            <button
-              onClick={toggleFlash}
-              disabled={!flashSupported}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center touch-manipulation transition-all ${
-                !flashSupported
-                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'
-                  : isFlashOn
-                  ? 'bg-yellow-500 text-white shadow-lg'
-                  : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-white active:bg-gray-200 dark:active:bg-gray-500'
-              }`}
-              title={!flashSupported ? 'Flash not supported on this device' : isFlashOn ? 'Turn flash off' : 'Turn flash on'}
-            >
-              <Flashlight className={`w-5 h-5 ${isFlashOn ? 'animate-pulse' : ''}`} />
-            </button>
-          )}
+          <button
+            onClick={toggleFlash}
+            disabled={!isCameraActive || !isScanning || !flashSupported}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center touch-manipulation transition-all ${
+              !isCameraActive && !isScanning
+                ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'
+                : !flashSupported
+                ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'
+                : isFlashOn
+                ? 'bg-yellow-500 text-white shadow-lg'
+                : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-white active:bg-gray-200 dark:active:bg-gray-500'
+            }`}
+            title={
+              !isCameraActive && !isScanning
+                ? 'Start camera to use flash'
+                : !flashSupported
+                ? 'Flash not supported on this device'
+                : isFlashOn
+                ? 'Turn flash off'
+                : 'Turn flash on'
+            }
+          >
+            <Zap className={`w-5 h-5 ${isFlashOn ? 'animate-pulse' : ''}`} />
+          </button>
         </div>
 
         {/* Right: Empty spacer for balance */}
