@@ -51,6 +51,7 @@ import NotFound from "./pages/NotFound";
 import JoinEvent from "./pages/JoinEvent";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MobileAccessGuard from "./components/MobileAccessGuard";
+import WebAccessGuard from "./components/WebAccessGuard";
 
 const queryClient = new QueryClient();
 
@@ -131,7 +132,9 @@ const App = () => (
               />
               <Route path="/participant-dashboard" element={
                 <ProtectedRoute requiredRole="participant">
-                  <ParticipantDashboard />
+                  <WebAccessGuard allowedRoles={['participant-mobile-only']}>
+                    <ParticipantDashboard />
+                  </WebAccessGuard>
                 </ProtectedRoute>
               } />
               <Route path="/create-event" element={
