@@ -8,7 +8,11 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchShowDuration: 2000,
       showSpinner: true,
-      backgroundColor: '#3B82F6'
+      backgroundColor: '#4C1D95',
+      androidSplashResourceName: 'splash',
+      androidScaleType: 'CENTER_CROP',
+      iosSpinnerStyle: 'small',
+      spinnerColor: '#FFFFFF'
     },
     Camera: {
       permissions: ['camera']
