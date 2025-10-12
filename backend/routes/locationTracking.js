@@ -357,7 +357,6 @@ router.get('/event/:eventId/alerts',
 
       let matchCondition = {
         event: eventId,
-        isActive: true,
         'alertsSent.0': { $exists: true }
       };
 

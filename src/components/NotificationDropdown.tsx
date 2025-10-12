@@ -44,9 +44,12 @@ const NotificationDropdown: React.FC = () => {
   const fetchLocationAlerts = async (showRefreshing = false) => {
     try {
       if (showRefreshing) setRefreshing(true);
-      
+
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) {
+        console.log('[NotificationDropdown] No auth token found');
+        return;
+      }
 
       // Get all active events and their alerts
       const eventsResponse = await fetch(`${API_CONFIG.API_BASE}/events?status=active`, {
@@ -56,18 +59,25 @@ const NotificationDropdown: React.FC = () => {
         }
       });
 
-      if (!eventsResponse.ok) return;
+      if (!eventsResponse.ok) {
+        console.log('[NotificationDropdown] Events fetch failed:', eventsResponse.status);
+        return;
+      }
 
       const eventsData = await eventsResponse.json();
-      const activeEvents = eventsData.data.events.filter((event: any) => 
-        event.status === 'active' && event.locationTracking?.enabled
-      );
+      console.log('[NotificationDropdown] All active events:', eventsData.data?.events?.length);
+
+      // Check ALL active events for alerts, not just those with locationTracking.enabled flag
+      const activeEvents = eventsData.data.events.filter((event: any) => event.status === 'active');
+      console.log('[NotificationDropdown] Active events to check:', activeEvents.length);
 
       // Fetch alerts for active events
       const allAlerts: LocationAlert[] = [];
-      
+
       for (const event of activeEvents) {
         try {
+          console.log(`[NotificationDropdown] Fetching alerts for event: ${event.title} (${event._id})`);
+
           const alertsResponse = await fetch(
             `${API_CONFIG.API_BASE}/location-tracking/event/${event._id}/alerts?acknowledged=false`,
             {
@@ -78,8 +88,12 @@ const NotificationDropdown: React.FC = () => {
             }
           );
 
+          console.log(`[NotificationDropdown] Alerts response status for ${event.title}:`, alertsResponse.status);
+
           if (alertsResponse.ok) {
             const alertsData = await alertsResponse.json();
+            console.log(`[NotificationDropdown] Alerts for ${event.title}:`, alertsData.data?.length || 0);
+
             const eventAlerts = alertsData.data.map((alert: any) => ({
               ...alert,
               eventId: event._id
@@ -87,16 +101,17 @@ const NotificationDropdown: React.FC = () => {
             allAlerts.push(...eventAlerts);
           }
         } catch (err) {
-          console.error(`Error fetching alerts for event ${event._id}:`, err);
+          console.error(`[NotificationDropdown] Error fetching alerts for event ${event._id}:`, err);
         }
       }
 
       // Sort by timestamp (newest first)
       allAlerts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      console.log('[NotificationDropdown] Total alerts found:', allAlerts.length);
       setAlerts(allAlerts);
 
     } catch (err) {
-      console.error('Error fetching location alerts:', err);
+      console.error('[NotificationDropdown] Error fetching location alerts:', err);
     } finally {
       setLoading(false);
       if (showRefreshing) setRefreshing(false);
