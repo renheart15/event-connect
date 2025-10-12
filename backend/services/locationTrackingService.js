@@ -161,9 +161,10 @@ class LocationTrackingService {
   // Handle participant leaving geofence
   async handleParticipantLeftGeofence(locationStatus, event) {
     console.log(`Participant ${locationStatus.participant.name} left geofence for event ${event.title}`);
-    
-    // Start outside timer
+
+    // Start outside timer with reason 'outside'
     locationStatus.startOutsideTimer();
+    locationStatus.outsideTimer.reason = 'outside';
     locationStatus.status = 'outside';
 
     // Set up monitoring timer for this participant
@@ -211,6 +212,7 @@ class LocationTrackingService {
 
       // Activate the timer starting from when data became stale (not from last update)
       locationStatus.outsideTimer.isActive = true;
+      locationStatus.outsideTimer.reason = 'stale'; // Mark as stale timer
       locationStatus.outsideTimer.startTime = staleThresholdTime;
       locationStatus.outsideTimer.currentSessionStart = staleThresholdTime;
 
