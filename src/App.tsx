@@ -50,6 +50,7 @@ import LocationDebugger from "./pages/LocationDebugger";
 import NotFound from "./pages/NotFound";
 import JoinEvent from "./pages/JoinEvent";
 import ProtectedRoute from "./components/ProtectedRoute";
+import MobileAccessGuard from "./components/MobileAccessGuard";
 
 const queryClient = new QueryClient();
 
@@ -68,17 +69,23 @@ const App = () => (
               <Route path="/register" element={<Register />} />
               <Route path="/organizer-dashboard" element={
                 <ProtectedRoute requiredRole="organizer">
-                  <OrganizerDashboard />
+                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                    <OrganizerDashboard />
+                  </MobileAccessGuard>
                 </ProtectedRoute>
               } />
               <Route path="/organization" element={
                 <ProtectedRoute requiredRole="organizer">
-                  <OrganizationManagement />
+                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                    <OrganizationManagement />
+                  </MobileAccessGuard>
                 </ProtectedRoute>
               } />
               <Route path="/all-events" element={
                 <ProtectedRoute requiredRole="organizer">
-                  <AllEvents />
+                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                    <AllEvents />
+                  </MobileAccessGuard>
                 </ProtectedRoute>
               } />
               <Route path="/public-events" element={<PublicEvents />} />
@@ -89,12 +96,16 @@ const App = () => (
               } />
               <Route path="/send-invitations" element={
                 <ProtectedRoute requiredRole="organizer">
-                  <SendInvitations />
+                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                    <SendInvitations />
+                  </MobileAccessGuard>
                 </ProtectedRoute>
               } />
               <Route path="/invitation-summary" element={
                 <ProtectedRoute requiredRole="organizer">
-                  <InvitationSummary />
+                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                    <InvitationSummary />
+                  </MobileAccessGuard>
                 </ProtectedRoute>
               } />
               <Route path="/invitation/:code" element={<InvitationView />} />
@@ -102,7 +113,9 @@ const App = () => (
                 path="/events/:eventId/registration/create"
                 element={
                   <ProtectedRoute requiredRole="organizer">
-                    <CreateRegistrationForm />
+                    <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                      <CreateRegistrationForm />
+                    </MobileAccessGuard>
                   </ProtectedRoute>
                 }
               />
@@ -110,7 +123,9 @@ const App = () => (
                 path="/registration-forms/:formId/edit"
                 element={
                   <ProtectedRoute requiredRole="organizer">
-                    <EditRegistrationForm />
+                    <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                      <EditRegistrationForm />
+                    </MobileAccessGuard>
                   </ProtectedRoute>
                 }
               />
@@ -121,22 +136,30 @@ const App = () => (
               } />
               <Route path="/create-event" element={
                 <ProtectedRoute requiredRole="organizer">
-                  <CreateEvent />
+                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                    <CreateEvent />
+                  </MobileAccessGuard>
                 </ProtectedRoute>
               } />
               <Route path="/event/:eventId/monitor" element={
                 <ProtectedRoute requiredRole="organizer">
-                  <EventMonitor />
+                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                    <EventMonitor />
+                  </MobileAccessGuard>
                 </ProtectedRoute>
               } />
               <Route path="/event-monitor" element={
                 <ProtectedRoute requiredRole="organizer">
-                  <EventMonitor />
+                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                    <EventMonitor />
+                  </MobileAccessGuard>
                 </ProtectedRoute>
               } />
               <Route path="/event/:eventId/location-debug" element={
                 <ProtectedRoute requiredRole="organizer">
-                  <LocationDebugger />
+                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                    <LocationDebugger />
+                  </MobileAccessGuard>
                 </ProtectedRoute>
               } />
               <Route path="/join/:eventCode" element={<JoinEvent />} />
