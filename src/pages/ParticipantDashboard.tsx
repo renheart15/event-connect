@@ -5342,7 +5342,7 @@ const ParticipantDashboard = () => {
 
         {/* Center: Flash Button */}
         <div className="flex justify-center">
-          {isCameraActive && (
+          {(isCameraActive || isScanning) && (
             <button
               onClick={toggleFlash}
               disabled={!flashSupported}
