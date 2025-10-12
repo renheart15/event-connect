@@ -67,17 +67,28 @@ const EventMonitor = () => {
       }
 
       // Transform attendance data for display
-      const transformedParticipants = data.data.attendanceLogs.map(log => ({
-        id: log._id,
-        name: log.participant.name,
-        email: log.participant.email,
-        status: log.status === 'checked-in' ? 'present' : 'left-early',
-        checkInTime: new Date(log.checkInTime).toLocaleTimeString('en-US', { hour12: true }),
-        checkOutTime: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('en-US', { hour12: true }) : null,
-        duration: log.duration || 0,
-        lastSeen: getTimeAgo(log.lastLocationUpdate || log.checkInTime),
-        batteryLevel: log.batteryLevel || null // Use actual battery level or null if not available
-      }));
+      const transformedParticipants = data.data.attendanceLogs.map(log => {
+        // Calculate real-time duration for checked-in participants
+        let duration = log.duration || 0;
+        if (log.status === 'checked-in' && log.checkInTime) {
+          // For active participants, calculate real-time duration
+          const checkInTime = new Date(log.checkInTime);
+          const now = new Date();
+          duration = Math.round((now - checkInTime) / (1000 * 60)); // Duration in minutes
+        }
+
+        return {
+          id: log._id,
+          name: log.participant.name,
+          email: log.participant.email,
+          status: log.status === 'checked-in' ? 'present' : 'left-early',
+          checkInTime: new Date(log.checkInTime).toLocaleTimeString('en-US', { hour12: true }),
+          checkOutTime: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('en-US', { hour12: true }) : null,
+          duration: duration, // Duration already in minutes
+          lastSeen: getTimeAgo(log.lastLocationUpdate || log.checkInTime),
+          batteryLevel: log.batteryLevel || null // Use actual battery level or null if not available
+        };
+      });
 
       setParticipants(transformedParticipants);
       setStats(data.data.stats);
@@ -624,7 +635,7 @@ const EventMonitor = () => {
                         )}
                         <div>
                           <p className="font-medium">Duration</p>
-                          <p>{Math.round(participant.duration / 60) || 0} minutes</p>
+                          <p>{participant.duration || 0} minutes</p>
                         </div>
                         <div>
                           <p className="font-medium">Status</p>
