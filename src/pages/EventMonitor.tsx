@@ -627,8 +627,8 @@ const EventMonitor = () => {
                           <p>{Math.round(participant.duration / 60) || 0} minutes</p>
                         </div>
                         <div>
-                          <p className="font-medium">Last Seen</p>
-                          <p>{participant.lastSeen}</p>
+                          <p className="font-medium">Status</p>
+                          <p className="capitalize">{participant.status.replace('-', ' ')}</p>
                         </div>
                         <div>
                           <p className="font-medium flex items-center gap-1">
