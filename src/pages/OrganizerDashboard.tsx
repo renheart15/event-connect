@@ -20,7 +20,6 @@ import FeedbackFormManager from '@/components/FeedbackFormManager';
 import QRCodeDisplay from '@/components/QRCodeDisplay';
 import GeofenceMap from '@/components/GeofenceMap';
 import Profile from '@/components/Profile';
-import OrganizationSwitcher from '@/components/OrganizationSwitcher';
 // import EmailSettings from '@/components/EmailSettings';
 import { exportEventSummary, exportDetailedEventReport } from '@/utils/reportUtils';
 import { useToast } from '@/hooks/use-toast';
@@ -562,17 +561,14 @@ const OrganizerDashboard = () => {
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Organizer Dashboard
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Welcome back, {user?.name || 'Organizer'}
-                </p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Organizer Dashboard
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Welcome back, {user?.name || 'Organizer'}
+              </p>
             </div>
-            <OrganizationSwitcher />
           </div>
         </div>
       </div>
