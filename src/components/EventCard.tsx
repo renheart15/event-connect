@@ -246,8 +246,8 @@ const EventCard = ({
                   variant="outline"
                   size="sm"
                   className={`whitespace-nowrap text-xs h-7 ${event.published
-                    ? 'text-green-700 border-green-200 hover:bg-green-50 hover:border-green-300 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-950/30'
-                    : 'text-orange-700 border-orange-200 hover:bg-orange-50 hover:border-orange-300 dark:text-orange-400 dark:border-orange-800 dark:hover:bg-orange-950/30'
+                    ? 'text-red-700 border-red-200 hover:bg-red-50 hover:border-red-300 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-950/30'
+                    : 'text-green-700 border-green-200 hover:bg-green-50 hover:border-green-300 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-950/30'
                   }`}
                   onClick={() => onPublishClick(event.id)}
                 >
