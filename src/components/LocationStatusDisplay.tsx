@@ -8,9 +8,7 @@ import {
   Clock,
   AlertTriangle,
   CheckCircle,
-  XCircle,
-  Bell,
-  BellOff
+  XCircle
 } from 'lucide-react';
 import { useLocationTracking } from '@/hooks/useLocationTracking';
 import { useToast } from '@/hooks/use-toast';
@@ -65,15 +63,13 @@ const LiveCountdownTimer: React.FC<{
 
 const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }) => {
   const { toast } = useToast();
-  const [acknowledgingAlerts, setAcknowledgingAlerts] = useState<Set<string>>(new Set());
-  
-  const { 
-    locationStatuses, 
-    summary, 
-    loading, 
-    error, 
-    refreshLocationData,
-    acknowledgeAlert 
+
+  const {
+    locationStatuses,
+    summary,
+    loading,
+    error,
+    refreshLocationData
   } = useLocationTracking(eventId);
   
   // Add error boundary for debugging
@@ -135,34 +131,6 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
       case 'exceeded_limit': return 'Exceeded Time Limit';
       case 'absent': return 'Marked Absent';
       default: return 'Unknown Status';
-    }
-  };
-
-  const handleAcknowledgeAlert = async (statusId: string, alertId: string) => {
-    const alertKey = `${statusId}-${alertId}`;
-    
-    if (acknowledgingAlerts.has(alertKey)) return;
-
-    try {
-      setAcknowledgingAlerts(prev => new Set(prev).add(alertKey));
-      await acknowledgeAlert(statusId, alertId);
-      
-      toast({
-        title: "Alert Acknowledged",
-        description: "The alert has been marked as acknowledged.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to acknowledge alert. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setAcknowledgingAlerts(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(alertKey);
-        return newSet;
-      });
     }
   };
 
@@ -509,45 +477,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     return null;
                   })()}
 
-                  {/* Alerts */}
-                  {status.alertsSent.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="font-medium text-sm text-gray-700">Recent Alerts:</p>
-                      {status.alertsSent
-                        .filter(alert => !alert.acknowledged)
-                        .slice(0, 3)
-                        .map((alert) => {
-                          const alertKey = `${status._id}-${alert._id}`;
-                          const isAcknowledging = acknowledgingAlerts.has(alertKey);
-                          
-                          return (
-                            <div key={alert._id} className="flex items-center justify-between bg-red-50 border border-red-200 rounded p-2">
-                              <div className="flex items-center gap-2 text-red-700">
-                                <Bell className="w-4 h-4" />
-                                <span className="text-sm font-medium">
-                                  {alert.type === 'warning' && 'Approaching Time Limit'}
-                                  {alert.type === 'exceeded_limit' && 'Exceeded Time Limit'}
-                                  {alert.type === 'returned' && 'Returned to Premises'}
-                                </span>
-                                <span className="text-xs text-red-500">
-                                  {new Date(alert.timestamp).toLocaleTimeString('en-US', { hour12: true })}
-                                </span>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleAcknowledgeAlert(status._id, alert._id)}
-                                disabled={isAcknowledging}
-                                className="text-red-700 border-red-300 hover:bg-red-100"
-                              >
-                                <BellOff className="w-3 h-3 mr-1" />
-                                {isAcknowledging ? 'Acknowledging...' : 'Acknowledge'}
-                              </Button>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  )}
+                  {/* Alerts removed - now shown in header bell icon */}
                 </div>
                 );
               })

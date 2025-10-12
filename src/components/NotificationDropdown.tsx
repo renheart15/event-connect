@@ -8,14 +8,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Bell, 
-  AlertTriangle, 
-  MapPin, 
+import {
+  Bell,
+  AlertTriangle,
+  MapPin,
   Clock,
   Users,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Check
 } from 'lucide-react';
 import { API_CONFIG } from '@/config';
 
@@ -38,6 +39,7 @@ const NotificationDropdown: React.FC = () => {
   const [alerts, setAlerts] = useState<LocationAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [acknowledgingAlerts, setAcknowledgingAlerts] = useState<Set<string>>(new Set());
 
   const fetchLocationAlerts = async (showRefreshing = false) => {
     try {
@@ -139,12 +141,49 @@ const NotificationDropdown: React.FC = () => {
     const now = new Date();
     const time = new Date(timestamp);
     const diffInMinutes = Math.floor((now.getTime() - time.getTime()) / (1000 * 60));
-    
+
     if (diffInMinutes < 1) return 'Just now';
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     const diffInHours = Math.floor(diffInMinutes / 60);
     if (diffInHours < 24) return `${diffInHours}h ago`;
     return `${Math.floor(diffInHours / 24)}d ago`;
+  };
+
+  const acknowledgeAlert = async (statusId: string, alertId: string, event?: React.MouseEvent) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    const alertKey = `${statusId}-${alertId}`;
+    if (acknowledgingAlerts.has(alertKey)) return;
+
+    try {
+      setAcknowledgingAlerts(prev => new Set(prev).add(alertKey));
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_CONFIG.API_BASE}/location-tracking/acknowledge-alert`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ statusId, alertId })
+      });
+
+      if (response.ok) {
+        // Remove the acknowledged alert from the list
+        setAlerts(prev => prev.filter(a => a.alertId !== alertId));
+      }
+    } catch (error) {
+      console.error('Error acknowledging alert:', error);
+    } finally {
+      setAcknowledgingAlerts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(alertKey);
+        return newSet;
+      });
+    }
   };
 
   const hasUnreadAlerts = alerts.length > 0;
@@ -201,28 +240,56 @@ const NotificationDropdown: React.FC = () => {
             </div>
           ) : (
             <div className="py-1">
-              {alerts.slice(0, 10).map((alert) => (
-                <DropdownMenuItem key={`${alert.alertId}-${alert.timestamp}`} className="p-0">
-                  <Link 
-                    to={`/event/${alert.eventId}/monitor`}
-                    className="flex items-start gap-3 w-full p-3 hover:bg-gray-50"
-                  >
-                    {getAlertIcon(alert.type)}
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm truncate">
-                        {alert.participantName}
-                      </p>
-                      <p className="text-xs text-gray-600 truncate">
-                        {alert.eventTitle}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {getAlertText(alert.type)} • {formatTime(alert.timestamp)}
-                      </p>
+              {alerts.slice(0, 10).map((alert) => {
+                const alertKey = `${alert.statusId}-${alert.alertId}`;
+                const isAcknowledging = acknowledgingAlerts.has(alertKey);
+
+                return (
+                  <div key={`${alert.alertId}-${alert.timestamp}`} className="border-b last:border-0">
+                    <div className="flex items-start gap-2 p-3 hover:bg-gray-50">
+                      {getAlertIcon(alert.type)}
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          to={`/event/${alert.eventId}/monitor`}
+                          className="block"
+                        >
+                          <p className="font-medium text-sm truncate hover:underline">
+                            {alert.participantName}
+                          </p>
+                          <p className="text-xs text-gray-600 truncate">
+                            {alert.eventTitle}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {getAlertText(alert.type)} • {formatTime(alert.timestamp)}
+                          </p>
+                        </Link>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => acknowledgeAlert(alert.statusId, alert.alertId, e)}
+                          disabled={isAcknowledging}
+                          className="h-7 w-7 p-0"
+                          title="Acknowledge alert"
+                        >
+                          <Check className="w-3 h-3" />
+                        </Button>
+                        <Link to={`/event/${alert.eventId}/monitor`}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            title="View event"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </Button>
+                        </Link>
+                      </div>
                     </div>
-                    <ExternalLink className="w-3 h-3 text-gray-400 mt-1" />
-                  </Link>
-                </DropdownMenuItem>
-              ))}
+                  </div>
+                );
+              })}
               
               {alerts.length > 10 && (
                 <div className="px-3 py-2 text-center border-t">
