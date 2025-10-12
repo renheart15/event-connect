@@ -3,6 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
   MapPin,
   Clock,
   AlertTriangle,
@@ -237,7 +243,8 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                 <p className="text-sm">Location tracking starts when participants check in.</p>
               </div>
             ) : (
-              locationStatuses.map((status) => {
+              <Accordion type="multiple" className="space-y-4">
+              {locationStatuses.map((status) => {
                 // Debug: Check if timer should show
                 const lastUpdate = new Date(status.lastLocationUpdate);
                 const now = new Date();
@@ -248,23 +255,27 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                 // Timer debug logging removed for production
 
                 return (
-                  <div
+                  <AccordionItem
                     key={status._id}
-                    className={`border rounded-lg p-4 space-y-3 ${
+                    value={status._id}
+                    className={`border rounded-lg ${
                       isAbsent ? 'opacity-50 bg-gray-100 dark:bg-gray-800' : ''
                     }`}
                   >
-                    {/* Participant Info and Status */}
-                    <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-semibold text-lg">{status.participant.name}</h3>
-                      <p className="text-sm text-gray-600">{status.participant.email}</p>
-                    </div>
-                    <Badge variant={getStatusColor(status.status)} className="flex items-center gap-1">
-                      {getStatusIcon(status.status)}
-                      {getStatusText(status.status)}
-                    </Badge>
-                  </div>
+                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                      {/* Participant Info and Status */}
+                      <div className="flex justify-between items-start w-full pr-4">
+                        <div className="text-left">
+                          <h3 className="font-semibold text-lg">{status.participant.name}</h3>
+                          <p className="text-sm text-gray-600">{status.participant.email}</p>
+                        </div>
+                        <Badge variant={getStatusColor(status.status)} className="flex items-center gap-1">
+                          {getStatusIcon(status.status)}
+                          {getStatusText(status.status)}
+                        </Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-4 pb-4 space-y-3">
 
                   {/* Location Details */}
                   <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
@@ -440,9 +451,11 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                   })()}
 
                   {/* Alerts removed - now shown in header bell icon */}
-                </div>
+                    </AccordionContent>
+                  </AccordionItem>
                 );
-              })
+              })}
+              </Accordion>
             )}
           </div>
         </CardContent>
