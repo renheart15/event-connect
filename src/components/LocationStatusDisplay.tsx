@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   MapPin,
   Clock,
@@ -151,17 +150,14 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
     return (
       <Card>
         <CardContent className="pt-6">
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Location Tracking Error:</strong><br />
-              {error}
-              <br /><br />
-              <Button onClick={refreshLocationData} variant="outline" size="sm" className="mt-2">
-                Retry
-              </Button>
-            </AlertDescription>
-          </Alert>
+          <div className="text-center py-8">
+            <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+            <p className="text-lg font-semibold text-red-600 mb-2">Location Tracking Error</p>
+            <p className="text-sm text-gray-600 mb-4">{error}</p>
+            <Button onClick={refreshLocationData} variant="outline" size="sm">
+              Retry
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -380,30 +376,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     </div>
                   </div>
 
-                  {/* Stale Data Warning */}
-                  {(() => {
-                    const lastUpdate = new Date(status.lastLocationUpdate);
-                    const now = new Date();
-                    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                    const isStale = minutesSinceUpdate > 3;
-
-                    if (isStale && !isAbsent) {
-                      return (
-                        <Alert variant="destructive" className="mt-3 bg-purple-50 border-purple-300">
-                          <AlertTriangle className="h-4 w-4 text-purple-700" />
-                          <AlertDescription className="text-purple-900">
-                            <strong>🔌 Stale Location Data (No Updates)</strong>
-                            <br />
-                            Last update was <strong>{Math.round(minutesSinceUpdate)} minutes ago</strong>.
-                            The participant's device may be offline, in power-saving mode, or the browser tab may be backgrounded.
-                            <br />
-                            <span className="text-sm italic">This is a "no signal" issue, not an "outside premises" issue.</span>
-                          </AlertDescription>
-                        </Alert>
-                      );
-                    }
-                    return null;
-                  })()}
+                  {/* Stale Data Warning removed - now shown in header bell icon */}
 
                   {/* Outside Premises Timer Display */}
                   {(() => {
