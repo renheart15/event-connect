@@ -525,7 +525,7 @@ const OrganizationManagement = () => {
                         const userMember = org.members.find(member => member.user._id === user._id);
                         const isOwner = org.owner._id === user._id;
                         const userRole = isOwner ? 'owner' : userMember?.role || 'member';
-                        
+
                         return (
                           <TableRow key={org._id}>
                             <TableCell className="font-medium">
@@ -556,7 +556,7 @@ const OrganizationManagement = () => {
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 {getRoleIcon(userRole, isOwner)}
-                                <Badge 
+                                <Badge
                                   variant={isOwner ? 'default' : userRole === 'admin' ? 'default' : 'secondary'}
                                   className={isOwner ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : userRole === 'admin' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ''}
                                 >
@@ -584,97 +584,6 @@ const OrganizationManagement = () => {
                           </TableRow>
                         );
                       })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Organizations List - For Organizers */}
-          {user?.role === 'organizer' && organizations.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="w-5 h-5" />
-                  Organizations I Own ({organizations.length})
-                </CardTitle>
-                <CardDescription>
-                  Organizations you created and manage as owner
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Organization Name</TableHead>
-                        <TableHead>Code</TableHead>
-                        <TableHead>Members</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {organizations.map((org) => (
-                        <TableRow 
-                          key={org._id}
-                          className={selectedOrg?._id === org._id ? "bg-blue-50 dark:bg-blue-950/30" : ""}
-                        >
-                          <TableCell className="font-medium">
-                            <div>
-                              <div className="font-semibold">{org.name}</div>
-                              {org.description && (
-                                <div className="text-sm text-gray-500 mt-1">
-                                  {org.description}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-sm font-mono">
-                                {org.organizationCode}
-                              </code>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => copyToClipboard(org.organizationCode)}
-                                className="h-6 w-6 p-0"
-                              >
-                                {copiedCodes[org.organizationCode] ? <CheckCircle className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                              </Button>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">
-                              {org.memberCount} {org.memberCount === 1 ? 'Member' : 'Members'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {new Date(org.createdAt).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant={selectedOrg?._id === org._id ? "default" : "outline"}
-                                onClick={() => {
-                                  setSelectedOrg(org);
-                                  setShowCreateForm(false);
-                                  setFormData({
-                                    name: org.name,
-                                    description: org.description || '',
-                                    organizationCode: org.organizationCode
-                                  });
-                                }}
-                              >
-                                {selectedOrg?._id === org._id ? 'Selected' : 'Select'}
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
                     </TableBody>
                   </Table>
                 </div>
