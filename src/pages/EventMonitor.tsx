@@ -544,7 +544,7 @@ const EventMonitor = () => {
                 <CardContent className="pt-4">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">{stats.totalCheckedOut}</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Checked Out</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Late</p>
                   </div>
                 </CardContent>
               </Card>
