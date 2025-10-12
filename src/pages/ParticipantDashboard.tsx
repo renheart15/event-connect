@@ -5329,13 +5329,38 @@ const ParticipantDashboard = () => {
       {user._id && <ParticipantTimerModal participantId={user._id} />}
 
       {/* Top Header Bar */}
-      <div className={`flex items-center justify-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 ${!isOnline ? 'mt-6' : ''}`}>
-        <button
-          onClick={() => setShowHistoryDropdown(!showHistoryDropdown)}
-          className="w-10 h-10 bg-gray-100 dark:bg-gray-600 rounded-lg flex items-center justify-center text-gray-700 dark:text-white active:bg-gray-200 dark:active:bg-gray-500 touch-manipulation relative"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+      <div className={`grid grid-cols-3 items-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 ${!isOnline ? 'mt-6' : ''}`}>
+        {/* Left: Menu Button */}
+        <div className="flex justify-start">
+          <button
+            onClick={() => setShowHistoryDropdown(!showHistoryDropdown)}
+            className="w-10 h-10 bg-gray-100 dark:bg-gray-600 rounded-lg flex items-center justify-center text-gray-700 dark:text-white active:bg-gray-200 dark:active:bg-gray-500 touch-manipulation relative"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Center: Flash Button */}
+        <div className="flex justify-center">
+          {isCameraActive && flashSupported && (
+            <button
+              onClick={toggleFlash}
+              className={`w-10 h-10 rounded-lg flex items-center justify-center touch-manipulation transition-all ${
+                isFlashOn
+                  ? 'bg-yellow-500 text-white shadow-lg'
+                  : 'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-white active:bg-gray-200 dark:active:bg-gray-500'
+              }`}
+              title={isFlashOn ? 'Turn flash off' : 'Turn flash on'}
+            >
+              <Flashlight className={`w-5 h-5 ${isFlashOn ? 'animate-pulse' : ''}`} />
+            </button>
+          )}
+        </div>
+
+        {/* Right: Empty spacer for balance */}
+        <div className="flex justify-end">
+          {/* Empty for symmetry */}
+        </div>
       </div>
 
 
@@ -5727,32 +5752,15 @@ const ParticipantDashboard = () => {
               </div>
             </div>
             
-            {/* Flash and Zoom controls */}
+            {/* Zoom controls */}
             <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2">
-              <div className="flex flex-col items-center space-y-3">
-                {/* Flash toggle button */}
-                {flashSupported && (
-                  <button
-                    onClick={toggleFlash}
-                    className={`w-12 h-12 rounded-full flex items-center justify-center touch-manipulation active:scale-95 transition-all ${
-                      isFlashOn 
-                        ? 'bg-yellow-500 bg-opacity-90 text-white shadow-lg shadow-yellow-500/30' 
-                        : 'bg-black bg-opacity-50 text-white hover:bg-opacity-70'
-                    }`}
-                  >
-                    <Flashlight className={`w-6 h-6 ${isFlashOn ? 'animate-pulse' : ''}`} />
-                  </button>
-                )}
-                
-                {/* Zoom controls */}
-                <div className="flex items-center space-x-3 bg-black bg-opacity-50 rounded-full px-4 py-2">
+              <div className="flex items-center space-x-3 bg-black bg-opacity-50 rounded-full px-4 py-2">
                   <button className="text-blue-600 text-xl font-medium w-6 h-6 flex items-center justify-center active:text-blue-500 touch-manipulation">-</button>
                   <div className="w-24 h-2 bg-gray-300 dark:bg-gray-600 rounded-full touch-manipulation">
                     <div className="w-1/2 h-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-full"></div>
                   </div>
                   <button className="text-blue-600 text-xl font-medium w-6 h-6 flex items-center justify-center active:text-blue-500 touch-manipulation">+</button>
                 </div>
-              </div>
             </div>
           </div>
         ) : (
