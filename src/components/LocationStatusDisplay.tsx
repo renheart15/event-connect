@@ -245,18 +245,7 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                 const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3 minutes
                 const isAbsent = status.status === 'absent';
 
-                console.log('🕐 [TIMER DEBUG]', {
-                  participant: status.participant.name,
-                  isStale,
-                  minutesSinceUpdate: Math.round(minutesSinceUpdate),
-                  timerActive: status.outsideTimer?.isActive,
-                  currentTimeOutside: status.currentTimeOutside,
-                  shouldShowTimer: isStale || status.outsideTimer?.isActive,
-                  isAbsent,
-                  eventData: status.event,
-                  maxTimeOutside: status.event?.maxTimeOutside,
-                  hasEventObject: typeof status.event === 'object'
-                });
+                // Timer debug logging removed for production
 
                 return (
                   <div
@@ -395,8 +384,8 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       return null;
                     }
 
-                    // Only show timer if backend has activated it for 'outside' reason AND data is fresh
-                    if ((status.outsideTimer?.isActive && status.outsideTimer?.reason === 'outside') || status.currentTimeOutside > 0) {
+                    // Only show timer if backend has activated it for 'outside' reason (not stale)
+                    if (status.outsideTimer?.isActive && status.outsideTimer?.reason === 'outside') {
                       // Get maxTimeOutside from event (with fallback to 15 minutes)
                       const maxTimeOutside = status.event?.maxTimeOutside || 15;
                       const maxTimeSeconds = maxTimeOutside * 60;
