@@ -43,7 +43,7 @@ const ParticipantDashboard = () => {
     return localStorage.getItem('participantActiveView') || 'active';
   }); // 'upcoming', 'active', 'completed', 'public', 'profile', 'settings', 'organization'
   const [publicEvents, setPublicEvents] = useState([]);
-  const [facingMode, setFacingMode] = useState('environment'); // 'user' for front, 'environment' for back
+  const facingMode = 'environment'; // Always use back camera only
   const [selectedFeedbackEvent, setSelectedFeedbackEvent] = useState<any>(null);
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [feedbackFormsStatus, setFeedbackFormsStatus] = useState<Record<string, { exists: boolean; isPublished: boolean }>>({});
@@ -859,18 +859,6 @@ const ParticipantDashboard = () => {
     }
   }, [myAttendance]);
 
-  // Restart camera when facing mode changes
-  useEffect(() => {
-    if (isCameraActive && videoRef.current) {
-      // Stop current stream
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      // Restart camera with new facing mode
-      startWebCamera();
-    }
-  }, [facingMode]);
-
   // Auto-checkout system - periodically check for ended events and auto-checkout participants
   useEffect(() => {
     const checkForEndedEvents = async () => {
@@ -1424,13 +1412,23 @@ const ParticipantDashboard = () => {
       setScanningStatus('Camera starting...');
       console.log('Camera set to active, waiting for video element to mount');
 
-      // Check flash support for any camera
-      if (!flashSupported) {
+      // Check flash support for the camera
+      try {
         const track = stream.getVideoTracks()[0];
         const capabilities = track.getCapabilities();
+        console.log('Camera capabilities:', capabilities);
+        console.log('Torch support:', (capabilities as any).torch);
+
         if ((capabilities as any).torch) {
           setFlashSupported(true);
+          console.log('Flash/torch is supported on this camera');
+        } else {
+          setFlashSupported(false);
+          console.log('Flash/torch is NOT supported on this camera');
         }
+      } catch (capError) {
+        console.error('Error checking camera capabilities:', capError);
+        setFlashSupported(false);
       }
 
       // Use useEffect-like approach to wait for video element
@@ -1609,10 +1607,19 @@ const ParticipantDashboard = () => {
   };
 
   const toggleFlash = async () => {
-    if (!streamRef.current || !flashSupported) {
+    if (!streamRef.current) {
+      toast({
+        title: "Camera not active",
+        description: "Please start the camera first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!flashSupported) {
       toast({
         title: "Flash not available",
-        description: "Flash is not supported on this camera",
+        description: "Flash/torch is not supported on this camera",
         variant: "destructive",
       });
       return;
@@ -1621,24 +1628,28 @@ const ParticipantDashboard = () => {
     try {
       const track = streamRef.current.getVideoTracks()[0];
       const newFlashState = !isFlashOn;
-      
+
+      console.log(`Attempting to turn flash ${newFlashState ? 'ON' : 'OFF'}`);
+
       await track.applyConstraints({
         advanced: [{ torch: newFlashState } as any]
       } as any);
-      
+
       setIsFlashOn(newFlashState);
-      
+      console.log(`Flash successfully turned ${newFlashState ? 'ON' : 'OFF'}`);
+
       // Haptic feedback
       await triggerHapticFeedback('light');
-      
+
       toast({
         title: `Flash ${newFlashState ? 'On' : 'Off'}`,
         description: `Camera flash has been turned ${newFlashState ? 'on' : 'off'}`,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Flash toggle error:', error);
       toast({
         title: "Flash error",
-        description: "Failed to toggle flash",
+        description: `Failed to toggle flash: ${error.message || 'Unknown error'}`,
         variant: "destructive",
       });
     }
@@ -5329,14 +5340,6 @@ const ParticipantDashboard = () => {
         
         <button className="w-10 h-10 bg-gray-100 dark:bg-gray-600 rounded-lg flex items-center justify-center text-gray-700 dark:text-white active:bg-gray-200 dark:active:bg-gray-500 touch-manipulation">
           <Zap className="w-5 h-5" />
-        </button>
-        
-        <button 
-          onClick={() => setFacingMode(facingMode === 'environment' ? 'user' : 'environment')}
-          className="w-10 h-10 bg-gray-100 dark:bg-gray-600 rounded-lg flex items-center justify-center text-gray-700 dark:text-white active:bg-gray-200 dark:active:bg-gray-500 touch-manipulation"
-          title={`Switch to ${facingMode === 'environment' ? 'front' : 'back'} camera`}
-        >
-          <RefreshCw className="w-5 h-5" />
         </button>
       </div>
 
