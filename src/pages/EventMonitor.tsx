@@ -5,6 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, Wifi, WifiOff, RefreshCw, Battery } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
@@ -609,50 +615,61 @@ const EventMonitor = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {participants && participants.length > 0 ? participants.map((participant) => (
-                    <div key={participant.id} className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="font-semibold">{participant.name}</h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{participant.email}</p>
-                        </div>
-                        <Badge variant={getStatusColor(participant.status)} className="flex items-center gap-1">
-                          {getStatusIcon(participant.status)}
-                          {participant.status.replace('-', ' ')}
-                        </Badge>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm text-gray-600 dark:text-gray-400">
-                        <div>
-                          <p className="font-medium">Check-in</p>
-                          <p>{participant.checkInTime}</p>
-                        </div>
-                        {participant.checkOutTime && (
-                          <div>
-                            <p className="font-medium">Check-out</p>
-                            <p>{participant.checkOutTime}</p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-medium">Duration</p>
-                          <p>{participant.duration || 0} minutes</p>
-                        </div>
-                        <div>
-                          <p className="font-medium">Status</p>
-                          <p className="capitalize">{participant.status.replace('-', ' ')}</p>
-                        </div>
-                        <div>
-                          <p className="font-medium flex items-center gap-1">
-                            <Battery className="w-4 h-4" />
-                            Battery
-                          </p>
-                          <p className={`font-semibold ${participant.batteryLevel ? getBatteryColor(participant.batteryLevel) : 'text-gray-400'}`}>
-                            {participant.batteryLevel ? `${participant.batteryLevel}%` : 'N/A'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )) : (
+                  {participants && participants.length > 0 ? (
+                    <Accordion type="multiple" className="space-y-4">
+                      {participants.map((participant) => (
+                        <AccordionItem
+                          key={participant.id}
+                          value={participant.id}
+                          className="border rounded-lg"
+                        >
+                          <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                            <div className="flex justify-between items-start w-full pr-4">
+                              <div className="text-left">
+                                <h3 className="font-semibold">{participant.name}</h3>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">{participant.email}</p>
+                              </div>
+                              <Badge variant={getStatusColor(participant.status)} className="flex items-center gap-1">
+                                {getStatusIcon(participant.status)}
+                                {participant.status.replace('-', ' ')}
+                              </Badge>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="px-4 pb-4">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm text-gray-600 dark:text-gray-400">
+                              <div>
+                                <p className="font-medium">Check-in</p>
+                                <p>{participant.checkInTime}</p>
+                              </div>
+                              {participant.checkOutTime && (
+                                <div>
+                                  <p className="font-medium">Check-out</p>
+                                  <p>{participant.checkOutTime}</p>
+                                </div>
+                              )}
+                              <div>
+                                <p className="font-medium">Duration</p>
+                                <p>{participant.duration || 0} minutes</p>
+                              </div>
+                              <div>
+                                <p className="font-medium">Status</p>
+                                <p className="capitalize">{participant.status.replace('-', ' ')}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium flex items-center gap-1">
+                                  <Battery className="w-4 h-4" />
+                                  Battery
+                                </p>
+                                <p className={`font-semibold ${participant.batteryLevel ? getBatteryColor(participant.batteryLevel) : 'text-gray-400'}`}>
+                                  {participant.batteryLevel ? `${participant.batteryLevel}%` : 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                  ) : (
                     <div className="text-center py-8 text-gray-500">
                       <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
                       <p>No participants checked in yet</p>
