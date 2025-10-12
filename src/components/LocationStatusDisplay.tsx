@@ -449,7 +449,12 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       return null;
                     }
 
-                    // Only show timer if backend has activated it (participant is actively outside)
+                    // Don't show outside timer if data is stale - stale warning takes priority
+                    if (isStale) {
+                      return null;
+                    }
+
+                    // Only show timer if backend has activated it (participant is actively outside) AND data is fresh
                     if (status.outsideTimer?.isActive || status.currentTimeOutside > 0) {
                       // Get maxTimeOutside from event (with fallback to 15 minutes)
                       const maxTimeOutside = status.event?.maxTimeOutside || 15;

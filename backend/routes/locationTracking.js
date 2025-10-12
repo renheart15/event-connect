@@ -247,6 +247,7 @@ router.get('/participant/:participantId/timer',
       const currentTimeOutside = locationStatus.calculateTotalTimeOutside();
 
       // Build timer data
+      // IMPORTANT: If data is stale, always show it as a stale issue (not an outside premises issue)
       const timerData = {
         eventId: locationStatus.event._id,
         eventTitle: locationStatus.event.title,
@@ -254,7 +255,9 @@ router.get('/participant/:participantId/timer',
         currentTimeOutside: currentTimeOutside,
         status: locationStatus.status,
         isStale: isStale,
-        timerActive: locationStatus.outsideTimer.isActive,
+        // If data is stale, treat timer as active to show the stale warning
+        // If data is fresh, show actual timer status
+        timerActive: isStale ? true : locationStatus.outsideTimer.isActive,
         startTime: locationStatus.outsideTimer.startTime
       };
 
