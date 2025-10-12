@@ -265,7 +265,7 @@ const NotificationDropdown: React.FC = () => {
                       {getAlertIcon(alert.type)}
                       <div className="min-w-0 flex-1">
                         <Link
-                          to={`/event/${alert.eventId}/location-tracking`}
+                          to={`/event/${alert.eventId}/monitor`}
                           className="block"
                         >
                           <p className="font-medium text-sm truncate hover:underline">
@@ -290,7 +290,7 @@ const NotificationDropdown: React.FC = () => {
                         >
                           <Check className="w-3 h-3" />
                         </Button>
-                        <Link to={`/event/${alert.eventId}/location-tracking`}>
+                        <Link to={`/event/${alert.eventId}/monitor`}>
                           <Button
                             variant="ghost"
                             size="sm"
