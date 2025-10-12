@@ -2,7 +2,16 @@
 
 ## ✅ **Successfully Implemented Features:**
 
-### **1. 📍 Location & Premises Notifications:**
+### **1. ⏰ Event Countdown Notifications (NEW!):**
+- Automatic notifications for upcoming events
+- **1 hour before event**: "Event Starting Soon" notification
+- **15 minutes before event**: "Event Starting Very Soon!" notification
+- **At event start time**: "Event is Starting Now!" notification
+- Works on both mobile app and web browsers
+- Notifications scheduled automatically when events are loaded
+- Requires notification permissions (requested automatically on first use)
+
+### **2. 📍 Location & Premises Notifications:**
 - Shows when participant is outside event premises
 - Live timer counting time spent outside  
 - Color-coded warnings (yellow → red as time increases)
@@ -28,6 +37,25 @@
 - **Real-time updates**: Live counters and status monitoring
 
 ## 🧪 **How to Test Each Feature:**
+
+### **Testing Event Countdown Notifications:**
+1. Login as participant
+2. Accept an event invitation for an upcoming event, OR
+3. Check into an active/upcoming event
+4. The app will automatically schedule notifications:
+   - 1 hour before event start
+   - 15 minutes before event start
+   - At event start time
+5. **To test immediately (without waiting)**:
+   - Create a test event with start time set to 2 minutes from now
+   - Accept the invitation
+   - Wait and you'll receive notifications
+6. **Mobile Testing**:
+   - Notifications work even when app is closed
+   - Check notification center for scheduled notifications
+7. **Web Testing**:
+   - Keep browser tab open or in background
+   - Browser notifications will appear at scheduled times
 
 ### **Testing Location Notifications:**
 1. Login as participant

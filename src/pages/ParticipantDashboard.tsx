@@ -21,6 +21,7 @@ import { SplashScreen } from '@capacitor/splash-screen';
 import { Capacitor } from '@capacitor/core';
 import jsQR from 'jsqr';
 import { fromZonedTime } from 'date-fns-tz';
+import { eventNotificationService } from '@/services/eventNotificationService';
 
 const ParticipantDashboard = () => {
   const [eventCode, setEventCode] = useState('');
@@ -695,6 +696,61 @@ const ParticipantDashboard = () => {
 
     fetchParticipantData();
   }, [token]);
+
+  // Schedule notifications for upcoming events
+  useEffect(() => {
+    const scheduleNotifications = async () => {
+      try {
+        // Get all upcoming events from invitations and attendance
+        const upcomingEvents: any[] = [];
+
+        // Add upcoming events from invitations (accepted invitations)
+        myInvitations.forEach((invitation: any) => {
+          if (invitation.status === 'accepted' &&
+              invitation.event &&
+              invitation.event.status === 'upcoming') {
+            upcomingEvents.push(invitation.event);
+          }
+        });
+
+        // Add active events from attendance (events participant has checked into)
+        myAttendance.forEach((attendance: any) => {
+          if (attendance.event &&
+              (attendance.event.status === 'upcoming' || attendance.event.status === 'active')) {
+            // Don't duplicate if already added from invitations
+            const isDuplicate = upcomingEvents.some(e => e._id === attendance.event._id);
+            if (!isDuplicate) {
+              upcomingEvents.push(attendance.event);
+            }
+          }
+        });
+
+        // Schedule notification for each upcoming event
+        for (const event of upcomingEvents) {
+          if (event.date && event.startTime) {
+            await eventNotificationService.scheduleEventNotifications({
+              id: event._id,
+              title: event.title,
+              date: event.date,
+              startTime: event.startTime,
+              location: typeof event.location === 'string'
+                ? event.location
+                : event.location?.address || 'Event location'
+            });
+          }
+        }
+
+        console.log(`Scheduled notifications for ${upcomingEvents.length} upcoming events`);
+      } catch (error) {
+        console.error('Error scheduling event notifications:', error);
+      }
+    };
+
+    // Only schedule if we have data loaded
+    if (!isLoading && (myInvitations.length > 0 || myAttendance.length > 0)) {
+      scheduleNotifications();
+    }
+  }, [myInvitations, myAttendance, isLoading]);
 
   // Fetch user's organizations information
   useEffect(() => {
