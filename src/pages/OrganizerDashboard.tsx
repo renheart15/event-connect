@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Eye, Filter, MoreHorizontal, Edit, Mail, Calendar, MapPin, Users, Settings, FileText, MessageSquare, Trash, QrCode, Map, Send, User, LogOut, Bell } from 'lucide-react';
+import { Plus, Eye, Filter, MoreHorizontal, Edit, Mail, Calendar, MapPin, Users, Settings, FileText, MessageSquare, Trash, QrCode, Map, Send, User, LogOut, Bell, Globe, Lock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -676,6 +676,7 @@ const OrganizerDashboard = () => {
                       <TableHead>Date</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Visibility</TableHead>
                       <TableHead className="text-center">Total</TableHead>
                       <TableHead className="text-center">Checked In</TableHead>
                       <TableHead className="text-center">Present</TableHead>
@@ -685,7 +686,7 @@ const OrganizerDashboard = () => {
                   <TableBody>
                     {displayedEvents.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                           No events found. Create your first event to get started!
                         </TableCell>
                       </TableRow>
@@ -710,15 +711,55 @@ const OrganizerDashboard = () => {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge 
+                            <Badge
                               variant={
-                                event.status === 'active' ? 'default' : 
-                                event.status === 'upcoming' ? 'secondary' : 
+                                event.status === 'active' ? 'default' :
+                                event.status === 'upcoming' ? 'secondary' :
                                 'outline'
                               }
                             >
                               {event.status}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {event.status === 'completed' ? (
+                              <Badge variant="outline" className="whitespace-nowrap text-xs">
+                                {event.published ? (
+                                  <>
+                                    <Globe className="w-3 h-3 mr-1" />
+                                    Public
+                                  </>
+                                ) : (
+                                  <>
+                                    <Lock className="w-3 h-3 mr-1" />
+                                    Private
+                                  </>
+                                )}
+                              </Badge>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className={`${
+                                  event.published
+                                    ? 'text-green-700 border-green-200 hover:bg-green-50 hover:border-green-300 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-950/30'
+                                    : 'text-orange-700 border-orange-200 hover:bg-orange-50 hover:border-orange-300 dark:text-orange-400 dark:border-orange-800 dark:hover:bg-orange-950/30'
+                                } whitespace-nowrap text-xs h-7`}
+                                onClick={() => handlePublishEvent(event.id)}
+                              >
+                                {event.published ? (
+                                  <>
+                                    <Lock className="w-3 h-3 mr-1" />
+                                    Private
+                                  </>
+                                ) : (
+                                  <>
+                                    <Globe className="w-3 h-3 mr-1" />
+                                    Public
+                                  </>
+                                )}
+                              </Button>
+                            )}
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -785,10 +826,6 @@ const OrganizerDashboard = () => {
                                     <DropdownMenuItem onClick={() => openSettingsDialog(event.id)}>
                                       <Settings className="w-4 h-4 mr-2" />
                                       Settings
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handlePublishEvent(event.id)}>
-                                      <Send className="w-4 h-4 mr-2" />
-                                      {event.published ? 'Unpublish' : 'Publish'}
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => openFeedbackDialog(event.id)}>
                                       <MessageSquare className="w-4 h-4 mr-2" />

@@ -253,13 +253,13 @@ const EventCard = ({
                 >
                   {event.published ? (
                     <>
-                      <Globe className="w-3 h-3 mr-1" />
-                      Public
+                      <Lock className="w-3 h-3 mr-1" />
+                      Private
                     </>
                   ) : (
                     <>
-                      <Lock className="w-3 h-3 mr-1" />
-                      Private
+                      <Globe className="w-3 h-3 mr-1" />
+                      Public
                     </>
                   )}
                 </Button>
