@@ -264,17 +264,20 @@ class LocationTrackingService {
 
         console.log(`✅ [TRACKING STOPPED] Participant removed from active tracking`);
       }
-    } else if (totalTime >= maxTimeOutsideSeconds * 0.8) {
-      locationStatus.status = 'warning';
+    }
+    // COMMENTED OUT: Warning alerts at 80% of time limit
+    // else if (totalTime >= maxTimeOutsideSeconds * 0.8) {
+    //   locationStatus.status = 'warning';
 
-      // Send warning alert if not already sent
-      const hasWarningAlert = locationStatus.alertsSent.some(
-        alert => alert.type === 'warning' && !alert.acknowledged
-      );
-      if (!hasWarningAlert) {
-        locationStatus.addAlert('warning');
-      }
-    } else if (!locationStatus.isWithinGeofence) {
+    //   // Send warning alert if not already sent
+    //   const hasWarningAlert = locationStatus.alertsSent.some(
+    //     alert => alert.type === 'warning' && !alert.acknowledged
+    //   );
+    //   if (!hasWarningAlert) {
+    //     locationStatus.addAlert('warning');
+    //   }
+    // }
+    else if (!locationStatus.isWithinGeofence) {
       locationStatus.status = 'outside';
     } else {
       locationStatus.status = 'inside';
