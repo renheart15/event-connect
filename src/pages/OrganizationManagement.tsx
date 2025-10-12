@@ -99,6 +99,17 @@ const OrganizationManagement = () => {
     }
   }, [user]);
 
+  // Populate form when editing an organization
+  useEffect(() => {
+    if (selectedOrg) {
+      setFormData({
+        name: selectedOrg.name,
+        description: selectedOrg.description || '',
+        organizationCode: selectedOrg.organizationCode
+      });
+    }
+  }, [selectedOrg]);
+
   const fetchOrganizations = async () => {
     try {
       setLoading(true);
