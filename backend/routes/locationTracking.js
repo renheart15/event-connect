@@ -90,7 +90,8 @@ router.post('/update-location', [
   body('participantId').isMongoId().withMessage('Valid participant ID is required'),
   body('latitude').isFloat({ min: -90, max: 90 }).withMessage('Valid latitude is required'),
   body('longitude').isFloat({ min: -180, max: 180 }).withMessage('Valid longitude is required'),
-  body('accuracy').optional().isFloat({ min: 0 }).withMessage('Accuracy must be a positive number')
+  body('accuracy').optional().isFloat({ min: 0 }).withMessage('Accuracy must be a positive number'),
+  body('batteryLevel').optional().isInt({ min: 0, max: 100 }).withMessage('Battery level must be between 0 and 100')
 ], auth, async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -102,15 +103,29 @@ router.post('/update-location', [
         });
       }
 
-      const { eventId, participantId, latitude, longitude, accuracy = 0 } = req.body;
+      const { eventId, participantId, latitude, longitude, accuracy = 0, batteryLevel } = req.body;
 
       const locationStatus = await locationTrackingService.updateParticipantLocation(
         eventId,
         participantId,
         latitude,
         longitude,
-        accuracy
+        accuracy,
+        batteryLevel
       );
+
+      // Also update the attendance log with battery data
+      if (batteryLevel !== null && batteryLevel !== undefined) {
+        try {
+          await AttendanceLog.findByIdAndUpdate(
+            locationStatus.attendanceLog,
+            { batteryLevel: batteryLevel },
+            { new: true }
+          );
+        } catch (err) {
+          console.error('Error updating attendance log with battery:', err);
+        }
+      }
 
       res.json({
         success: true,

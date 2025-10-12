@@ -95,7 +95,7 @@ class LocationTrackingService {
   }
 
   // Update participant location
-  async updateParticipantLocation(eventId, participantId, latitude, longitude, accuracy = 0) {
+  async updateParticipantLocation(eventId, participantId, latitude, longitude, accuracy = 0, batteryLevel = null) {
     try {
       const event = await Event.findById(eventId);
       if (!event) {
@@ -109,6 +109,14 @@ class LocationTrackingService {
 
       if (!locationStatus) {
         throw new Error('Location status not found. Please initialize tracking first.');
+      }
+
+      // Log battery level if provided
+      if (batteryLevel !== null && batteryLevel !== undefined) {
+        console.log(`🔋 [BATTERY] Participant ${locationStatus.participant.name}: ${batteryLevel}%`);
+        if (batteryLevel < 20) {
+          console.warn(`⚠️ [LOW BATTERY] Participant ${locationStatus.participant.name} has low battery: ${batteryLevel}%`);
+        }
       }
 
       // Calculate distance from event center
