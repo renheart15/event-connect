@@ -97,67 +97,112 @@ const ParticipantTimerModal: React.FC<ParticipantTimerModalProps> = ({ participa
   const percentageUsed = (currentTime / maxTimeSeconds) * 100;
 
   // Determine status color
+  // Determine if this is a stale data issue or an outside premises issue
+  const isStaleIssue = timerData.isStale;
+
   const getStatusColor = () => {
+    // Different colors for stale vs outside
+    if (isStaleIssue) {
+      // Purple/violet theme for stale (connectivity issue)
+      return 'bg-purple-600';
+    }
+    // Orange/red theme for outside premises (location issue)
     if (percentageUsed >= 100) return 'bg-red-600';
     if (percentageUsed >= 80) return 'bg-orange-600';
     if (percentageUsed >= 60) return 'bg-yellow-600';
-    return 'bg-blue-600';
+    return 'bg-orange-500';
   };
 
   const getStatusText = () => {
-    if (percentageUsed >= 100) return 'Time Limit Exceeded';
-    if (percentageUsed >= 80) return 'Approaching Time Limit';
-    if (percentageUsed >= 60) return 'Warning: Time Running Low';
-    return 'Time Remaining';
+    if (isStaleIssue) {
+      return '🔌 Location Updates Stopped';
+    }
+    if (percentageUsed >= 100) return '📍 Time Limit Exceeded';
+    if (percentageUsed >= 80) return '📍 Approaching Time Limit';
+    if (percentageUsed >= 60) return '📍 Warning: Time Running Low';
+    return '📍 Outside Event Premises';
   };
 
   const getMessage = () => {
-    if (timerData.isStale) {
-      return 'Your location data is unavailable. Please ensure location sharing is enabled.';
+    if (isStaleIssue) {
+      return 'Your device has stopped sending location updates. Please check your settings and ensure the app stays in the foreground.';
     }
-    return 'You are outside the event premises. Please return to avoid being marked absent.';
+    return 'You are outside the event premises. Please return within the time limit to avoid being marked absent.';
+  };
+
+  const getDetailedInstructions = () => {
+    if (isStaleIssue) {
+      return [
+        '• Keep this tab/app active and in the foreground',
+        '• Ensure location services are enabled',
+        '• Check your internet connection',
+        '• Disable battery saver mode if enabled'
+      ];
+    }
+    return [
+      '• Return to the event venue immediately',
+      '• You have a limited time before being marked absent',
+      '• Contact organizers if you need assistance'
+    ];
   };
 
   return (
     <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-2xl px-4">
-      <Card className={`${getStatusColor()} text-white shadow-2xl`}>
+      <Card className={`${getStatusColor()} text-white shadow-2xl border-2 ${isStaleIssue ? 'border-purple-300' : 'border-orange-300'}`}>
         <div className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 flex-1">
               <div className="mt-1">
-                {percentageUsed >= 80 ? (
-                  <AlertTriangle className="w-6 h-6 animate-pulse" />
+                {isStaleIssue ? (
+                  <AlertTriangle className="w-7 h-7 animate-pulse" />
+                ) : percentageUsed >= 80 ? (
+                  <AlertTriangle className="w-7 h-7 animate-pulse" />
                 ) : (
-                  <Clock className="w-6 h-6" />
+                  <Clock className="w-7 h-7" />
                 )}
               </div>
 
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="font-bold text-lg">{getStatusText()}</h3>
-                  <div className="text-2xl font-mono font-bold">
+                  <h3 className="font-bold text-xl">{getStatusText()}</h3>
+                  <div className="text-3xl font-mono font-bold">
                     {remainingMinutes}:{remainingSecondsDisplay.toString().padStart(2, '0')}
                   </div>
                 </div>
 
-                <p className="text-sm opacity-90 mb-2">
-                  {timerData.eventTitle}
+                <p className="text-base font-semibold opacity-95 mb-3">
+                  📅 {timerData.eventTitle}
                 </p>
 
-                <p className="text-sm opacity-90">
-                  {getMessage()}
-                </p>
-
-                {timerData.isStale && (
-                  <p className="text-xs opacity-80 mt-2 italic">
-                    Last location update was more than 3 minutes ago
+                <div className={`${isStaleIssue ? 'bg-purple-700/50' : 'bg-orange-700/50'} rounded-lg p-3 mb-3`}>
+                  <p className="font-semibold mb-2">
+                    {getMessage()}
                   </p>
+                  <ul className="text-sm space-y-1 opacity-90">
+                    {getDetailedInstructions().map((instruction, idx) => (
+                      <li key={idx}>{instruction}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                {isStaleIssue ? (
+                  <div className="bg-white/20 rounded p-2 mb-3">
+                    <p className="text-xs italic">
+                      ⚠️ This is a <strong>connectivity issue</strong>, not a location issue. Your device is not sending updates.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-white/20 rounded p-2 mb-3">
+                    <p className="text-xs italic">
+                      ⚠️ This is a <strong>location issue</strong>. You are actively outside the event boundaries.
+                    </p>
+                  </div>
                 )}
 
                 {/* Progress bar */}
-                <div className="mt-3 bg-white/20 rounded-full h-2 overflow-hidden">
+                <div className="mt-3 bg-white/30 rounded-full h-3 overflow-hidden">
                   <div
-                    className="bg-white h-full transition-all duration-1000"
+                    className={`${isStaleIssue ? 'bg-purple-300' : 'bg-white'} h-full transition-all duration-1000`}
                     style={{ width: `${Math.min(100, percentageUsed)}%` }}
                   />
                 </div>
@@ -170,7 +215,7 @@ const ParticipantTimerModal: React.FC<ParticipantTimerModalProps> = ({ participa
               onClick={() => setDismissed(true)}
               className="text-white hover:bg-white/20 flex-shrink-0"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </Button>
           </div>
         </div>

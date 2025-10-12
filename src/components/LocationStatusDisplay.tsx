@@ -417,14 +417,19 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     const lastUpdate = new Date(status.lastLocationUpdate);
                     const now = new Date();
                     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                    if (minutesSinceUpdate > 3) { // Changed from 5 to 3 minutes
+                    const isStale = minutesSinceUpdate > 3;
+
+                    if (isStale && !isAbsent) {
                       return (
-                        <Alert variant="destructive" className="mt-3">
-                          <AlertTriangle className="h-4 w-4" />
-                          <AlertDescription>
-                            <strong>Location data is stale!</strong> Last update was {Math.round(minutesSinceUpdate)} minutes ago.
+                        <Alert variant="destructive" className="mt-3 bg-purple-50 border-purple-300">
+                          <AlertTriangle className="h-4 w-4 text-purple-700" />
+                          <AlertDescription className="text-purple-900">
+                            <strong>🔌 Stale Location Data (No Updates)</strong>
+                            <br />
+                            Last update was <strong>{Math.round(minutesSinceUpdate)} minutes ago</strong>.
                             The participant's device may be offline, in power-saving mode, or the browser tab may be backgrounded.
-                            Current location status may not be accurate.
+                            <br />
+                            <span className="text-sm italic">This is a "no signal" issue, not an "outside premises" issue.</span>
                           </AlertDescription>
                         </Alert>
                       );
@@ -432,19 +437,19 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                     return null;
                   })()}
 
-                  {/* Timer Display */}
+                  {/* Outside Premises Timer Display */}
                   {(() => {
                     const lastUpdate = new Date(status.lastLocationUpdate);
                     const now = new Date();
                     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-                    const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3 minutes
+                    const isStale = minutesSinceUpdate > 3;
 
                     // Don't show timer if marked absent
                     if (isAbsent) {
                       return null;
                     }
 
-                    // Only show timer if backend has activated it (not just because data is stale)
+                    // Only show timer if backend has activated it (participant is actively outside)
                     if (status.outsideTimer?.isActive || status.currentTimeOutside > 0) {
                       // Get maxTimeOutside from event (with fallback to 15 minutes)
                       const maxTimeOutside = status.event?.maxTimeOutside || 15;
@@ -452,38 +457,48 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       const remainingSeconds = Math.max(0, maxTimeSeconds - status.currentTimeOutside);
 
                       return (
-                        <div className="bg-orange-50 border border-orange-200 rounded p-3">
-                          <div className="flex items-center gap-2 text-orange-700">
-                            <Clock className="w-4 h-4" />
+                        <div className="bg-orange-50 border-2 border-orange-400 rounded-lg p-4 shadow-sm">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="bg-orange-500 rounded-full p-1">
+                              <Clock className="w-4 h-4 text-white" />
+                            </div>
+                            <span className="font-bold text-orange-800 text-lg">
+                              📍 Outside Premises Timer
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-orange-700 mb-1">
                             <span className="font-medium">
                               Time Remaining:{' '}
-                          {(() => {
-                            // Show live countdown timer if timer is active
-                            if (status.outsideTimer.isActive) {
-                              const timerStartTime = new Date(status.outsideTimer.startTime || status.lastLocationUpdate);
+                              {(() => {
+                                // Show live countdown timer if timer is active
+                                if (status.outsideTimer.isActive) {
+                                  const timerStartTime = new Date(status.outsideTimer.startTime || status.lastLocationUpdate);
 
-                              return (
-                                <LiveCountdownTimer
-                                  startTime={timerStartTime}
-                                  baseSeconds={status.currentTimeOutside}
-                                  maxTimeSeconds={maxTimeSeconds}
-                                />
-                              );
-                            }
+                                  return (
+                                    <LiveCountdownTimer
+                                      startTime={timerStartTime}
+                                      baseSeconds={status.currentTimeOutside}
+                                      maxTimeSeconds={maxTimeSeconds}
+                                    />
+                                  );
+                                }
 
-                            // Otherwise show static remaining time
-                            const minutes = Math.floor(remainingSeconds / 60);
-                            const secs = remainingSeconds % 60;
-                            return <span className="font-mono font-bold">{minutes}:{String(secs).padStart(2, '0')}</span>;
-                          })()}
-                        </span>
-                      </div>
-                      {status.outsideTimer?.startTime && (
-                        <p className="text-sm text-orange-600 mt-1">
-                          Started at: {new Date(status.outsideTimer.startTime).toLocaleTimeString('en-US', { hour12: true })}
-                        </p>
-                      )}
-                    </div>
+                                // Otherwise show static remaining time
+                                const minutes = Math.floor(remainingSeconds / 60);
+                                const secs = remainingSeconds % 60;
+                                return <span className="font-mono font-bold">{minutes}:{String(secs).padStart(2, '0')}</span>;
+                              })()}
+                            </span>
+                          </div>
+                          {status.outsideTimer?.startTime && (
+                            <p className="text-sm text-orange-600">
+                              Started at: {new Date(status.outsideTimer.startTime).toLocaleTimeString('en-US', { hour12: true })}
+                            </p>
+                          )}
+                          <p className="text-xs text-orange-700 mt-2 italic">
+                            Participant is actively sending location but is outside the geofence boundary.
+                          </p>
+                        </div>
                       );
                     }
                     return null;
