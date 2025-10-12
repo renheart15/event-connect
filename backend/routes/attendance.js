@@ -329,11 +329,37 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
     // Battery data and lastLocationUpdate are now stored directly in attendance logs
     console.log('📊 [ATTENDANCE] Processing attendance logs with stored battery data');
 
+    // Calculate late check-ins (more than 15 minutes after event start)
+    let totalLate = 0;
+    if (event.startTime && event.date) {
+      try {
+        // Parse event start time in Singapore timezone
+        const eventDateStr = typeof event.date === 'string'
+          ? event.date.split('T')[0]
+          : event.date.toISOString().split('T')[0];
+        const startDateTimeStr = `${eventDateStr}T${event.startTime}:00`;
+
+        // Convert Singapore time to UTC
+        const eventStartUTC = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
+        const lateThreshold = new Date(eventStartUTC.getTime() + (15 * 60 * 1000)); // 15 minutes after start
+
+        // Count participants who checked in after the late threshold
+        totalLate = attendanceLogs.filter(log => {
+          if (!log.checkInTime) return false;
+          return new Date(log.checkInTime) > lateThreshold;
+        }).length;
+
+        console.log(`📊 [LATE CHECK-IN] Event start: ${eventStartUTC.toISOString()}, Late threshold: ${lateThreshold.toISOString()}, Total late: ${totalLate}`);
+      } catch (err) {
+        console.error('Error calculating late check-ins:', err);
+      }
+    }
+
     // Get summary statistics
     const stats = {
       totalCheckedIn: attendanceLogs.length,
       currentlyPresent: attendanceLogs.filter(log => log.status === 'checked-in').length,
-      totalCheckedOut: attendanceLogs.filter(log => log.status === 'checked-out').length,
+      totalCheckedOut: totalLate, // Use totalLate instead of checked-out count
       totalAbsent: attendanceLogs.filter(log => log.status === 'absent').length,
       averageDuration: attendanceLogs
         .filter(log => log.duration > 0)
