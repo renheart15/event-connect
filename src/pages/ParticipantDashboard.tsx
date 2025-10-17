@@ -4147,6 +4147,16 @@ const ParticipantDashboard = () => {
               <p>EventConnect v1.0.0</p>
               <p>© 2024 EventConnect. All rights reserved.</p>
             </div>
+            <div className="mt-4">
+              <a
+                href="/event-connect.apk"
+                download="EventConnect.apk"
+                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Download Android App
+              </a>
+            </div>
           </div>
         </div>
       );
