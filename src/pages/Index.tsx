@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -9,11 +9,18 @@ import { Capacitor } from '@capacitor/core';
 const Index = () => {
   const [userType, setUserType] = useState<'participant' | 'organizer' | null>(null);
   const [isNativeMobile, setIsNativeMobile] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Check if running as native mobile app
-    setIsNativeMobile(Capacitor.isNativePlatform());
-  }, []);
+    const isNative = Capacitor.isNativePlatform();
+    setIsNativeMobile(isNative);
+
+    // If mobile app, redirect directly to participant login
+    if (isNative) {
+      navigate('/login?role=participant');
+    }
+  }, [navigate]);
 
   // For participants on web browser, show download page directly
   if (!isNativeMobile && userType === 'participant') {

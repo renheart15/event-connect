@@ -8,17 +8,22 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { QrCode } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
+import { Capacitor } from '@capacitor/core';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('participant');
   const [loading, setLoading] = useState(false);
+  const [isNativeMobile, setIsNativeMobile] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Pre-select role from URL parameter
+  // Pre-select role from URL parameter and detect platform
   useEffect(() => {
+    const isNative = Capacitor.isNativePlatform();
+    setIsNativeMobile(isNative);
+
     const roleFromUrl = searchParams.get('role');
     if (roleFromUrl === 'organizer' || roleFromUrl === 'participant') {
       setRole(roleFromUrl);
@@ -135,19 +140,21 @@ const Login = () => {
               />
             </div>
 
-            <div className="space-y-3">
-              <Label>I am a:</Label>
-              <RadioGroup value={role} onValueChange={setRole}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="participant" id="participant" />
-                  <Label htmlFor="participant">Participant</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="organizer" id="organizer" />
-                  <Label htmlFor="organizer">Event Organizer</Label>
-                </div>
-              </RadioGroup>
-            </div>
+            {!isNativeMobile && (
+              <div className="space-y-3">
+                <Label>I am a:</Label>
+                <RadioGroup value={role} onValueChange={setRole}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="participant" id="participant" />
+                    <Label htmlFor="participant">Participant</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="organizer" id="organizer" />
+                    <Label htmlFor="organizer">Event Organizer</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
 
             <Button
               type="submit"
@@ -161,18 +168,20 @@ const Login = () => {
           <div className="mt-4 text-center space-y-2">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
-              <Link 
-                to={`/register?role=${role}`} 
+              <Link
+                to={`/register?role=${role}`}
                 className="text-blue-600 hover:underline"
               >
                 Sign up
               </Link>
             </p>
-            <p className="text-xs text-gray-500">
-              <Link to="/" className="text-blue-600 hover:underline">
-                ← Change role selection
-              </Link>
-            </p>
+            {!isNativeMobile && (
+              <p className="text-xs text-gray-500">
+                <Link to="/" className="text-blue-600 hover:underline">
+                  ← Change role selection
+                </Link>
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
