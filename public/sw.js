@@ -1,16 +1,13 @@
-const CACHE_NAME = 'event-connect-v2-' + Date.now();
+const CACHE_NAME = 'event-connect-v3-' + Date.now();
 const urlsToCache = [
   '/participant-dashboard',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
-  // Force immediate activation
-  self.skipWaiting();
+  console.log('Service Worker installing...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -20,6 +17,7 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
+  console.log('Service Worker activating...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -31,21 +29,35 @@ self.addEventListener('activate', (event) => {
         })
       );
     }).then(() => {
-      // Force immediate control of all pages
       return self.clients.claim();
     })
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Return cached version or fetch from network
-        return response || fetch(event.request);
-      }
-    )
-  );
+  // Network-first strategy for API calls
+  if (event.request.url.includes('/api/')) {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => caches.match(event.request))
+    );
+  } else {
+    // Cache-first strategy for static assets
+    event.respondWith(
+      caches.match(event.request)
+        .then((response) => {
+          return response || fetch(event.request);
+        })
+    );
+  }
+});
+
+// Handle skip waiting message from client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('Skipping waiting...');
+    self.skipWaiting();
+  }
 });
 
 // Handle background sync for offline form submissions

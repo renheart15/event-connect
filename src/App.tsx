@@ -46,12 +46,12 @@ import SendInvitations from "./pages/SendInvitations";
 import InvitationSummary from "./pages/InvitationSummary";
 import InvitationView from "./pages/InvitationView";
 import OrganizationManagement from "./pages/OrganizationManagement";
-import LocationDebugger from "./pages/LocationDebugger";
 import NotFound from "./pages/NotFound";
 import JoinEvent from "./pages/JoinEvent";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MobileAccessGuard from "./components/MobileAccessGuard";
 import WebAccessGuard from "./components/WebAccessGuard";
+import { UpdatePrompt } from "./components/UpdatePrompt";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +61,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <UpdatePrompt />
         <AutoLocationPermission />
         <BrowserRouter>
           <Layout>
@@ -155,13 +156,6 @@ const App = () => (
                 <ProtectedRoute requiredRole="organizer">
                   <MobileAccessGuard allowedRoles={['organizer-web-only']}>
                     <EventMonitor />
-                  </MobileAccessGuard>
-                </ProtectedRoute>
-              } />
-              <Route path="/event/:eventId/location-debug" element={
-                <ProtectedRoute requiredRole="organizer">
-                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
-                    <LocationDebugger />
                   </MobileAccessGuard>
                 </ProtectedRoute>
               } />
