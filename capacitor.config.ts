@@ -5,10 +5,8 @@ const config: CapacitorConfig = {
   appName: 'Event Connect Mobile',
   webDir: 'dist',
   server: {
-    // Load from live server instead of bundled files
-    // This ensures the app always gets the latest updates
-    url: 'https://event-connect-jin2.onrender.com',
-    cleartext: true,
+    // Use bundled files for instant loading
+    // Backend API is accessed separately via axios
     androidScheme: 'https'
   },
   plugins: {
