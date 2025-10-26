@@ -4,6 +4,13 @@ const config: CapacitorConfig = {
   appId: 'com.eventconnect.mobile',
   appName: 'Event Connect Mobile',
   webDir: 'dist',
+  server: {
+    // Load from live server instead of bundled files
+    // This ensures the app always gets the latest updates
+    url: 'https://event-connect-jin2.onrender.com',
+    cleartext: true,
+    androidScheme: 'https'
+  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,

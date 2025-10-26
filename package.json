@@ -9,9 +9,9 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "cap:sync": "npx cap sync android && node fix-java-version.cjs",
-    "android": "npx cap sync android && node fix-java-version.cjs && npx cap open android",
-    "build:android": "npm run build && npx cap sync android && node fix-java-version.cjs && npx cap open android",
+    "cap:sync": "npx cap sync android",
+    "android": "npx cap sync android && npx cap open android",
+    "build:android": "npm run build && npx cap sync android && npx cap open android",
     "backend": "cd backend && npm run dev",
     "dev:full": "echo \"To run full application:\" && echo \"1. Run 'npm run backend' in one terminal\" && echo \"2. Run 'npm run dev' in another terminal\" && echo \"3. Open http://localhost:8080\""
   },
