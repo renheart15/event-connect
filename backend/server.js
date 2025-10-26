@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
+const path = require('path');
 require('dotenv').config();
 
 // Import routes
@@ -52,8 +53,23 @@ app.use((req, res, next) => {
 // Trust proxy for ngrok
 app.set('trust proxy', 1);
 
-// Security middleware
-app.use(helmet());
+// Security middleware with relaxed CSP for frontend
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'", "https://event-connect-jin2.onrender.com"],
+      frameSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: []
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
 
 // CORS configuration - allow production and development origins
 const allowedOrigins = [
@@ -206,11 +222,24 @@ app.get('/api/time', (req, res) => {
   });
 });
 
-// 404 handler
-app.use('*', (req, res) => {
+// Serve static files from the dist directory
+const distPath = path.join(__dirname, '../dist');
+app.use(express.static(distPath));
+
+// SPA catch-all route - must come after API routes but before 404
+app.get('*', (req, res, next) => {
+  // Only serve index.html for non-API routes
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
+// 404 handler for API routes only
+app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
-    message: 'Route not found'
+    message: 'API route not found'
   });
 });
 
