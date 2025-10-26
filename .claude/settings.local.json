@@ -70,7 +70,8 @@
       "Bash(git remote set-url:*)",
       "Bash(move test-frontend-validation.js test-frontend-validation.cjs)",
       "Bash(ren:*)",
-      "Bash(npx @capacitor/assets generate:*)"
+      "Bash(npx @capacitor/assets generate:*)",
+      "Bash(where:*)"
     ],
     "deny": [],
     "ask": []
