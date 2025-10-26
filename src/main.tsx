@@ -2,9 +2,11 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
+import { Capacitor } from '@capacitor/core'
 
-// Register service worker with update prompt
-if ('serviceWorker' in navigator) {
+// Register service worker with update prompt - ONLY for web, not mobile
+if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
+  console.log('Registering service worker for web browser...');
   registerSW({
     immediate: true,
     onNeedRefresh() {
@@ -26,6 +28,8 @@ if ('serviceWorker' in navigator) {
       console.error('Service Worker registration error:', error);
     }
   });
+} else if (Capacitor.isNativePlatform()) {
+  console.log('Running in native mobile app - skipping service worker registration');
 }
 
 // Deployment debug info
