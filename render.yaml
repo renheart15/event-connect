@@ -4,7 +4,7 @@ services:
     runtime: node
     region: singapore
     plan: free
-    buildCommand: npm install && npm run build && cd backend && npm install
+    buildCommand: echo "📦 Installing root dependencies..." && npm install --legacy-peer-deps && echo "🏗️ Building frontend..." && npm run build && echo "📦 Installing backend dependencies..." && cd backend && npm install --legacy-peer-deps && echo "✅ Build complete!"
     startCommand: cd backend && node server.js
     envVars:
       - key: NODE_ENV
