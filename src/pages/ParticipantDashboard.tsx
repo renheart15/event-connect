@@ -101,6 +101,18 @@ const ParticipantDashboard = () => {
   const [eventToDelete, setEventToDelete] = useState<any>(null);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
 
+  // Settings state
+  const [notificationSettings, setNotificationSettings] = useState(() => {
+    const saved = localStorage.getItem('notificationSettings');
+    return saved ? JSON.parse(saved) : {
+      eventInvitations: true,
+      checkInReminders: true
+    };
+  });
+  const [themePreference, setThemePreference] = useState(() => {
+    return localStorage.getItem('themePreference') || 'system';
+  });
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scanningIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -582,6 +594,42 @@ const ParticipantDashboard = () => {
       
       return null;
     }
+  };
+
+  // Settings handlers
+  const handleNotificationToggle = (setting: 'eventInvitations' | 'checkInReminders') => {
+    const newSettings = {
+      ...notificationSettings,
+      [setting]: !notificationSettings[setting]
+    };
+    setNotificationSettings(newSettings);
+    localStorage.setItem('notificationSettings', JSON.stringify(newSettings));
+
+    toast({
+      title: "Settings Updated",
+      description: `${setting === 'eventInvitations' ? 'Event invitations' : 'Check-in reminders'} ${newSettings[setting] ? 'enabled' : 'disabled'}`,
+    });
+  };
+
+  const handleThemeChange = (theme: string) => {
+    setThemePreference(theme);
+    localStorage.setItem('themePreference', theme);
+
+    // Apply theme
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+
+    toast({
+      title: "Theme Updated",
+      description: `Theme set to ${theme}`,
+    });
   };
 
   // Native mobile app initialization
@@ -4037,76 +4085,51 @@ const ParticipantDashboard = () => {
                   <p className="text-sm font-medium text-gray-900 dark:text-white">Event Invitations</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Get notified when you receive event invitations</p>
                 </div>
-                <div className="relative">
-                  <input type="checkbox" className="sr-only" defaultChecked />
-                  <div className="w-10 h-6 bg-blue-600 rounded-full shadow-inner"></div>
-                  <div className="absolute w-4 h-4 bg-white rounded-full shadow top-1 right-1"></div>
-                </div>
+                <button
+                  onClick={() => handleNotificationToggle('eventInvitations')}
+                  className={`relative w-10 h-6 rounded-full shadow-inner transition-colors ${
+                    notificationSettings.eventInvitations ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                  }`}
+                >
+                  <div className={`absolute w-4 h-4 bg-white rounded-full shadow top-1 transition-all ${
+                    notificationSettings.eventInvitations ? 'right-1' : 'left-1'
+                  }`}></div>
+                </button>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">Check-in Reminders</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Remind me to check in to events</p>
                 </div>
-                <div className="relative">
-                  <input type="checkbox" className="sr-only" defaultChecked />
-                  <div className="w-10 h-6 bg-blue-600 rounded-full shadow-inner"></div>
-                  <div className="absolute w-4 h-4 bg-white rounded-full shadow top-1 right-1"></div>
-                </div>
+                <button
+                  onClick={() => handleNotificationToggle('checkInReminders')}
+                  className={`relative w-10 h-6 rounded-full shadow-inner transition-colors ${
+                    notificationSettings.checkInReminders ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                  }`}
+                >
+                  <div className={`absolute w-4 h-4 bg-white rounded-full shadow top-1 transition-all ${
+                    notificationSettings.checkInReminders ? 'right-1' : 'left-1'
+                  }`}></div>
+                </button>
               </div>
             </div>
           </div>
-          
-          {/* Privacy */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Privacy</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Location Tracking</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Allow location tracking during events</p>
-                </div>
-                <div className="relative">
-                  <input type="checkbox" className="sr-only" defaultChecked />
-                  <div className="w-10 h-6 bg-blue-600 rounded-full shadow-inner"></div>
-                  <div className="absolute w-4 h-4 bg-white rounded-full shadow top-1 right-1"></div>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Share Attendance</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Allow organizers to see your attendance status</p>
-                </div>
-                <div className="relative">
-                  <input type="checkbox" className="sr-only" defaultChecked />
-                  <div className="w-10 h-6 bg-blue-600 rounded-full shadow-inner"></div>
-                  <div className="absolute w-4 h-4 bg-white rounded-full shadow top-1 right-1"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
+
           {/* App Preferences */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">App Preferences</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Theme</label>
-                <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                  <option>System Default</option>
-                  <option>Light</option>
-                  <option>Dark</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Language</label>
-                <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                  <option>English</option>
-                  <option>Spanish</option>
-                  <option>French</option>
+                <select
+                  value={themePreference}
+                  onChange={(e) => handleThemeChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="system">System Default</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
                 </select>
               </div>
             </div>
@@ -4117,7 +4140,7 @@ const ParticipantDashboard = () => {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">About</h3>
             <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
               <p>EventConnect v1.0.0</p>
-              <p>© 2024 EventConnect. All rights reserved.</p>
+              <p>© 2025 EventConnect. All rights reserved.</p>
             </div>
             <div className="mt-4">
               <a

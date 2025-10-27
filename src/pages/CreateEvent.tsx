@@ -221,7 +221,7 @@ const CreateEvent = () => {
                   id="title"
                   value={formData.title}
                   onChange={(e) => handleInputChange('title', e.target.value)}
-                  placeholder="e.g., Annual Tech Conference 2024"
+                  placeholder="e.g., Annual Tech Conference 2025"
                   required
                 />
               </div>

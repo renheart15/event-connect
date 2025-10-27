@@ -19,7 +19,7 @@ const DashboardHeader = ({ user, isDarkMode, onToggleTheme, onLogout }: Dashboar
   const [notifications] = useState([
     {
       id: '1',
-      title: 'Annual Tech Conference 2024',
+      title: 'Annual Tech Conference 2025',
       message: '5 new participants checked in',
       time: '2 min ago',
       type: 'info',
