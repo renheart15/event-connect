@@ -73,7 +73,8 @@
       "Bash(npx @capacitor/assets generate:*)",
       "Bash(where:*)",
       "Bash(git reset:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(if exist androidappsrcmainassetspublicevent-connect.apk del androidappsrcmainassetspublicevent-connect.apk)"
     ],
     "deny": [],
     "ask": []

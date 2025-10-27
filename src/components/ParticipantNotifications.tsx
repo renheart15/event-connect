@@ -17,6 +17,7 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { notificationService } from '@/services/notificationService';
 
 interface NotificationData {
   id: string;
@@ -52,10 +53,73 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
   const [timeOutsideSeconds, setTimeOutsideSeconds] = useState<number>(0);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [lastCriticalNotifications, setLastCriticalNotifications] = useState<string[]>([]);
-  
+  const [nativeNotificationsInitialized, setNativeNotificationsInitialized] = useState(false);
+  const [lastLocationStatus, setLastLocationStatus] = useState<string | null>(null);
+  const [sentNativeNotifications, setSentNativeNotifications] = useState<Set<string>>(new Set());
+
   // Testing mode - uncomment to simulate different scenarios
   // const SIMULATE_LOW_BATTERY = true;
   // const SIMULATE_OFFLINE = true;
+
+  // Initialize native notifications on mount
+  useEffect(() => {
+    const initNotifications = async () => {
+      if (Capacitor.isNativePlatform()) {
+        const initialized = await notificationService.initialize();
+        setNativeNotificationsInitialized(initialized);
+        if (initialized) {
+          console.log('✅ Native notifications initialized successfully');
+        }
+      }
+    };
+
+    initNotifications();
+  }, []);
+
+  // Send native notifications when location status changes
+  useEffect(() => {
+    if (!nativeNotificationsInitialized || !isTracking || !currentLocationStatus) {
+      return;
+    }
+
+    const currentStatus = currentLocationStatus.status;
+    const isWithinGeofence = currentLocationStatus.isWithinGeofence;
+    const eventName = 'Event'; // We can get the actual event name if passed as prop
+
+    // Format time remaining
+    const timeOutside = Math.floor(timeOutsideSeconds);
+    const minutes = Math.floor(timeOutside / 60);
+    const seconds = timeOutside % 60;
+    const timeRemainingStr = `${minutes}m ${seconds}s`;
+
+    // Track status changes to avoid duplicate notifications
+    const statusKey = `${currentStatus}-${isWithinGeofence}`;
+
+    if (statusKey !== lastLocationStatus) {
+      // Status has changed
+      setLastLocationStatus(statusKey);
+
+      if (!isWithinGeofence && !sentNativeNotifications.has('outside')) {
+        // Just left geofence
+        notificationService.sendOutsideGeofenceNotification(eventName, timeRemainingStr);
+        setSentNativeNotifications(prev => new Set(prev).add('outside'));
+      } else if (isWithinGeofence && sentNativeNotifications.has('outside')) {
+        // Returned to geofence
+        notificationService.sendReturnedToGeofenceNotification(eventName);
+        setSentNativeNotifications(new Set()); // Reset notification tracking
+      }
+
+      if (currentStatus === 'warning' && !sentNativeNotifications.has('warning')) {
+        notificationService.sendWarningNotification(eventName, timeRemainingStr);
+        setSentNativeNotifications(prev => new Set(prev).add('warning'));
+      }
+
+      if (currentStatus === 'exceeded_limit' && !sentNativeNotifications.has('exceeded')) {
+        notificationService.sendExceededLimitNotification(eventName);
+        setSentNativeNotifications(prev => new Set(prev).add('exceeded'));
+      }
+    }
+  }, [nativeNotificationsInitialized, isTracking, currentLocationStatus, timeOutsideSeconds, lastLocationStatus, sentNativeNotifications]);
 
   // Monitor battery status
   useEffect(() => {
