@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Clock, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { API_CONFIG } from '@/config';
 
 interface TimerData {
   eventTitle: string;
@@ -30,7 +31,7 @@ const ParticipantTimerModal: React.FC<ParticipantTimerModalProps> = ({ participa
     const fetchTimerData = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/location-tracking/participant/${participantId}/timer`, {
+        const response = await fetch(`${API_CONFIG.API_BASE}/location-tracking/participant/${participantId}/timer`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
