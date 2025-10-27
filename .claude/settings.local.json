@@ -72,7 +72,8 @@
       "Bash(ren:*)",
       "Bash(npx @capacitor/assets generate:*)",
       "Bash(where:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
