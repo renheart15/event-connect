@@ -590,7 +590,9 @@ const ParticipantDashboard = () => {
       if (Capacitor.isNativePlatform()) {
         // Set status bar style for native app
         await StatusBar.setStyle({ style: Style.Default });
-        
+        // Make sure status bar doesn't overlap with app content
+        await StatusBar.setOverlaysWebView({ overlay: false });
+
         // Check location permissions on startup
         await checkLocationPermissions();
         
@@ -5741,17 +5743,6 @@ const ParticipantDashboard = () => {
               <div className="bg-black bg-opacity-50 rounded-lg p-2">
                 <p className="text-white text-sm text-center">{scanningStatus}</p>
               </div>
-            </div>
-            
-            {/* Zoom controls */}
-            <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2">
-              <div className="flex items-center space-x-3 bg-black bg-opacity-50 rounded-full px-4 py-2">
-                  <button className="text-blue-600 text-xl font-medium w-6 h-6 flex items-center justify-center active:text-blue-500 touch-manipulation">-</button>
-                  <div className="w-24 h-2 bg-gray-300 dark:bg-gray-600 rounded-full touch-manipulation">
-                    <div className="w-1/2 h-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-full"></div>
-                  </div>
-                  <button className="text-blue-600 text-xl font-medium w-6 h-6 flex items-center justify-center active:text-blue-500 touch-manipulation">+</button>
-                </div>
             </div>
           </div>
         ) : (
