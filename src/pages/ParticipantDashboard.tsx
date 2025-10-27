@@ -20,6 +20,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { Capacitor } from '@capacitor/core';
 import jsQR from 'jsqr';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { fromZonedTime } from 'date-fns-tz';
 import { eventNotificationService } from '@/services/eventNotificationService';
 
@@ -1302,31 +1303,35 @@ const ParticipantDashboard = () => {
     setScanningStatus('Requesting camera access...');
 
     try {
-      // Use HTML5 camera for all platforms (web and native)
-      // This provides an in-app camera experience
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera API not supported in this browser');
-      }
-
-      // Check for HTTPS on mobile devices
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      if (isMobile && location.protocol !== 'https:' && location.hostname !== 'localhost') {
-        throw new Error('Camera requires HTTPS on mobile devices');
-      }
-
-      // Check permissions before attempting to access camera
-      if ('permissions' in navigator) {
-        try {
-          const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-          if (permission.state === 'denied') {
-            throw new Error('Camera permission denied. Please enable camera access in browser settings.');
-          }
-        } catch (permError) {
-          console.warn('Could not check camera permissions:', permError);
+      // Use native barcode scanner for Capacitor apps (much faster and more reliable)
+      if (Capacitor.isNativePlatform()) {
+        await startNativeScanner();
+      } else {
+        // Fallback to HTML5 camera for web
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Camera API not supported in this browser');
         }
-      }
 
-      await startWebCamera();
+        // Check for HTTPS on mobile devices
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile && location.protocol !== 'https:' && location.hostname !== 'localhost') {
+          throw new Error('Camera requires HTTPS on mobile devices');
+        }
+
+        // Check permissions before attempting to access camera
+        if ('permissions' in navigator) {
+          try {
+            const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+            if (permission.state === 'denied') {
+              throw new Error('Camera permission denied. Please enable camera access in browser settings.');
+            }
+          } catch (permError) {
+            console.warn('Could not check camera permissions:', permError);
+          }
+        }
+
+        await startWebCamera();
+      }
     } catch (error: any) {
       const errorMessage = error.message || 'Unknown camera error';
       setScanningStatus('Camera access failed - ' + errorMessage);
@@ -1346,6 +1351,58 @@ const ParticipantDashboard = () => {
         description: userMessage,
         variant: "destructive",
       });
+    }
+  };
+
+  const startNativeScanner = async () => {
+    try {
+      setScanningStatus('Starting camera...');
+
+      // Request camera permission
+      const permission = await BarcodeScanner.checkPermissions();
+      if (permission.camera !== 'granted') {
+        const request = await BarcodeScanner.requestPermissions();
+        if (request.camera !== 'granted') {
+          throw new Error('Camera permission denied');
+        }
+      }
+
+      // Hide the UI behind the scanner
+      document.body.classList.add('barcode-scanner-active');
+
+      // Start scanning
+      setIsCameraActive(true);
+      setIsScanning(true);
+      setScanningStatus('Position QR code in frame');
+
+      await triggerHapticFeedback('light');
+
+      // Start the scanner
+      const result = await BarcodeScanner.scan();
+
+      if (result.barcodes && result.barcodes.length > 0) {
+        const qrData = result.barcodes[0].rawValue;
+        await triggerHapticFeedback('medium');
+        setScanningStatus('QR Code detected!');
+        await handleQRCodeDetected(qrData);
+      }
+    } catch (error: any) {
+      console.error('Native scanner error:', error);
+
+      if (error.message !== 'User cancelled') {
+        toast({
+          title: "Scanner Error",
+          description: error.message || 'Failed to scan QR code',
+          variant: "destructive",
+        });
+      }
+    } finally {
+      // Cleanup
+      document.body.classList.remove('barcode-scanner-active');
+      setIsCameraActive(false);
+      setIsScanning(false);
+      setScanningStatus('Ready to scan');
+      await BarcodeScanner.stopScan();
     }
   };
 

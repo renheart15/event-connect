@@ -16,6 +16,7 @@
     "dev:full": "echo \"To run full application:\" && echo \"1. Run 'npm run backend' in one terminal\" && echo \"2. Run 'npm run dev' in another terminal\" && echo \"3. Open http://localhost:8080\""
   },
   "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "^7.3.0",
     "@capacitor/android": "^7.4.3",
     "@capacitor/camera": "^7.0.2",
     "@capacitor/cli": "^7.4.3",
