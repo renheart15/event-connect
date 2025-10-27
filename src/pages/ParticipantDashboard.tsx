@@ -1248,65 +1248,35 @@ const ParticipantDashboard = () => {
     if (isCameraActive) {
       return;
     }
-    
+
     setScanningStatus('Requesting camera access...');
-    
+
     try {
-      if (Capacitor.isNativePlatform()) {
-        // Use native camera for QR scanning
-        setScanningStatus('Opening camera...');
-        try {
-          const image = await CapacitorCamera.getPhoto({
-            quality: 90,
-            allowEditing: false,
-            resultType: CameraResultType.DataUrl,
-            source: CameraSource.Camera,
-            width: 800,
-            height: 600,
-            promptLabelCancel: 'Cancel',
-            promptLabelPhoto: 'Capture QR Code',
-            promptLabelPicture: 'Choose from Gallery'
-          });
-
-          setScanningStatus('Processing image...');
-          if (image.dataUrl) {
-            await processQRFromImage(image.dataUrl);
-          } else {
-            throw new Error('No image data received from camera');
-          }
-        } catch (cameraError: any) {
-          if (cameraError.message !== 'User cancelled photos app') {
-            throw cameraError;
-          } else {
-            setScanningStatus('Camera cancelled');
-          }
-        }
-      } else {
-        // Enhanced mobile web camera checks
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('Camera API not supported in this browser');
-        }
-
-        // Check for HTTPS on mobile devices
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        if (isMobile && location.protocol !== 'https:' && location.hostname !== 'localhost') {
-          throw new Error('Camera requires HTTPS on mobile devices');
-        }
-
-        // Check permissions before attempting to access camera
-        if ('permissions' in navigator) {
-          try {
-            const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-            if (permission.state === 'denied') {
-              throw new Error('Camera permission denied. Please enable camera access in browser settings.');
-            }
-          } catch (permError) {
-            console.warn('Could not check camera permissions:', permError);
-          }
-        }
-
-        await startWebCamera();
+      // Use HTML5 camera for all platforms (web and native)
+      // This provides an in-app camera experience
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera API not supported in this browser');
       }
+
+      // Check for HTTPS on mobile devices
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile && location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        throw new Error('Camera requires HTTPS on mobile devices');
+      }
+
+      // Check permissions before attempting to access camera
+      if ('permissions' in navigator) {
+        try {
+          const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          if (permission.state === 'denied') {
+            throw new Error('Camera permission denied. Please enable camera access in browser settings.');
+          }
+        } catch (permError) {
+          console.warn('Could not check camera permissions:', permError);
+        }
+      }
+
+      await startWebCamera();
     } catch (error: any) {
       const errorMessage = error.message || 'Unknown camera error';
       setScanningStatus('Camera access failed - ' + errorMessage);
