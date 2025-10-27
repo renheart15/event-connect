@@ -77,7 +77,12 @@ const allowedOrigins = [
   'https://event-connect.site',
   'https://www.event-connect.site',
   'http://localhost:8080',
-  'http://localhost:5173'
+  'http://localhost:5173',
+  'capacitor://localhost',
+  'ionic://localhost',
+  'http://localhost',
+  'capacitor://*',
+  'ionic://*'
 ];
 
 // Enhanced CORS configuration for production
@@ -86,7 +91,12 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
+    // Check if origin is in allowed list or matches Capacitor/Ionic pattern
+    const isAllowed = allowedOrigins.includes(origin) ||
+                     origin?.startsWith('capacitor://') ||
+                     origin?.startsWith('ionic://');
+
+    if (isAllowed) {
       callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
