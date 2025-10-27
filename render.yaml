@@ -4,7 +4,7 @@ services:
     runtime: node
     region: singapore
     plan: free
-    buildCommand: npm install && npm run build && cd backend && npm install
+    buildCommand: npm ci && npm run build && pwd && ls -la && test -d dist && echo "✅ dist exists" || echo "❌ dist missing" && cd backend && npm ci
     startCommand: cd backend && node server.js
     envVars:
       - key: NODE_ENV
