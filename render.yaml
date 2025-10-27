@@ -4,7 +4,7 @@ services:
     runtime: node
     region: singapore
     plan: free
-    buildCommand: echo "📦 Installing root dependencies..." && npm install --legacy-peer-deps && echo "🏗️ Building frontend..." && npm run build && echo "📦 Installing backend dependencies..." && cd backend && npm install --legacy-peer-deps && echo "✅ Build complete!"
+    buildCommand: echo "📦 Installing root dependencies..." && npm install --legacy-peer-deps && echo "🏗️ Building frontend..." && npm run build && echo "📁 Checking if dist was created..." && ls -la && echo "📁 Listing dist folder..." && ls -la dist || echo "❌ dist folder not found!" && echo "📦 Installing backend dependencies..." && cd backend && npm install --legacy-peer-deps && echo "✅ Build complete!"
     startCommand: cd backend && node server.js
     envVars:
       - key: NODE_ENV
