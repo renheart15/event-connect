@@ -608,8 +608,10 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
           {
             $set: {
               checkOutTime: now,
-              status: 'checked-out',
-              notes: '[Auto-checkout: Event ended]'
+              status: 'checked-out'
+            },
+            $push: {
+              notes: { $each: [' [Auto-checkout: Event ended]'] }
             }
           }
         );

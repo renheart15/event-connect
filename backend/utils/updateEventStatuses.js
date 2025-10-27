@@ -30,18 +30,42 @@ const calculateEventStatus = (event, currentTime = null) => {
     const startUTC = fromZonedTime(startDateTimeStr, SINGAPORE_TZ);
     const endUTC = fromZonedTime(endDateTimeStr, SINGAPORE_TZ);
 
+    // Format times for logging in Singapore timezone
+    const formatSGTime = (date) => {
+      return format(toZonedTime(date, SINGAPORE_TZ), 'yyyy-MM-dd HH:mm:ss zzz', { timeZone: SINGAPORE_TZ });
+    };
+
+    console.log(`📅 Status calculation for "${event.title}":`, {
+      currentTime: formatSGTime(now),
+      currentTime_UTC: now.toISOString(),
+      eventDate: eventDateStr,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      startUTC: startUTC.toISOString(),
+      startSGT: formatSGTime(startUTC),
+      endUTC: endUTC.toISOString(),
+      endSGT: formatSGTime(endUTC),
+      nowVsStart: now >= startUTC ? `now >= start (+${Math.floor((now - startUTC) / 60000)} min)` : `now < start (-${Math.floor((startUTC - now) / 60000)} min)`,
+      nowVsEnd: now >= endUTC ? `now >= end (+${Math.floor((now - endUTC) / 60000)} min)` : `now < end (-${Math.floor((endUTC - now) / 60000)} min)`
+    });
+
     // Determine status based on current time vs event times
     if (now >= endUTC) {
+      console.log(`🎯 Final status for "${event.title}": COMPLETED`);
       return 'completed';
     } else if (now >= startUTC) {
+      console.log(`🎯 Final status for "${event.title}": ACTIVE`);
       return 'active';
     } else {
+      console.log(`🎯 Final status for "${event.title}": UPCOMING`);
       return 'upcoming';
     }
   } catch (error) {
     console.error(`❌ Error calculating event status for "${event.title}":`, error);
-    return 'upcoming';
   }
+
+  console.log(`🎯 Final status for "${event.title}": UPCOMING (fallback)`);
+  return 'upcoming';
 };
 
 // Function to update a single event's status
@@ -52,14 +76,17 @@ const updateSingleEventStatus = async (eventId, forceUpdate = false, eventInstan
 
     const expectedStatus = calculateEventStatus(event);
 
+    console.log(`🔍 Status check for "${event.title}": current="${event.status}" expected="${expectedStatus}" statusMode="${event.statusMode}" forceUpdate=${forceUpdate}`);
+
     // Update if status mode is auto OR if force update is requested (for event edits)
     if (event.status !== expectedStatus && (event.statusMode === 'auto' || forceUpdate)) {
       const oldStatus = event.status;
       event.status = expectedStatus;
       await event.save();
-      console.log(`✅ Updated "${event.title}" from ${oldStatus} to ${expectedStatus}`);
+      console.log(`✅ Updated "${event.title}" from ${oldStatus} to ${expectedStatus}${forceUpdate ? ' (forced)' : ''}`);
       return expectedStatus;
     }
+    console.log(`⏹️ No update needed for "${event.title}" - status already correct or update conditions not met`);
     return event.status;
   } catch (error) {
     console.error('Error updating single event status:', error);

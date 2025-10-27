@@ -6,7 +6,6 @@ const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const path = require('path');
-const fs = require('fs');
 require('dotenv').config();
 
 // Import routes
@@ -77,12 +76,7 @@ const allowedOrigins = [
   'https://event-connect.site',
   'https://www.event-connect.site',
   'http://localhost:8080',
-  'http://localhost:5173',
-  'capacitor://localhost',
-  'ionic://localhost',
-  'http://localhost',
-  'capacitor://*',
-  'ionic://*'
+  'http://localhost:5173'
 ];
 
 // Enhanced CORS configuration for production
@@ -91,12 +85,7 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
 
-    // Check if origin is in allowed list or matches Capacitor/Ionic pattern
-    const isAllowed = allowedOrigins.includes(origin) ||
-                     origin?.startsWith('capacitor://') ||
-                     origin?.startsWith('ionic://');
-
-    if (isAllowed) {
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
@@ -235,42 +224,16 @@ app.get('/api/time', (req, res) => {
 
 // Serve static files from the dist directory
 const distPath = path.join(__dirname, '../dist');
+app.use(express.static(distPath));
 
-console.log('🔍 [STATIC FILES] Checking dist directory...');
-console.log('📁 [STATIC FILES] __dirname:', __dirname);
-console.log('📁 [STATIC FILES] distPath:', distPath);
-console.log('📁 [STATIC FILES] dist exists:', fs.existsSync(distPath));
-
-if (fs.existsSync(distPath)) {
-  console.log('✅ [STATIC FILES] Serving static files from:', distPath);
-  app.use(express.static(distPath));
-
-  // SPA catch-all route - must come after API routes but before 404
-  app.get('*', (req, res, next) => {
-    // Only serve index.html for non-API routes
-    if (req.path.startsWith('/api/')) {
-      return next();
-    }
-    const indexPath = path.join(distPath, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      console.error('❌ [STATIC FILES] index.html not found at:', indexPath);
-      res.status(404).send('Frontend not built. Please run npm run build in the project root.');
-    }
-  });
-} else {
-  console.warn('⚠️ [STATIC FILES] dist directory not found. Frontend will not be served.');
-  console.warn('⚠️ [STATIC FILES] Run "npm run build" in the project root to build the frontend.');
-
-  // Fallback for when dist doesn't exist
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/')) {
-      return next();
-    }
-    res.status(503).send('Frontend not available. The application is still building or the build failed.');
-  });
-}
+// SPA catch-all route - must come after API routes but before 404
+app.get('*', (req, res, next) => {
+  // Only serve index.html for non-API routes
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  res.sendFile(path.join(distPath, 'index.html'));
+});
 
 // 404 handler for API routes only
 app.use('/api/*', (req, res) => {
