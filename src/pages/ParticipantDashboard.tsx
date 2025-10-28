@@ -1358,6 +1358,19 @@ const ParticipantDashboard = () => {
     try {
       setScanningStatus('Starting camera...');
 
+      // Check if Google Barcode Scanner module is available
+      const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+      if (!available) {
+        setScanningStatus('Downloading scanner module...');
+        try {
+          await BarcodeScanner.installGoogleBarcodeScannerModule();
+          setScanningStatus('Scanner module installed!');
+        } catch (installError: any) {
+          console.error('Failed to install scanner module:', installError);
+          throw new Error('Failed to install barcode scanner module. Please check your internet connection and try again.');
+        }
+      }
+
       // Request camera permission
       const permission = await BarcodeScanner.checkPermissions();
       if (permission.camera !== 'granted') {

@@ -74,7 +74,8 @@
       "Bash(where:*)",
       "Bash(git reset:*)",
       "Bash(cat:*)",
-      "Bash(if exist androidappsrcmainassetspublicevent-connect.apk del androidappsrcmainassetspublicevent-connect.apk)"
+      "Bash(if exist androidappsrcmainassetspublicevent-connect.apk del androidappsrcmainassetspublicevent-connect.apk)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []
