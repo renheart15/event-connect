@@ -23,6 +23,7 @@ import jsQR from 'jsqr';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { fromZonedTime } from 'date-fns-tz';
 import { eventNotificationService } from '@/services/eventNotificationService';
+import { notificationService } from '@/services/notificationService';
 
 const ParticipantDashboard = () => {
   const [eventCode, setEventCode] = useState('');
@@ -138,6 +139,16 @@ const ParticipantDashboard = () => {
       console.error('Error setting user profile:', error);
       setHasError(true);
     }
+  }, []);
+
+  // Initialize notification service
+  useEffect(() => {
+    const initNotifications = async () => {
+      if (Capacitor.isNativePlatform()) {
+        await notificationService.initialize();
+      }
+    };
+    initNotifications();
   }, []);
 
   const token = localStorage.getItem('token');
@@ -1177,11 +1188,9 @@ const ParticipantDashboard = () => {
       const result = await response.json();
       
       if (result.success) {
-        toast({
-          title: "Auto Check-in Successful! 🎉",
-          description: `Automatically checked into ${event.title}`,
-        });
-        
+        // Send native notification
+        await notificationService.sendAutoCheckInNotification(event.title);
+
         // Start location tracking for this event
         if (result.data.attendanceLog && result.data.attendanceLog._id) {
           await startLocationWatching(event._id, result.data.attendanceLog._id);
@@ -1246,10 +1255,8 @@ const ParticipantDashboard = () => {
             const result = await response.json();
             
             if (result.success) {
-              toast({
-                title: "Auto Check-out Completed",
-                description: `Automatically checked out of ${attendance.event.title}`,
-              });
+              // Send native notification
+              await notificationService.sendAutoCheckOutNotification(attendance.event.title);
 
               // Stop location tracking for this event
               await stopLocationTracking(attendance.event._id, user._id);
@@ -1294,6 +1301,76 @@ const ParticipantDashboard = () => {
       }
     }
   }, [isTracking, currentLocationStatus, myAttendance]);
+
+  // Automatic location tracking when event is active AND participant is inside premises
+  useEffect(() => {
+    const startAutomaticTracking = async () => {
+      // Don't start if already tracking
+      if (isTracking) return;
+
+      // Find checked-in attendances for active events
+      const activeAttendances = myAttendance.filter(attendance =>
+        attendance.status === 'checked-in' &&
+        attendance.event?.status === 'active'
+      );
+
+      if (activeAttendances.length === 0) return;
+
+      // Check the first active attendance
+      const attendance = activeAttendances[0];
+      const event = attendance.event;
+
+      try {
+        // Get current location
+        const location = await getCurrentLocationSafely();
+        if (!location) return;
+
+        // Validate geofence - participant must be inside premises
+        const geofenceCheck = validateGeofence(event, location);
+
+        // Only start tracking if BOTH conditions are met:
+        // 1. Event is active
+        // 2. Participant is inside premises (geofence)
+        if (geofenceCheck.valid && event.status === 'active') {
+          console.log('✅ Auto-starting location tracking - Event active AND inside premises');
+          await startLocationWatching(event._id, attendance._id);
+        } else {
+          console.log('⏸️ Not starting tracking - Outside premises or event not active');
+        }
+      } catch (error) {
+        console.error('Error in automatic tracking check:', error);
+      }
+    };
+
+    startAutomaticTracking();
+  }, [myAttendance, isTracking]);
+
+  // Periodic refresh of attendance and event data to get latest changes from organizers
+  useEffect(() => {
+    const refreshEventData = async () => {
+      try {
+        const response = await fetch(`${API_CONFIG.API_BASE}/attendance/my`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setMyAttendance(data.data.attendanceLogs);
+          console.log('🔄 Refreshed event data - participants will see latest changes');
+        }
+      } catch (error) {
+        console.error('Error refreshing event data:', error);
+      }
+    };
+
+    // Refresh every 2 minutes to get latest event changes (location, settings, QR codes, etc.)
+    const refreshInterval = setInterval(refreshEventData, 2 * 60 * 1000);
+
+    return () => clearInterval(refreshInterval);
+  }, [token]);
 
   const startQRScanner = async () => {
     if (isCameraActive) {
@@ -1948,11 +2025,9 @@ const ParticipantDashboard = () => {
                 const result = await response.json();
                 
                 if (result.success) {
-                  toast({
-                    title: "Check-in Successful!",
-                    description: `Welcome to ${result.data.event.title}`,
-                  });
-                  
+                  // Send native notification
+                  await notificationService.sendCheckInNotification(result.data.event.title);
+
                   // Start location tracking for this event
                   if (result.data.attendanceLog && result.data.attendanceLog._id) {
                     await startLocationWatching(result.data.event._id, result.data.attendanceLog._id);
@@ -2327,10 +2402,8 @@ const ParticipantDashboard = () => {
             console.log('Direct check-in response:', checkinData);
 
             if (checkinData.success) {
-              toast({
-                title: "Check-in successful!",
-                description: `Welcome to ${event.title}`,
-              });
+              // Send native notification
+              await notificationService.sendCheckInNotification(event.title);
 
               // Refresh data
               window.location.reload();
@@ -2372,11 +2445,9 @@ const ParticipantDashboard = () => {
           const checkinData = await checkinResponse.json();
 
           if (checkinData.success) {
-            toast({
-              title: "Check-in successful!",
-              description: `Welcome to ${event.title}`,
-            });
-            
+            // Send native notification
+            await notificationService.sendCheckInNotification(event.title);
+
             // Start location tracking for this event
             if (checkinData.data.attendanceLog && checkinData.data.attendanceLog._id) {
               await startLocationWatching(event._id, checkinData.data.attendanceLog._id);
@@ -5686,18 +5757,6 @@ const ParticipantDashboard = () => {
                     title={getFeedbackButtonTooltip(attendance.event._id)}
                   >
                     <MessageSquare className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    onClick={() => startLocationWatching(attendance.event._id, attendance._id)}
-                    variant="outline"
-                    size="sm"
-                    className={`text-orange-700 border-orange-300 hover:bg-orange-100 dark:text-orange-300 dark:border-orange-600 dark:hover:bg-orange-900/30 h-7 text-xs px-2 ${
-                      isTracking ? 'bg-orange-100 dark:bg-orange-900/30' : ''
-                    }`}
-                    title="Start location tracking for this event"
-                  >
-                    <MapPin className="w-3 h-3" />
-                    {isTracking ? 'Tracking' : 'Track Location'}
                   </Button>
                   <Button
                     onClick={() => handleCheckOut(attendance._id)}

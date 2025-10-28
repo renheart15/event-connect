@@ -322,8 +322,45 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
       .sort({ checkInTime: -1 });
 
     console.log(`Found ${attendanceLogs.length} attendance logs for event ${req.params.eventId}`);
-    if (attendanceLogs.length > 0) {
-      console.log('First attendance log:', JSON.stringify(attendanceLogs[0], null, 2));
+
+    // Fetch registration responses for all participants to get their submitted name/email
+    const participantIds = attendanceLogs.map(log => log.participant._id);
+    const registrationResponses = await RegistrationResponse.find({
+      event: req.params.eventId,
+      participant: { $in: participantIds }
+    }).populate('registrationForm');
+
+    // Create a map of participant ID to registration response
+    const responseMap = new Map();
+    registrationResponses.forEach(response => {
+      responseMap.set(response.participant.toString(), response);
+    });
+
+    // Enrich attendance logs with registration response data (name, email)
+    const enrichedLogs = attendanceLogs.map(log => {
+      const logObj = log.toObject();
+      const response = responseMap.get(log.participant._id.toString());
+
+      if (response && response.responses) {
+        // Extract name and email from registration responses
+        // Common field names for name and email
+        const nameField = ['name', 'fullName', 'full_name', 'participantName', 'Name', 'Full Name'].find(
+          field => response.responses.has(field)
+        );
+        const emailField = ['email', 'Email', 'emailAddress', 'email_address', 'Email Address'].find(
+          field => response.responses.has(field)
+        );
+
+        // Use registration response data if available, otherwise fall back to user data
+        logObj.participant.name = response.responses.get(nameField) || logObj.participant.name;
+        logObj.participant.email = response.responses.get(emailField) || logObj.participant.email;
+      }
+
+      return logObj;
+    });
+
+    if (enrichedLogs.length > 0) {
+      console.log('First enriched attendance log:', JSON.stringify(enrichedLogs[0], null, 2));
     }
 
     // Battery data and lastLocationUpdate are now stored directly in attendance logs
@@ -344,7 +381,7 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
         const lateThreshold = new Date(eventStartUTC.getTime() + (15 * 60 * 1000)); // 15 minutes after start
 
         // Count participants who checked in after the late threshold
-        totalLate = attendanceLogs.filter(log => {
+        totalLate = enrichedLogs.filter(log => {
           if (!log.checkInTime) return false;
           return new Date(log.checkInTime) > lateThreshold;
         }).length;
@@ -357,20 +394,20 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
 
     // Get summary statistics
     const stats = {
-      totalCheckedIn: attendanceLogs.length,
-      currentlyPresent: attendanceLogs.filter(log => log.status === 'checked-in').length,
+      totalCheckedIn: enrichedLogs.length,
+      currentlyPresent: enrichedLogs.filter(log => log.status === 'checked-in').length,
       totalCheckedOut: totalLate, // Use totalLate instead of checked-out count
-      totalAbsent: attendanceLogs.filter(log => log.status === 'absent').length,
-      averageDuration: attendanceLogs
+      totalAbsent: enrichedLogs.filter(log => log.status === 'absent').length,
+      averageDuration: enrichedLogs
         .filter(log => log.duration > 0)
         .reduce((sum, log) => sum + log.duration, 0) /
-        attendanceLogs.filter(log => log.duration > 0).length || 0
+        enrichedLogs.filter(log => log.duration > 0).length || 0
     };
 
     res.json({
       success: true,
       data: {
-        attendanceLogs,
+        attendanceLogs: enrichedLogs,
         stats,
         event: {
           _id: event._id,

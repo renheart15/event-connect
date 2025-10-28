@@ -178,6 +178,146 @@ class NotificationService {
     }
   }
 
+  async sendCheckInNotification(eventName: string) {
+    if (!this.permissionGranted || !Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: this.notificationId++,
+            title: '✅ Check-in Successful!',
+            body: `Welcome to ${eventName}. Your attendance has been recorded.`,
+            sound: 'default',
+            smallIcon: 'ic_stat_notification',
+            largeIcon: 'ic_launcher',
+            extra: {
+              type: 'check_in',
+              eventName
+            }
+          }
+        ]
+      });
+      console.log('📢 Sent check-in notification');
+    } catch (error) {
+      console.error('❌ Error sending check-in notification:', error);
+    }
+  }
+
+  async sendAutoCheckInNotification(eventName: string) {
+    if (!this.permissionGranted || !Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: this.notificationId++,
+            title: '🎉 Auto Check-in Successful!',
+            body: `Automatically checked into ${eventName}. Location tracking is active.`,
+            sound: 'default',
+            smallIcon: 'ic_stat_notification',
+            largeIcon: 'ic_launcher',
+            extra: {
+              type: 'auto_check_in',
+              eventName
+            }
+          }
+        ]
+      });
+      console.log('📢 Sent auto check-in notification');
+    } catch (error) {
+      console.error('❌ Error sending auto check-in notification:', error);
+    }
+  }
+
+  async sendCheckOutNotification(eventName: string) {
+    if (!this.permissionGranted || !Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: this.notificationId++,
+            title: '👋 Check-out Complete',
+            body: `You have been checked out of ${eventName}. Thank you for attending!`,
+            sound: 'default',
+            smallIcon: 'ic_stat_notification',
+            largeIcon: 'ic_launcher',
+            extra: {
+              type: 'check_out',
+              eventName
+            }
+          }
+        ]
+      });
+      console.log('📢 Sent check-out notification');
+    } catch (error) {
+      console.error('❌ Error sending check-out notification:', error);
+    }
+  }
+
+  async sendAutoCheckOutNotification(eventName: string) {
+    if (!this.permissionGranted || !Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: this.notificationId++,
+            title: '✔️ Auto Check-out Completed',
+            body: `Automatically checked out of ${eventName}. Location tracking has stopped.`,
+            sound: 'default',
+            smallIcon: 'ic_stat_notification',
+            largeIcon: 'ic_launcher',
+            extra: {
+              type: 'auto_check_out',
+              eventName
+            }
+          }
+        ]
+      });
+      console.log('📢 Sent auto check-out notification');
+    } catch (error) {
+      console.error('❌ Error sending auto check-out notification:', error);
+    }
+  }
+
+  async sendEventJoinedNotification(eventName: string) {
+    if (!this.permissionGranted || !Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: this.notificationId++,
+            title: '🎊 Joined Event Successfully!',
+            body: `You have been added to ${eventName}. You can now check in.`,
+            sound: 'default',
+            smallIcon: 'ic_stat_notification',
+            largeIcon: 'ic_launcher',
+            extra: {
+              type: 'event_joined',
+              eventName
+            }
+          }
+        ]
+      });
+      console.log('📢 Sent event joined notification');
+    } catch (error) {
+      console.error('❌ Error sending event joined notification:', error);
+    }
+  }
+
   async clearAllNotifications() {
     if (!Capacitor.isNativePlatform()) {
       return;

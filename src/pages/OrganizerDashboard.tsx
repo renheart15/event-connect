@@ -41,6 +41,7 @@ const OrganizerDashboard = () => {
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [eventsWithUnpublishedChanges, setEventsWithUnpublishedChanges] = useState<Set<string>>(new Set());
 
   // Check for system-wide dark mode
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -278,6 +279,9 @@ const OrganizerDashboard = () => {
       const result = await response.json();
 
       if (result.success) {
+        // Mark event as having unpublished changes
+        setEventsWithUnpublishedChanges(prev => new Set(prev).add(eventId));
+
         toast({
           title: 'Geofence Updated',
           description: `Geofence and location were saved for event "${result.data.event.title}"`,
@@ -454,6 +458,10 @@ const OrganizerDashboard = () => {
 
   const handleEventUpdate = (eventId: string, updatedData: any) => {
     console.log(`Updating event ${eventId}:`, updatedData);
+
+    // Mark event as having unpublished changes
+    setEventsWithUnpublishedChanges(prev => new Set(prev).add(eventId));
+
     toast({
       title: "Event Updated",
       description: "Event has been updated successfully.",
@@ -469,7 +477,8 @@ const OrganizerDashboard = () => {
     });
   };
 
-  const handlePublishEvent = async (eventId: string) => {
+  // Toggle Public/Private visibility
+  const handleTogglePublicPrivate = async (eventId: string) => {
     try {
       const event = events.find(e => e.id === eventId);
       if (!event) {
@@ -483,7 +492,7 @@ const OrganizerDashboard = () => {
 
       // Toggle the published status
       const newPublishedStatus = !event.published;
-      
+
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_CONFIG.API_BASE}/events/${eventId}/publish`, {
         method: 'PATCH',
@@ -499,21 +508,75 @@ const OrganizerDashboard = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.message || 'Failed to update publish status');
+        throw new Error(result.message || 'Failed to update visibility');
       }
 
       // Update the event in cache
       updateEvent(eventId, { published: newPublishedStatus });
 
       toast({
-        title: newPublishedStatus ? "Event Published" : "Event Unpublished",
-        description: `"${event.title}" has been ${newPublishedStatus ? 'published' : 'unpublished'} successfully.`,
+        title: newPublishedStatus ? "Event Made Public" : "Event Made Private",
+        description: `"${event.title}" is now ${newPublishedStatus ? 'visible to participants' : 'hidden from participants'}.`,
       });
     } catch (error: any) {
-      console.error('Error updating publish status:', error);
+      console.error('Error updating visibility:', error);
       toast({
         title: "Update Failed",
-        description: error.message || "Failed to update publish status. Please try again.",
+        description: error.message || "Failed to update visibility. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Publish changes to mobile apps immediately
+  const handlePublishChanges = async (eventId: string) => {
+    try {
+      const event = events.find(e => e.id === eventId);
+      if (!event) {
+        toast({
+          title: "Error",
+          description: "Event not found.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      // Touch the updatedAt field to trigger mobile app refresh
+      const response = await fetch(`${API_CONFIG.API_BASE}/events/${eventId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          // Send minimal update to trigger updatedAt timestamp
+          title: event.title
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to publish changes');
+      }
+
+      // Remove event from unpublished changes set
+      setEventsWithUnpublishedChanges(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eventId);
+        return newSet;
+      });
+
+      toast({
+        title: "Changes Published",
+        description: `Latest changes to "${event.title}" will appear in mobile apps within 2 minutes.`,
+      });
+    } catch (error: any) {
+      console.error('Error publishing changes:', error);
+      toast({
+        title: "Publish Failed",
+        description: error.message || "Failed to publish changes. Please try again.",
         variant: "destructive",
       });
     }
@@ -786,7 +849,13 @@ const OrganizerDashboard = () => {
                                       <Settings className="w-4 h-4 mr-2" />
                                       Settings
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handlePublishEvent(event.id)}>
+                                    {eventsWithUnpublishedChanges.has(event.id) && (
+                                      <DropdownMenuItem onClick={() => handlePublishChanges(event.id)}>
+                                        <Send className="w-4 h-4 mr-2" />
+                                        Publish Changes
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem onClick={() => handleTogglePublicPrivate(event.id)}>
                                       {event.published ? (
                                         <>
                                           <Lock className="w-4 h-4 mr-2" />
