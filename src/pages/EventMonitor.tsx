@@ -11,7 +11,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, Wifi, WifiOff, RefreshCw, Battery } from 'lucide-react';
+import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, Wifi, WifiOff, RefreshCw, Battery, UserX } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import LocationStatusDisplay from '@/components/LocationStatusDisplay';
@@ -36,6 +36,7 @@ const EventMonitor = () => {
   const [connectionRetries, setConnectionRetries] = useState(0);
   const [availableEvents, setAvailableEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
+  const [removingParticipant, setRemovingParticipant] = useState<string | null>(null);
 
   // Fetch real-time attendance data
   const fetchAttendanceData = useCallback(async () => {
@@ -85,6 +86,7 @@ const EventMonitor = () => {
 
         return {
           id: log._id,
+          participantId: log.participant._id, // Actual participant (user) ID for removal
           name: log.participant.name,
           email: log.participant.email,
           status: log.status === 'checked-in' ? 'present' : 'left-early',
@@ -312,6 +314,53 @@ const EventMonitor = () => {
     if (level >= 50) return 'text-green-600';
     if (level >= 20) return 'text-yellow-600';
     return 'text-red-600';
+  };
+
+  // Remove participant from event
+  const handleRemoveParticipant = async (participant: any) => {
+    if (!confirm(`Are you sure you want to remove ${participant.name} from this event? They will be able to join again if they want.`)) {
+      return;
+    }
+
+    try {
+      setRemovingParticipant(participant.id);
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`${API_CONFIG.API_BASE}/attendance/remove-participant`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          eventId: eventId,
+          participantId: participant.participantId
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to remove participant');
+      }
+
+      toast({
+        title: "Participant Removed",
+        description: `${participant.name} has been removed from the event`,
+      });
+
+      // Refresh attendance data
+      await fetchAttendanceData();
+    } catch (error: any) {
+      console.error('Remove participant error:', error);
+      toast({
+        title: "Failed to remove participant",
+        description: error.message || "Please try again",
+        variant: "destructive"
+      });
+    } finally {
+      setRemovingParticipant(null);
+    }
   };
 
   useEffect(() => {
@@ -636,7 +685,7 @@ const EventMonitor = () => {
                             </div>
                           </AccordionTrigger>
                           <AccordionContent className="px-4 pb-4">
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm text-gray-600 dark:text-gray-400">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm text-gray-600 dark:text-gray-400 mb-4">
                               <div>
                                 <p className="font-medium">Check-in</p>
                                 <p>{participant.checkInTime}</p>
@@ -664,6 +713,32 @@ const EventMonitor = () => {
                                   {participant.batteryLevel ? `${participant.batteryLevel}%` : 'N/A'}
                                 </p>
                               </div>
+                            </div>
+
+                            {/* Remove Participant Button */}
+                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleRemoveParticipant(participant)}
+                                disabled={removingParticipant === participant.id}
+                                className="w-full sm:w-auto"
+                              >
+                                {removingParticipant === participant.id ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Removing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserX className="w-4 h-4 mr-2" />
+                                    Remove from Event
+                                  </>
+                                )}
+                              </Button>
+                              <p className="text-xs text-gray-500 mt-2">
+                                Removing this participant will allow them to join the event again if they choose to.
+                              </p>
                             </div>
                           </AccordionContent>
                         </AccordionItem>

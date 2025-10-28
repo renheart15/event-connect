@@ -32,3 +32,6 @@ backend/.env
 backend/logs
 
 .vercel
+
+# APK files
+*.apk

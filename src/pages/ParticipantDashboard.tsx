@@ -121,6 +121,12 @@ const ParticipantDashboard = () => {
   const cameraTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const lastStaleNotificationRef = useRef<Date | null>(null);
+  const lastWarningNotificationRef = useRef<Date | null>(null);
+  const lastExceededNotificationRef = useRef<Date | null>(null);
+  const lastOutsideNotificationRef = useRef<Date | null>(null);
+  const lastInsideNotificationRef = useRef<Date | null>(null);
+  const previousLocationStatusRef = useRef<string | null>(null);
 
   const user = (() => {
     try {
@@ -1302,6 +1308,110 @@ const ParticipantDashboard = () => {
     }
   }, [isTracking, currentLocationStatus, myAttendance]);
 
+  // Monitor for stale location data and send notification
+  useEffect(() => {
+    const checkStaleStatus = async () => {
+      if (currentLocationStatus && currentLocationStatus.outsideTimer?.reason === 'stale') {
+        // Get the current event
+        const currentlyAttending = getCurrentlyAttending();
+        if (currentlyAttending.length > 0) {
+          const eventName = currentlyAttending[0].event.title;
+
+          // Only send notification if we haven't sent one in the last 5 minutes
+          const now = new Date();
+          const lastNotificationTime = lastStaleNotificationRef.current;
+          const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+          if (!lastNotificationTime || lastNotificationTime < fiveMinutesAgo) {
+            // Send stale data notification
+            await notificationService.sendStaleDataNotification(eventName);
+            lastStaleNotificationRef.current = now;
+            console.log('📡 Stale location notification sent');
+          }
+        }
+      } else {
+        // Reset notification timestamp when status is no longer stale
+        lastStaleNotificationRef.current = null;
+      }
+    };
+
+    checkStaleStatus();
+  }, [currentLocationStatus?.outsideTimer?.reason]);
+
+  // Monitor timer status and send appropriate notifications
+  useEffect(() => {
+    const checkTimerStatus = async () => {
+      if (!currentLocationStatus) return;
+
+      const currentlyAttending = getCurrentlyAttending();
+      if (currentlyAttending.length === 0) return;
+
+      const eventName = currentlyAttending[0].event.title;
+      const event = currentlyAttending[0].event;
+      const currentStatus = currentLocationStatus.status;
+      const previousStatus = previousLocationStatusRef.current;
+      const now = new Date();
+
+      // Helper function to format time
+      const formatTimeRemaining = (seconds: number) => {
+        const minutes = Math.floor(seconds / 60);
+        if (minutes >= 60) {
+          const hours = Math.floor(minutes / 60);
+          const mins = minutes % 60;
+          return `${hours}h ${mins}m`;
+        }
+        return `${minutes} minutes`;
+      };
+
+      // Detect status changes and send notifications
+      if (currentStatus !== previousStatus) {
+        previousLocationStatusRef.current = currentStatus;
+
+        // Detect outside geofence
+        if (currentStatus === 'outside' && previousStatus !== 'outside') {
+          const timeRemaining = event.maxTimeOutside - (currentLocationStatus.currentTimeOutside || 0);
+          if (timeRemaining > 0) {
+            await notificationService.sendOutsideGeofenceNotification(
+              eventName,
+              formatTimeRemaining(timeRemaining)
+            );
+            lastOutsideNotificationRef.current = now;
+            console.log('⚠️ Outside geofence notification sent');
+          }
+        }
+
+        // Detect return to geofence
+        if (currentStatus === 'inside' && previousStatus === 'outside') {
+          await notificationService.sendReturnedToGeofenceNotification(eventName);
+          lastInsideNotificationRef.current = now;
+          console.log('✅ Returned to geofence notification sent');
+        }
+
+        // Detect warning status
+        if (currentStatus === 'warning' && previousStatus !== 'warning') {
+          const timeRemaining = event.maxTimeOutside - (currentLocationStatus.currentTimeOutside || 0);
+          if (timeRemaining > 0) {
+            await notificationService.sendWarningNotification(
+              eventName,
+              formatTimeRemaining(timeRemaining)
+            );
+            lastWarningNotificationRef.current = now;
+            console.log('⏰ Warning notification sent');
+          }
+        }
+
+        // Detect exceeded limit status
+        if (currentStatus === 'exceeded_limit' && previousStatus !== 'exceeded_limit') {
+          await notificationService.sendExceededLimitNotification(eventName);
+          lastExceededNotificationRef.current = now;
+          console.log('🚫 Exceeded limit notification sent');
+        }
+      }
+    };
+
+    checkTimerStatus();
+  }, [currentLocationStatus?.status, currentLocationStatus?.currentTimeOutside]);
+
   // Automatic location tracking when event is active AND participant is inside premises
   useEffect(() => {
     const startAutomaticTracking = async () => {
@@ -1435,19 +1545,6 @@ const ParticipantDashboard = () => {
     try {
       setScanningStatus('Starting camera...');
 
-      // Check if Google Barcode Scanner module is available
-      const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
-      if (!available) {
-        setScanningStatus('Downloading scanner module...');
-        try {
-          await BarcodeScanner.installGoogleBarcodeScannerModule();
-          setScanningStatus('Scanner module installed!');
-        } catch (installError: any) {
-          console.error('Failed to install scanner module:', installError);
-          throw new Error('Failed to install barcode scanner module. Please check your internet connection and try again.');
-        }
-      }
-
       // Request camera permission
       const permission = await BarcodeScanner.checkPermissions();
       if (permission.camera !== 'granted') {
@@ -1467,7 +1564,7 @@ const ParticipantDashboard = () => {
 
       await triggerHapticFeedback('light');
 
-      // Start the scanner
+      // Start the scanner (ML Kit is now bundled in APK, no download needed)
       const result = await BarcodeScanner.scan();
 
       if (result.barcodes && result.barcodes.length > 0) {
@@ -1479,20 +1576,39 @@ const ParticipantDashboard = () => {
     } catch (error: any) {
       console.error('Native scanner error:', error);
 
-      if (error.message !== 'User cancelled') {
-        toast({
-          title: "Scanner Error",
-          description: error.message || 'Failed to scan QR code',
-          variant: "destructive",
-        });
+      // Handle different error types
+      let errorMessage = 'Failed to scan QR code';
+
+      if (error.message === 'User cancelled' || error.message === 'cancelled') {
+        // User intentionally cancelled, don't show error
+        return;
+      } else if (error.code === 'USER_CANCELLED') {
+        // Another variant of user cancellation
+        return;
+      } else if (error.message) {
+        errorMessage = error.message;
+      } else if (error.code !== undefined || error.data !== undefined) {
+        // Handle malformed error objects from native code
+        errorMessage = 'Scanner module error. Please try restarting the app.';
       }
+
+      toast({
+        title: "Scanner Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       // Cleanup
       document.body.classList.remove('barcode-scanner-active');
       setIsCameraActive(false);
       setIsScanning(false);
       setScanningStatus('Ready to scan');
-      await BarcodeScanner.stopScan();
+
+      try {
+        await BarcodeScanner.stopScan();
+      } catch (stopError) {
+        console.error('Error stopping scanner:', stopError);
+      }
     }
   };
 

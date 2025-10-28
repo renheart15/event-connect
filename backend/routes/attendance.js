@@ -1008,6 +1008,92 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
+// @route   DELETE /api/attendance/remove-participant
+// @desc    Remove a participant from an event (organizer can remove, participant can rejoin)
+// @access  Private (Organizer only)
+router.delete('/remove-participant', auth, requireOrganizer, [
+  body('eventId').notEmpty().withMessage('Event ID is required'),
+  body('participantId').notEmpty().withMessage('Participant ID is required')
+], async (req, res) => {
+  try {
+    console.log('=== REMOVE PARTICIPANT REQUEST ===');
+    console.log('Organizer ID:', req.user?._id);
+    console.log('Request body:', req.body);
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { eventId, participantId } = req.body;
+
+    // Verify event belongs to organizer
+    const event = await Event.findOne({
+      _id: eventId,
+      organizer: req.user._id
+    });
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found or access denied'
+      });
+    }
+
+    // Find and delete the attendance record
+    const attendanceRecord = await AttendanceLog.findOne({
+      event: eventId,
+      participant: participantId
+    });
+
+    if (!attendanceRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Participant not found in this event'
+      });
+    }
+
+    // Delete the attendance record (participant can rejoin later)
+    await AttendanceLog.findByIdAndDelete(attendanceRecord._id);
+
+    // Also clean up location tracking status for this participant
+    const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
+    try {
+      await ParticipantLocationStatus.findOneAndDelete({
+        event: eventId,
+        participant: participantId
+      });
+      console.log('✅ Cleaned up location tracking status');
+    } catch (cleanupError) {
+      console.error('⚠️ Failed to cleanup location tracking:', cleanupError);
+      // Don't fail the operation if cleanup fails
+    }
+
+    console.log('Successfully removed participant from event');
+
+    res.json({
+      success: true,
+      message: 'Participant removed from event successfully',
+      data: {
+        eventId: event._id,
+        participantId: participantId
+      }
+    });
+
+  } catch (error) {
+    console.error('Remove participant error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove participant',
+      error: error.message
+    });
+  }
+});
+
 // @route   POST /api/attendance/checkin-direct
 // @desc    Direct check-in for public events (no QR code needed)
 // @access  Private

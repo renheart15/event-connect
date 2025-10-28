@@ -208,6 +208,30 @@ class LocationTrackingService {
     // Calculate total time (outside + stale time)
     let totalTime = 0;
 
+    // Check if participant was stale and is now back
+    const wasStale = locationStatus.outsideTimer.isActive && locationStatus.outsideTimer.reason === 'stale';
+
+    if (wasStale && !isStale) {
+      // Participant returned from being stale - preserve accumulated time
+      console.log(`✅ [RETURNED FROM STALE] Participant data is fresh again. Preserving accumulated time.`);
+
+      // Stop the stale timer and preserve the total time
+      locationStatus.stopOutsideTimer();
+
+      // If they're still outside the geofence, restart timer with reason 'outside'
+      if (!locationStatus.isWithinGeofence) {
+        console.log(`🔄 [TIMER RESTARTED] Participant still outside geofence. Restarting timer with reason 'outside'.`);
+        locationStatus.startOutsideTimer();
+        locationStatus.outsideTimer.reason = 'outside';
+        locationStatus.status = 'outside';
+      } else {
+        console.log(`✅ [TIMER CLEARED] Participant inside geofence. Timer cleared.`);
+        locationStatus.status = 'inside';
+      }
+
+      console.log(`⏱️ [TIMER PRESERVED] Total time preserved: ${locationStatus.outsideTimer.totalTimeOutside}s (${Math.floor(locationStatus.outsideTimer.totalTimeOutside / 60)} min)`);
+    }
+
     if (locationStatus.outsideTimer.isActive) {
       totalTime = locationStatus.calculateTotalTimeOutside();
       console.log(`⏱️ [TIMER] Active outside timer: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);

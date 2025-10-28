@@ -30,8 +30,8 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- ML Kit Barcode Scanning Module - Required for native barcode scanner -->
-        <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui"/>
+        <!-- ML Kit Barcode Scanning Module - Bundled in APK (no download required) -->
+        <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode"/>
     </application>
 
     <!-- Permissions -->
