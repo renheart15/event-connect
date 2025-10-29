@@ -722,12 +722,12 @@ router.post('/join', auth, [
     const userId = req.user._id;
 
     console.log('Looking for event with code:', eventCode.toUpperCase());
-    
-    // Find the event by event code
-    const event = await Event.findOne({ 
+
+    // Find the event by event code (allow both public and private events)
+    // If user has the event code, organizer intentionally shared it
+    const event = await Event.findOne({
       eventCode: eventCode.toUpperCase(),
-      isActive: true,
-      published: true 
+      isActive: true
     });
 
     // Update event status if found
