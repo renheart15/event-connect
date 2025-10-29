@@ -29,6 +29,10 @@ const config: CapacitorConfig = {
       smallIcon: "ic_stat_icon_config_sample",
       iconColor: "#488AFF",
       sound: "beep.wav"
+    },
+    BarcodeScanner: {
+      // Bundle the ML Kit module with the APK instead of downloading at runtime
+      googleBarcodeScannerModuleInstallMode: 0 // 0 = bundled with app
     }
   }
 };
