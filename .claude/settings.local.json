@@ -77,7 +77,8 @@
       "Bash(if exist androidappsrcmainassetspublicevent-connect.apk del androidappsrcmainassetspublicevent-connect.apk)",
       "Bash(awk:*)",
       "Bash(npm uninstall:*)",
-      "Bash(md5sum:*)"
+      "Bash(md5sum:*)",
+      "Bash(gh release create:*)"
     ],
     "deny": [],
     "ask": []

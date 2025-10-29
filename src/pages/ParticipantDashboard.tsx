@@ -1554,6 +1554,15 @@ const ParticipantDashboard = () => {
         }
       }
 
+      // Check if Google Barcode Scanner Module is available, install if needed
+      setScanningStatus('Preparing scanner...');
+      const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+      if (!available) {
+        setScanningStatus('Installing scanner module...');
+        await BarcodeScanner.installGoogleBarcodeScannerModule();
+        setScanningStatus('Scanner module installed!');
+      }
+
       // Hide the UI behind the scanner
       document.body.classList.add('barcode-scanner-active');
 
@@ -1564,7 +1573,7 @@ const ParticipantDashboard = () => {
 
       await triggerHapticFeedback('light');
 
-      // Start the scanner (ML Kit is now bundled in APK, no download needed)
+      // Start the scanner
       const result = await BarcodeScanner.scan();
 
       if (result.barcodes && result.barcodes.length > 0) {
