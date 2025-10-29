@@ -2620,6 +2620,257 @@ const ParticipantDashboard = () => {
     }
   };
 
+  const handleJoinWithCode = async (code: string) => {
+    console.log('🚀 [QR JOIN] Starting handleJoinWithCode from QR scan');
+    console.log('🚀 [QR JOIN] Event code:', code);
+    console.log('🚀 [QR JOIN] Token exists:', !!token);
+
+    if (!code) {
+      console.log('🚀 [QR JOIN] No event code provided');
+      toast({
+        title: "Event code required",
+        description: "Invalid QR code - no event code found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('🚀 [QR JOIN] Setting isJoining to true');
+    setIsJoining(true);
+
+    try {
+      // First, find the event by code
+      console.log('🚀 [QR JOIN] Fetching event by code...');
+      console.log('🚀 [QR JOIN] API call:', `${API_CONFIG.API_BASE}/events/code/${code}`);
+
+      const eventResponse = await fetch(`${API_CONFIG.API_BASE}/events/code/${code}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('🚀 [QR JOIN] Event fetch response:', {
+        status: eventResponse.status,
+        ok: eventResponse.ok
+      });
+
+      if (!eventResponse.ok) {
+        console.log('🚀 [QR JOIN] Event not found with code:', code);
+        throw new Error('Event not found with that code');
+      }
+
+      const eventData = await eventResponse.json();
+      console.log('🚀 [QR JOIN] Event data received:', eventData);
+      const event = eventData.data.event;
+      console.log('🚀 [QR JOIN] Event details:', {
+        id: event._id,
+        title: event.title,
+        published: event.published,
+        isActive: event.isActive
+      });
+
+      // Check if attendance is available
+      const availability = getAttendanceAvailability(event);
+
+      if (!availability.available) {
+        if (availability.opensAt) {
+          toast({
+            title: "Attendance Not Yet Open",
+            description: `Attendance for "${event.title}" opens at ${availability.opensAtFormatted}. Please try again in ${availability.timeUntilOpen}.`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Attendance Unavailable",
+            description: availability.reason,
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
+      // Get user location for check-in
+      try {
+        const location = await getCurrentLocationSafely();
+        if (!location) {
+          throw new Error('Location access required for event check-in');
+        }
+
+        // Validate geofence
+        const geofenceCheck = validateGeofence(event, location);
+        if (!geofenceCheck.valid) {
+          toast({
+            title: "Outside Event Location",
+            description: geofenceCheck.reason,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check if user has an attendance record for this event
+        const attendanceRecord = myAttendance.find(att => att.event?._id === event._id || att.event?._id?.toString() === event._id?.toString());
+
+        console.log('🚀 [QR JOIN] Attendance record check:', {
+          found: !!attendanceRecord,
+          myAttendanceCount: myAttendance.length
+        });
+
+        if (!attendanceRecord) {
+          console.log('🚀 [QR JOIN] No attendance record found, joining event first');
+
+          // Automatically join the event first
+          try {
+            console.log('🚀 [QR JOIN] Making auto-join API call...');
+            const joinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ eventCode: code.toUpperCase() })
+            });
+
+            console.log('🚀 [QR JOIN] Auto-join response:', {
+              status: joinResponse.status,
+              ok: joinResponse.ok
+            });
+
+            const joinResult = await joinResponse.json();
+            console.log('🚀 [QR JOIN] Auto-join result:', joinResult);
+
+            if (!joinResult.success) {
+              if (joinResult.requiresRegistration && joinResult.registrationForm) {
+                toast({
+                  title: "Registration Required",
+                  description: "This event requires a registration form to be completed first.",
+                  variant: "destructive",
+                });
+                return;
+              }
+              throw new Error(joinResult.message || 'Failed to join event automatically');
+            }
+
+            toast({
+              title: "Joined and Checking In",
+              description: `Automatically joined "${event.title}" and checking you in...`,
+            });
+
+            // Now perform the direct check-in
+            console.log('🚀 [QR JOIN] Making direct check-in API call...');
+            const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                eventId: event._id,
+                location
+              })
+            });
+
+            console.log('🚀 [QR JOIN] Direct check-in response:', {
+              status: checkinResponse.status,
+              ok: checkinResponse.ok
+            });
+
+            const checkinData = await checkinResponse.json();
+            console.log('🚀 [QR JOIN] Direct check-in response body:', checkinData);
+
+            if (checkinData.success) {
+              console.log('🚀 [QR JOIN] ✅ Check-in successful!');
+
+              // Send native notification
+              await notificationService.sendCheckInNotification(event.title);
+
+              toast({
+                title: "Success!",
+                description: `Joined and checked in to "${event.title}"!`,
+              });
+
+              // Refresh data
+              console.log('🚀 [QR JOIN] Reloading page to refresh data...');
+              window.location.reload();
+              return;
+            } else {
+              console.log('🚀 [QR JOIN] ❌ Check-in failed:', checkinData.message);
+              throw new Error(checkinData.message || 'Failed to check in after joining');
+            }
+
+          } catch (joinError) {
+            console.error('🚀 [QR JOIN] ❌ Auto-join or check-in failed:', joinError);
+            toast({
+              title: "Error",
+              description: joinError.message || "Could not complete join and check-in process.",
+              variant: "destructive",
+            });
+            return;
+          }
+        } else {
+          // User already has attendance record
+          console.log('🚀 [QR JOIN] User already joined, checking in directly');
+
+          // Check if already checked in
+          if (attendanceRecord.status === 'checked-in' || attendanceRecord.checkInTime) {
+            toast({
+              title: "Already checked in",
+              description: "You are already checked in to this event",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          // Perform direct check-in
+          const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              eventId: event._id,
+              location
+            })
+          });
+
+          const checkinData = await checkinResponse.json();
+          console.log('🚀 [QR JOIN] Direct check-in response:', checkinData);
+
+          if (checkinData.success) {
+            // Send native notification
+            await notificationService.sendCheckInNotification(event.title);
+
+            toast({
+              title: "Checked In!",
+              description: `Successfully checked in to "${event.title}"!`,
+            });
+
+            // Refresh data
+            window.location.reload();
+            return;
+          } else {
+            throw new Error(checkinData.message || 'Failed to check in');
+          }
+        }
+      } catch (locationError) {
+        toast({
+          title: "Location access required",
+          description: "Please enable location access to join events",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Failed to join event",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
   const handleCheckOut = async (attendanceId: string) => {
     try {
       // Get user location for check-out
