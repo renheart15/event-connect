@@ -79,7 +79,8 @@
       "Bash(npm uninstall:*)",
       "Bash(md5sum:*)",
       "Bash(gh release create:*)",
-      "Bash(git tag:*)"
+      "Bash(git tag:*)",
+      "Bash(set NODE_OPTIONS=--max-old-space-size=4096)"
     ],
     "deny": [],
     "ask": []

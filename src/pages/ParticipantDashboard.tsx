@@ -2187,15 +2187,28 @@ const ParticipantDashboard = () => {
           }
         }
       } catch {
-        // Not event JSON, treat as regular QR code
-        
-        // For non-event QR codes, we could add them to a separate local scan list
-        // or consider tracking all scans in database with a 'type' field
-        
-        toast({
-          title: "QR Code Scanned!",
-          description: `Found: ${qrData.substring(0, 50)}${qrData.length > 50 ? '...' : ''}`,
-        });
+        // Not event JSON, check if it's a URL with event code
+
+        // Check for URL format: https://www.event-connect.site/join/CODE
+        const urlMatch = qrData.match(/\/join\/([A-Z0-9]+)/i);
+
+        if (urlMatch && urlMatch[1]) {
+          const eventCode = urlMatch[1].toUpperCase();
+
+          toast({
+            title: "Event QR Code Detected",
+            description: `Joining event with code: ${eventCode}`,
+          });
+
+          // Use the event code to join the event
+          await handleJoinWithCode(eventCode);
+        } else {
+          // Regular QR code, not an event
+          toast({
+            title: "QR Code Scanned!",
+            description: `Found: ${qrData.substring(0, 50)}${qrData.length > 50 ? '...' : ''}`,
+          });
+        }
       }
     } catch (error) {
       toast({
@@ -5953,7 +5966,7 @@ const ParticipantDashboard = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 relative bg-gray-100 dark:bg-gray-800 overflow-y-auto" style={{ height: 'calc(100vh - 240px)' }}>
+      <div className="flex-1 relative bg-gray-100 dark:bg-gray-800 overflow-y-auto pb-28" style={{ height: 'calc(100vh - 240px)' }}>
         {isCameraActive ? (
           <div className="relative h-full">
             <video
@@ -5995,7 +6008,7 @@ const ParticipantDashboard = () => {
       </div>
 
       {/* Bottom Navigation - Centered */}
-      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-3">
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-3 z-50">
         <div className="flex items-center justify-center space-x-6 sm:space-x-8">
           <button 
             onClick={handleQRUploadMobile}
