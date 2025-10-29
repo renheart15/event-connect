@@ -16,8 +16,8 @@ const QRCodeDisplay = ({ eventId, eventTitle, eventCode, isPublished = true }: Q
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (canvasRef.current && isPublished) {
-      // Generate QR code with event joining URL
+    if (canvasRef.current) {
+      // Generate QR code with event joining URL (works for both public and private events)
       const joinUrl = `${window.location.origin}/join/${eventCode}`;
       QRCode.toCanvas(canvasRef.current, joinUrl, {
         width: 200,
@@ -28,7 +28,7 @@ const QRCodeDisplay = ({ eventId, eventTitle, eventCode, isPublished = true }: Q
         }
       });
     }
-  }, [eventCode, isPublished]);
+  }, [eventCode]);
 
   const downloadQRCode = () => {
     if (canvasRef.current) {
@@ -46,41 +46,25 @@ const QRCodeDisplay = ({ eventId, eventTitle, eventCode, isPublished = true }: Q
         <CardTitle className="text-sm">Event QR Code</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col items-center space-y-3">
-        {isPublished ? (
-          <>
-            <canvas ref={canvasRef} className="border rounded" />
-            <p className="text-xs text-gray-600 text-center">
-              Event Code: <strong>{eventCode}</strong>
-            </p>
-            <p className="text-xs text-gray-500 text-center max-w-[200px]">
-              Participants can scan this QR code to join "{eventTitle}"
-            </p>
-            <Button
-              onClick={downloadQRCode}
-              size="sm"
-              variant="outline"
-              className="w-full"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Download QR Code
-            </Button>
-          </>
-        ) : (
-          <>
-            <div className="w-[200px] h-[200px] border rounded flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-              <div className="text-center text-gray-500">
-                <p className="text-sm font-medium">Event Not Published</p>
-                <p className="text-xs">Publish event to generate QR code</p>
-              </div>
-            </div>
-            <p className="text-xs text-gray-600 text-center">
-              Event Code: <strong>{eventCode}</strong>
-            </p>
-            <p className="text-xs text-gray-400 text-center max-w-[200px]">
-              QR code will be available after publishing the event
-            </p>
-          </>
-        )}
+        <canvas ref={canvasRef} className="border rounded" />
+        <p className="text-xs text-gray-600 text-center">
+          Event Code: <strong>{eventCode}</strong>
+        </p>
+        <p className="text-xs text-gray-500 text-center max-w-[200px]">
+          {isPublished
+            ? `Participants can scan this QR code to join "${eventTitle}"`
+            : `Share this QR code with invited participants to join "${eventTitle}"`
+          }
+        </p>
+        <Button
+          onClick={downloadQRCode}
+          size="sm"
+          variant="outline"
+          className="w-full"
+        >
+          <Download className="w-4 h-4 mr-2" />
+          Download QR Code
+        </Button>
       </CardContent>
     </Card>
   );

@@ -2741,11 +2741,13 @@ const ParticipantDashboard = () => {
 
             if (!joinResult.success) {
               if (joinResult.requiresRegistration && joinResult.registrationForm) {
-                toast({
-                  title: "Registration Required",
-                  description: "This event requires a registration form to be completed first.",
-                  variant: "destructive",
-                });
+                console.log('🚀 [QR JOIN] Registration required, opening form modal');
+                // Show registration form modal
+                setPendingEventCode(code.toUpperCase());
+                setPendingEventTitle(event.title || 'Event');
+                setPendingEventId(event._id || '');
+                setRegistrationFormData(joinResult.registrationForm);
+                setShowRegistrationForm(true);
                 return;
               }
               throw new Error(joinResult.message || 'Failed to join event automatically');
