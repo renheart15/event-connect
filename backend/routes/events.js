@@ -775,25 +775,13 @@ router.get('/code/:eventCode', auth, async (req, res) => {
       isActive: true
     };
 
-    // For participants, only show published events
-    // For organizers, allow access to their own events (published or not)
-    if (req.user.role === 'participant') {
-      query.published = { $eq: true }; // Explicitly require published to be true, not null/undefined
-      console.log('🔒 [PUBLISHED FILTER] Participant accessing event by code - requiring published: true');
-      console.log('🔒 [PUBLISHED FILTER] Query:', query);
-    } else if (req.user.role === 'organizer') {
-      console.log('🔓 [PUBLISHED FILTER] Organizer accessing event by code - checking ownership');
-    }
+    // Allow both public and private events to be found by code
+    // Authorization is handled later in the join/check-in process
+    // If someone has the event code, the organizer intentionally shared it
+    console.log('🔓 [EVENT BY CODE] User accessing event by code:', req.params.eventCode);
+    console.log('🔓 [EVENT BY CODE] User role:', req.user.role);
 
     const event = await Event.findOne(query).populate('organizer', 'name email');
-
-    // Additional check for organizers - they can only see their own events
-    if (event && req.user.role === 'organizer' && event.organizer._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied - you can only access your own events'
-      });
-    }
 
     if (!event) {
       return res.status(404).json({
