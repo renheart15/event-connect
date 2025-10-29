@@ -4410,7 +4410,7 @@ const ParticipantDashboard = () => {
             </div>
             <div className="mt-4">
               <a
-                href="/event-connect.apk"
+                href="https://github.com/renheart15/event-connect/releases/download/v1.0.0/event-connect-v1.0.0.apk"
                 download="EventConnect.apk"
                 className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
               >

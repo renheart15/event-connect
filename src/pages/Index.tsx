@@ -61,7 +61,7 @@ const Index = () => {
                     Download and install the EventConnect app on your Android device
                   </p>
                   <a
-                    href="/event-connect.apk"
+                    href="https://github.com/renheart15/event-connect/releases/download/v1.0.0/event-connect-v1.0.0.apk"
                     download="EventConnect.apk"
                     className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-base font-medium transition-colors w-full"
                   >
