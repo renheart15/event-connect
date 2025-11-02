@@ -435,8 +435,8 @@ const EventMonitor = () => {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Select Active Event to Monitor</h1>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Choose an active event to start live attendance monitoring</p>
               </div>
-              <Link to="/organizer-dashboard">
-                <Button variant="outline">Back to Dashboard</Button>
+              <Link to="/all-events">
+                <Button variant="outline">Back to All Events</Button>
               </Link>
             </div>
           </div>
@@ -538,17 +538,17 @@ const EventMonitor = () => {
                 </div>
               </div>
 
-              <Button 
-                onClick={() => fetchAttendanceData()} 
-                variant="outline" 
+              <Button
+                onClick={() => fetchAttendanceData()}
+                variant="outline"
                 size="sm"
                 disabled={refreshing}
               >
                 <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
                 {refreshing ? 'Refreshing...' : 'Refresh Data'}
               </Button>
-              <Link to="/organizer-dashboard">
-                <Button variant="outline">Back to Dashboard</Button>
+              <Link to="/event-monitor">
+                <Button variant="outline">Back to Event Monitor</Button>
               </Link>
             </div>
           </div>

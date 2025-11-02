@@ -2448,6 +2448,24 @@ const ParticipantDashboard = () => {
                 throw new Error(joinResult.message || 'Failed to join event automatically');
               }
 
+              // Check if the join response already checked us in (for active events)
+              const wasAutoCheckedIn = joinResult.data?.attendanceRecord?.status === 'checked-in';
+
+              if (wasAutoCheckedIn) {
+                console.log('🚀 [MANUAL JOIN] ✅ Auto-checked in during join (active event)');
+
+                toast({
+                  title: "Success!",
+                  description: `Joined and checked in to "${event.title}"!`,
+                });
+
+                // Refresh data
+                console.log('🚀 [MANUAL JOIN] Reloading page to refresh data...');
+                window.location.reload();
+                return;
+              }
+
+              // Event is not active yet, perform manual check-in
               toast({
                 title: "Joined and Checking In",
                 description: `Automatically joined "${event.title}" and checking you in...`,
@@ -2753,6 +2771,27 @@ const ParticipantDashboard = () => {
               throw new Error(joinResult.message || 'Failed to join event automatically');
             }
 
+            // Check if the join response already checked us in (for active events)
+            const wasAutoCheckedIn = joinResult.data?.attendanceRecord?.status === 'checked-in';
+
+            if (wasAutoCheckedIn) {
+              console.log('🚀 [QR JOIN] ✅ Auto-checked in during join (active event)');
+
+              // Send native notification
+              await notificationService.sendCheckInNotification(event.title);
+
+              toast({
+                title: "Success!",
+                description: `Joined and checked in to "${event.title}"!`,
+              });
+
+              // Refresh data
+              console.log('🚀 [QR JOIN] Reloading page to refresh data...');
+              window.location.reload();
+              return;
+            }
+
+            // Event is not active yet, perform manual check-in
             toast({
               title: "Joined and Checking In",
               description: `Automatically joined "${event.title}" and checking you in...`,

@@ -971,46 +971,10 @@ router.delete('/my/completed', auth, async (req, res) => {
   }
 });
 
-// @route   DELETE /api/attendance/:id
-// @desc    Hide individual attendance record from participant view
-// @access  Private (Participant only)
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    const attendanceLog = await AttendanceLog.findOne({ 
-      _id: req.params.id,
-      participant: req.user._id,
-      checkOutTime: { $exists: true }, // Only allow hiding of completed events
-      hiddenFromParticipant: { $ne: true } // Only if not already hidden
-    });
-
-    if (!attendanceLog) {
-      return res.status(404).json({
-        success: false,
-        message: 'Completed attendance record not found or access denied'
-      });
-    }
-
-    await AttendanceLog.findByIdAndUpdate(req.params.id, { 
-      hiddenFromParticipant: true 
-    });
-
-    res.json({
-      success: true,
-      message: 'Attendance record removed from your view successfully'
-    });
-  } catch (error) {
-    console.error('Hide attendance record error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to remove attendance record from view',
-      error: error.message
-    });
-  }
-});
-
 // @route   DELETE /api/attendance/remove-participant
 // @desc    Remove a participant from an event (organizer can remove, participant can rejoin)
 // @access  Private (Organizer only)
+// NOTE: This route must be defined BEFORE the /:id route to avoid route conflicts
 router.delete('/remove-participant', auth, requireOrganizer, [
   body('eventId').notEmpty().withMessage('Event ID is required'),
   body('participantId').notEmpty().withMessage('Participant ID is required')
@@ -1089,6 +1053,44 @@ router.delete('/remove-participant', auth, requireOrganizer, [
     res.status(500).json({
       success: false,
       message: 'Failed to remove participant',
+      error: error.message
+    });
+  }
+});
+
+// @route   DELETE /api/attendance/:id
+// @desc    Hide individual attendance record from participant view
+// @access  Private (Participant only)
+// NOTE: This route must be defined AFTER specific routes to avoid catching them
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const attendanceLog = await AttendanceLog.findOne({
+      _id: req.params.id,
+      participant: req.user._id,
+      checkOutTime: { $exists: true }, // Only allow hiding of completed events
+      hiddenFromParticipant: { $ne: true } // Only if not already hidden
+    });
+
+    if (!attendanceLog) {
+      return res.status(404).json({
+        success: false,
+        message: 'Completed attendance record not found or access denied'
+      });
+    }
+
+    await AttendanceLog.findByIdAndUpdate(req.params.id, {
+      hiddenFromParticipant: true
+    });
+
+    res.json({
+      success: true,
+      message: 'Attendance record removed from your view successfully'
+    });
+  } catch (error) {
+    console.error('Hide attendance record error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove attendance record from view',
       error: error.message
     });
   }
