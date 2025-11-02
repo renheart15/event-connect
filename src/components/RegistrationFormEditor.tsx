@@ -266,6 +266,10 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
 
   const cancelEdit = () => {
     navigate('/organizer-dashboard');
+    // Small delay to ensure navigation completes before refresh
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
   };
 
   if (loading) {

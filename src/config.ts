@@ -1,6 +1,6 @@
 // API Configuration for different environments
-// Always use production backend (Render) as there's no local backend running
-const _baseUrl = 'https://event-connect-jin2.onrender.com';
+// Use local backend in development, production backend in production
+const _baseUrl = import.meta.env.DEV ? 'http://localhost:5000' : 'https://event-connect-jin2.onrender.com';
 
 export const API_CONFIG = {
   get BASE_URL() {
