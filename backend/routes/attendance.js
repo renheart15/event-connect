@@ -159,27 +159,46 @@ router.post('/checkin', [
       status: 'checked-in'
     });
 
-    // Reset location tracking timer for this participant/event
+    // Initialize or reset location tracking for this participant/event
     const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
     try {
-      await ParticipantLocationStatus.findOneAndUpdate(
-        { event: eventId, participant: participantId },
-        {
-          $set: {
-            'outsideTimer.isActive': false,
-            'outsideTimer.startTime': null,
-            'outsideTimer.totalTimeOutside': 0,
-            'outsideTimer.currentSessionStart': null,
-            status: 'inside',
-            isWithinGeofence: true
-          }
-        },
-        { upsert: false }
-      );
-      console.log('✅ Reset location timer for participant on check-in');
+      const existingLocationStatus = await ParticipantLocationStatus.findOne({
+        event: eventId,
+        participant: participantId
+      });
+
+      if (existingLocationStatus) {
+        // Reset existing location tracking
+        await ParticipantLocationStatus.findOneAndUpdate(
+          { event: eventId, participant: participantId },
+          {
+            $set: {
+              'outsideTimer.isActive': false,
+              'outsideTimer.startTime': null,
+              'outsideTimer.totalTimeOutside': 0,
+              'outsideTimer.currentSessionStart': null,
+              status: 'inside',
+              isWithinGeofence: true,
+              attendanceLog: attendanceLog._id,
+              isActive: true
+            }
+          },
+          { upsert: false }
+        );
+        console.log('✅ Reset location timer for participant on check-in');
+      } else {
+        // Initialize location tracking for new check-in
+        const locationTrackingService = require('../services/locationTrackingService');
+        await locationTrackingService.initializeLocationTracking(
+          eventId,
+          participantId,
+          attendanceLog._id
+        );
+        console.log('✅ Initialized location tracking for participant on check-in');
+      }
     } catch (resetError) {
-      console.error('⚠️ Failed to reset location timer:', resetError);
-      // Don't fail the check-in if timer reset fails
+      console.error('⚠️ Failed to initialize/reset location tracking:', resetError);
+      // Don't fail the check-in if location tracking fails
     }
 
     // Mark invitation as used
@@ -404,6 +423,15 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
         enrichedLogs.filter(log => log.duration > 0).length || 0
     };
 
+    // Debug: Check what location data we're sending
+    console.log('📍 [ATTENDANCE ENDPOINT] Sending event location:', {
+      eventId: event._id,
+      hasLocation: !!event.location,
+      hasAddress: !!event.location?.address,
+      address: event.location?.address,
+      fullLocation: event.location
+    });
+
     res.json({
       success: true,
       data: {
@@ -416,7 +444,7 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
           date: event.date,
           startTime: event.startTime,
           endTime: event.endTime,
-          venue: event.venue,
+          location: event.location,
           status: event.status
         }
       }
@@ -822,6 +850,22 @@ router.post('/join', auth, [
       console.log('Attendance record created successfully:', attendanceRecord._id);
       console.log('Auto-checked in for active event:', event.status === 'active');
 
+      // Initialize location tracking for active events (so participants can be tracked)
+      if (event.status === 'active') {
+        try {
+          const locationTrackingService = require('../services/locationTrackingService');
+          await locationTrackingService.initializeLocationTracking(
+            event._id,
+            userId,
+            attendanceRecord._id
+          );
+          console.log('✅ Location tracking initialized for participant:', req.user.name);
+        } catch (locationError) {
+          console.error('⚠️ Failed to initialize location tracking:', locationError);
+          // Don't fail the join if location tracking fails - it's not critical
+        }
+      }
+
       // Return success response
       res.json({
         success: true,
@@ -1167,6 +1211,20 @@ router.post('/checkin-direct', auth, [
     await attendanceRecord.save();
 
     console.log('Check-in successful, updated attendance record');
+
+    // Initialize location tracking after check-in
+    try {
+      const locationTrackingService = require('../services/locationTrackingService');
+      await locationTrackingService.initializeLocationTracking(
+        eventId,
+        userId,
+        attendanceRecord._id
+      );
+      console.log('✅ Location tracking initialized for participant:', req.user.name);
+    } catch (locationError) {
+      console.error('⚠️ Failed to initialize location tracking:', locationError);
+      // Don't fail the check-in if location tracking fails - it's not critical
+    }
 
     await attendanceRecord.populate(['event', 'participant']);
 

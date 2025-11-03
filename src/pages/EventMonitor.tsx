@@ -103,6 +103,12 @@ const EventMonitor = () => {
 
       // Set event data if returned from attendance endpoint
       if (data.data.event) {
+        console.log('📍 [ATTENDANCE] Event location data:', {
+          hasLocation: !!data.data.event.location,
+          hasAddress: !!data.data.event.location?.address,
+          address: data.data.event.location?.address,
+          fullLocation: data.data.event.location
+        });
         setEventData(data.data.event);
       }
 
@@ -167,6 +173,12 @@ const EventMonitor = () => {
       if (data.success) {
         // Handle nested event structure: data.data.event or data.data
         const eventInfo = data.data?.event || data.data;
+        console.log('📍 [EVENTS] Event location data:', {
+          hasLocation: !!eventInfo.location,
+          hasAddress: !!eventInfo.location?.address,
+          address: eventInfo.location?.address,
+          fullLocation: eventInfo.location
+        });
         setEventData(eventInfo);
       } else {
         console.error('Failed to fetch event:', data.message);
@@ -644,9 +656,9 @@ const EventMonitor = () => {
                       <p className="font-medium text-gray-900 dark:text-white">Location</p>
                       <p
                         className="text-gray-600 dark:text-gray-400 truncate max-w-full"
-                        title={eventData.location?.address || eventData.location || 'Location not specified'}
+                        title={eventData.location?.address || 'Location not specified'}
                       >
-                        {eventData.location?.address || eventData.location || 'Location not specified'}
+                        {eventData.location?.address || 'Location not specified'}
                       </p>
                     </div>
                   </div>
