@@ -226,7 +226,39 @@ router.patch('/deactivate',
   }
 );
 
-// Delete Gmail credentials permanently
+// IMPORTANT: Specific DELETE routes must come BEFORE parameterized routes like /:email
+// Delete stored password (must be before DELETE /:email)
+router.delete('/delete-password',
+  credentialsLimiter,
+  auth,
+  async (req, res) => {
+    try {
+      const userId = req.user.id;
+
+      // Delete all credentials for this user
+      const emailConfigs = await getUserGmailConfigs(userId);
+      let deletedCount = 0;
+
+      for (const config of emailConfigs) {
+        const success = await deleteGmailCredentials(userId, config.email);
+        if (success) deletedCount++;
+      }
+
+      res.json({
+        success: true,
+        message: 'Stored password deleted successfully'
+      });
+    } catch (error) {
+      console.error('Delete password error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete stored password'
+      });
+    }
+  }
+);
+
+// Delete Gmail credentials permanently (must be AFTER specific routes)
 router.delete('/:email',
   credentialsLimiter,
   auth,
@@ -436,37 +468,6 @@ router.get('/has-password',
       res.status(500).json({
         success: false,
         message: 'Failed to check password'
-      });
-    }
-  }
-);
-
-// Delete stored password
-router.delete('/delete-password',
-  credentialsLimiter,
-  auth,
-  async (req, res) => {
-    try {
-      const userId = req.user.id;
-      
-      // Delete all credentials for this user
-      const emailConfigs = await getUserGmailConfigs(userId);
-      let deletedCount = 0;
-      
-      for (const config of emailConfigs) {
-        const success = await deleteGmailCredentials(userId, config.email);
-        if (success) deletedCount++;
-      }
-
-      res.json({
-        success: true,
-        message: 'Stored password deleted successfully'
-      });
-    } catch (error) {
-      console.error('Delete password error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to delete stored password'
       });
     }
   }
