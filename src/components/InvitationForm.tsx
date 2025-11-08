@@ -319,26 +319,6 @@ const InvitationForm = ({ eventId, eventTitle, isOpen, onClose }: InvitationForm
       return;
     }
 
-    if (!emailPassword.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter your Gmail app password to send invitations.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Store password if remember is checked
-    if (rememberPassword && emailPassword.trim()) {
-      try {
-        await emailCredentialsService.storePassword(emailPassword.trim());
-        setHasStoredCredentials(true);
-      } catch (error) {
-        console.error('Error storing password:', error);
-        // Continue with sending invitations even if storing fails
-      }
-    }
-
     if (validParticipants.length !== currentParticipants.length) {
       toast({
         title: "Warning",
@@ -366,8 +346,7 @@ const InvitationForm = ({ eventId, eventTitle, isOpen, onClose }: InvitationForm
             body: JSON.stringify({
               eventId,
               participantEmail: participant.email.trim(),
-              participantName: participant.name.trim(),
-              emailPassword: emailPassword.trim()
+              participantName: participant.name.trim()
             })
           });
 
@@ -713,71 +692,6 @@ const InvitationForm = ({ eventId, eventTitle, isOpen, onClose }: InvitationForm
               )}
             </TabsContent>
           </Tabs>
-          
-          {/* Gmail App Password Input */}
-          <Card className="p-4 bg-blue-50 dark:bg-blue-950/20">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Key className="w-4 h-4" />
-                  <Label htmlFor="emailPassword" className="text-sm font-medium">
-                    Gmail App Password <span className="text-red-500">*</span>
-                  </Label>
-                  {hasStoredCredentials && (
-                    <span className="text-xs text-green-600 dark:text-green-400">
-                      ✓ Stored in Database
-                    </span>
-                  )}
-                </div>
-                {hasStoredCredentials && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearSavedPassword}
-                    className="text-xs h-auto py-1 px-2 text-red-500 hover:text-red-700"
-                  >
-                    Clear Stored
-                  </Button>
-                )}
-              </div>
-              
-              <Input
-                id="emailPassword"
-                type="password"
-                placeholder="Your Gmail app password"
-                value={emailPassword}
-                onChange={(e) => handleEmailPasswordChange(e.target.value)}
-                required
-                className="bg-white dark:bg-gray-800"
-              />
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="rememberPassword"
-                  checked={rememberPassword}
-                  onCheckedChange={handleRememberPasswordChange}
-                />
-                <Label
-                  htmlFor="rememberPassword"
-                  className="text-xs text-muted-foreground cursor-pointer"
-                >
-                  Remember password in secure database
-                </Label>
-              </div>
-              
-              <p className="text-xs text-muted-foreground">
-                Required to send emails from your Gmail account. Use a Gmail app password for security.
-                {rememberPassword && (
-                  <span className="block text-amber-600 dark:text-amber-400 mt-1">
-                    Password will be stored securely in the database with encryption.
-                  </span>
-                )}
-              </p>
-            </div>
-          </Card>
-
-          
           <div className="flex gap-2 pt-4">
             <Button
               type="button"
