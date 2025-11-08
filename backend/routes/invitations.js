@@ -234,26 +234,41 @@ router.post('/', auth, requireOrganizer, [
       <p>Best regards,<br>${organizer.name}</p>
     `;
 
-    // Send email asynchronously to prevent timeout (don't await)
-    // This allows the API to respond immediately while email sends in background
+    // Send email and wait for confirmation
     const emailSubject = isResend ? `Reminder: Invitation to ${event.title}` : `Invitation to ${event.title}`;
 
-    transporter.sendMail({
-      from: `"${organizer.name}" <${organizer.email}>`,
-      to: participantEmail,
-      subject: emailSubject,
-      html: emailHtml
-    }).then(() => {
+    try {
+      await transporter.sendMail({
+        from: `"${organizer.name}" <${organizer.email}>`,
+        to: participantEmail,
+        subject: emailSubject,
+        html: emailHtml
+      });
       console.log(`✅ Email sent successfully to ${participantEmail} for event: ${event.title}`);
-    }).catch((emailError) => {
+    } catch (emailError) {
       console.error(`❌ Email sending failed for ${participantEmail}:`, emailError.message);
-      // Don't throw - email failure shouldn't block invitation creation
-      // Organizer can resend later if needed
-    });
+
+      // Delete the invitation since email failed
+      await Invitation.findByIdAndDelete(invitation._id);
+
+      // Provide specific error message
+      let errorMsg = 'Failed to send invitation email. ';
+      if (emailError.message.includes('Invalid login') || emailError.message.includes('535')) {
+        errorMsg += 'Invalid email credentials. Please check your Gmail app password.';
+      } else if (emailError.message.includes('550')) {
+        errorMsg += 'Recipient email address rejected.';
+      } else if (emailError.message.includes('ETIMEDOUT') || emailError.message.includes('ECONNECTION')) {
+        errorMsg += 'Connection to email server failed.';
+      } else {
+        errorMsg += emailError.message;
+      }
+
+      throw new Error(errorMsg);
+    }
 
     await invitation.populate(['event', 'participant']);
 
-    const messagePrefix = isResend ? 'Invitation sent successfully (email sending in background)' : 'Invitation sent successfully (email sending in background)';
+    const messagePrefix = isResend ? 'Invitation resent successfully and email delivered' : 'Invitation sent successfully and email delivered';
 
     res.status(201).json({
       success: true,
@@ -640,18 +655,32 @@ router.post('/:id/resend', auth, requireOrganizer, [
       <p>Best regards,<br>${organizer.name}</p>
     `;
 
-    // Send email asynchronously to prevent timeout (don't await)
-    transporter.sendMail({
-      from: `"${organizer.name}" <${organizer.email}>`,
-      to: invitation.participantEmail,
-      subject: `Reminder: Invitation to ${invitation.event.title}`,
-      html: emailHtml
-    }).then(() => {
+    // Send email and wait for confirmation
+    try {
+      await transporter.sendMail({
+        from: `"${organizer.name}" <${organizer.email}>`,
+        to: invitation.participantEmail,
+        subject: `Reminder: Invitation to ${invitation.event.title}`,
+        html: emailHtml
+      });
       console.log(`✅ Email resent successfully to ${invitation.participantEmail} for event: ${invitation.event.title}`);
-    }).catch((emailError) => {
+    } catch (emailError) {
       console.error(`❌ Email resending failed for ${invitation.participantEmail}:`, emailError.message);
-      // Don't throw - email failure shouldn't block the response
-    });
+
+      // Provide specific error message
+      let errorMsg = 'Failed to resend invitation email. ';
+      if (emailError.message.includes('Invalid login') || emailError.message.includes('535')) {
+        errorMsg += 'Invalid email credentials. Please check your Gmail app password.';
+      } else if (emailError.message.includes('550')) {
+        errorMsg += 'Recipient email address rejected.';
+      } else if (emailError.message.includes('ETIMEDOUT') || emailError.message.includes('ECONNECTION')) {
+        errorMsg += 'Connection to email server failed.';
+      } else {
+        errorMsg += emailError.message;
+      }
+
+      throw new Error(errorMsg);
+    }
 
     // Update the sentAt timestamp to indicate it was resent
     invitation.sentAt = new Date();
@@ -667,7 +696,7 @@ router.post('/:id/resend', auth, requireOrganizer, [
 
     res.json({
       success: true,
-      message: 'Invitation resent successfully (email sending in background)',
+      message: 'Invitation resent successfully and email delivered',
       data: {
         invitation
       }
