@@ -1,7 +1,7 @@
 
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const Event = require('../models/Event');
 const User = require('../models/User');
 const Invitation = require('../models/Invitation');
@@ -11,25 +11,8 @@ const { updateSingleEventStatus } = require('../utils/updateEventStatuses');
 
 const router = express.Router();
 
-// Function to create transporter - requires user email password
-const createTransporter = (user, emailPassword) => {
-  console.log('Creating transporter for user:', user.email);
-  
-  if (!emailPassword) {
-    throw new Error('Email password is required to send invitations.');
-  }
-
-  console.log('Using user email:', user.email);
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: {
-      user: user.email,
-      pass: emailPassword
-    }
-  });
-};
+// Initialize Resend with API key from environment
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // @route   POST /api/invitations
 // @desc    Send invitation to participant
@@ -37,8 +20,7 @@ const createTransporter = (user, emailPassword) => {
 router.post('/', auth, requireOrganizer, [
   body('eventId').isMongoId().withMessage('Valid event ID is required'),
   body('participantEmail').isEmail().normalizeEmail().withMessage('Valid email is required'),
-  body('participantName').trim().notEmpty().withMessage('Participant name is required'),
-  body('emailPassword').optional()
+  body('participantName').trim().notEmpty().withMessage('Participant name is required')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -50,30 +32,7 @@ router.post('/', auth, requireOrganizer, [
       });
     }
 
-    let { eventId, participantEmail, participantName, emailPassword } = req.body;
-
-    // If no password provided, try to get stored password
-    if (!emailPassword) {
-      try {
-        const { getDecryptedPassword } = require('../services/emailCredentialsService');
-        const storedPassword = await getDecryptedPassword(req.user._id);
-        
-        if (storedPassword) {
-          emailPassword = storedPassword;
-          console.log('Using stored Gmail password for invitation');
-        }
-      } catch (error) {
-        console.error('Error retrieving stored password:', error);
-      }
-    }
-
-    // Require password to be provided or retrieved from storage
-    if (!emailPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email password is required. Please provide your Gmail app password or save it in your account.'
-      });
-    }
+    let { eventId, participantEmail, participantName } = req.body;
 
     // Check if event exists and belongs to organizer
     const event = await Event.findOne({ _id: eventId, organizer: req.user._id });
@@ -84,12 +43,20 @@ router.post('/', auth, requireOrganizer, [
       });
     }
 
-    // Load organizer with email configuration
+    // Load organizer information
     const organizer = await User.findById(req.user._id);
     if (!organizer) {
       return res.status(404).json({
         success: false,
         message: 'Organizer not found'
+      });
+    }
+
+    // Check if Resend API key is configured
+    if (!process.env.RESEND_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        message: 'Email service not configured. Please contact administrator.'
       });
     }
 
@@ -180,21 +147,7 @@ router.post('/', auth, requireOrganizer, [
     // Save the invitation
     await invitation.save();
 
-    // Create transporter with organizer's email configuration
-    console.log('=== Creating transporter ===');
-    console.log('Organizer email:', organizer.email);
-    console.log('Email password provided:', !!emailPassword);
-    
-    let transporter;
-    try {
-      transporter = createTransporter(organizer, emailPassword);
-      console.log('Transporter created successfully');
-    } catch (transporterError) {
-      console.error('Transporter creation failed:', transporterError.message);
-      throw new Error(`Email configuration error: ${transporterError.message}`);
-    }
-
-    // Send email
+    // Prepare email
     const isResend = !!existingInvitation;
     const emailTitle = isResend ? `Reminder: You're invited to ${event.title}` : `You're invited to ${event.title}`;
     const emailIntro = isResend 
@@ -234,17 +187,24 @@ router.post('/', auth, requireOrganizer, [
       <p>Best regards,<br>${organizer.name}</p>
     `;
 
-    // Send email and wait for confirmation
+    // Send email and wait for confirmation using Resend
     const emailSubject = isResend ? `Reminder: Invitation to ${event.title}` : `Invitation to ${event.title}`;
 
     try {
-      await transporter.sendMail({
-        from: `"${organizer.name}" <${organizer.email}>`,
-        to: participantEmail,
+      const { data, error } = await resend.emails.send({
+        from: 'Event Connect <onboarding@resend.dev>',
+        to: [participantEmail],
         subject: emailSubject,
-        html: emailHtml
+        html: emailHtml,
+        reply_to: organizer.email
       });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
       console.log(`✅ Email sent successfully to ${participantEmail} for event: ${event.title}`);
+      console.log('Resend Email ID:', data?.id);
     } catch (emailError) {
       console.error(`❌ Email sending failed for ${participantEmail}:`, emailError.message);
 
@@ -253,12 +213,10 @@ router.post('/', auth, requireOrganizer, [
 
       // Provide specific error message
       let errorMsg = 'Failed to send invitation email. ';
-      if (emailError.message.includes('Invalid login') || emailError.message.includes('535')) {
-        errorMsg += 'Invalid email credentials. Please check your Gmail app password.';
-      } else if (emailError.message.includes('550')) {
-        errorMsg += 'Recipient email address rejected.';
-      } else if (emailError.message.includes('ETIMEDOUT') || emailError.message.includes('ECONNECTION')) {
-        errorMsg += 'Connection to email server failed.';
+      if (emailError.message.includes('API key') || emailError.message.includes('authentication')) {
+        errorMsg += 'Email service not properly configured. Please contact administrator.';
+      } else if (emailError.message.includes('validation_error')) {
+        errorMsg += 'Invalid email address format.';
       } else {
         errorMsg += emailError.message;
       }
@@ -538,25 +496,12 @@ router.get('/my', auth, async (req, res) => {
 // @route   POST /api/invitations/:id/resend
 // @desc    Resend invitation email (keeps same QR code)
 // @access  Private (Organizer only)
-router.post('/:id/resend', auth, requireOrganizer, [
-  body('emailPassword').trim().notEmpty().withMessage('Email password is required')
-], async (req, res) => {
+router.post('/:id/resend', auth, requireOrganizer, async (req, res) => {
   try {
     console.log('=== RESEND INVITATION REQUEST ===');
     console.log('Invitation ID:', req.params.id);
     console.log('User ID:', req.user._id);
     console.log('================================');
-    
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
-    const { emailPassword } = req.body;
 
     // Find the invitation
     const invitation = await Invitation.findById(req.params.id)
@@ -596,7 +541,7 @@ router.post('/:id/resend', auth, requireOrganizer, [
       });
     }
 
-    // Load organizer with email configuration
+    // Load organizer information
     const organizer = await User.findById(req.user._id);
     if (!organizer) {
       return res.status(404).json({
@@ -605,12 +550,12 @@ router.post('/:id/resend', auth, requireOrganizer, [
       });
     }
 
-    // Create transporter with organizer's email configuration
-    let transporter;
-    try {
-      transporter = createTransporter(organizer, emailPassword);
-    } catch (transporterError) {
-      throw new Error(`Email configuration error: ${transporterError.message}`);
+    // Check if Resend API key is configured
+    if (!process.env.RESEND_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        message: 'Email service not configured. Please contact administrator.'
+      });
     }
 
     // Validate required data for email template
@@ -655,26 +600,31 @@ router.post('/:id/resend', auth, requireOrganizer, [
       <p>Best regards,<br>${organizer.name}</p>
     `;
 
-    // Send email and wait for confirmation
+    // Send email and wait for confirmation using Resend
     try {
-      await transporter.sendMail({
-        from: `"${organizer.name}" <${organizer.email}>`,
-        to: invitation.participantEmail,
+      const { data, error } = await resend.emails.send({
+        from: 'Event Connect <onboarding@resend.dev>',
+        to: [invitation.participantEmail],
         subject: `Reminder: Invitation to ${invitation.event.title}`,
-        html: emailHtml
+        html: emailHtml,
+        reply_to: organizer.email
       });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
       console.log(`✅ Email resent successfully to ${invitation.participantEmail} for event: ${invitation.event.title}`);
+      console.log('Resend Email ID:', data?.id);
     } catch (emailError) {
       console.error(`❌ Email resending failed for ${invitation.participantEmail}:`, emailError.message);
 
       // Provide specific error message
       let errorMsg = 'Failed to resend invitation email. ';
-      if (emailError.message.includes('Invalid login') || emailError.message.includes('535')) {
-        errorMsg += 'Invalid email credentials. Please check your Gmail app password.';
-      } else if (emailError.message.includes('550')) {
-        errorMsg += 'Recipient email address rejected.';
-      } else if (emailError.message.includes('ETIMEDOUT') || emailError.message.includes('ECONNECTION')) {
-        errorMsg += 'Connection to email server failed.';
+      if (emailError.message.includes('API key') || emailError.message.includes('authentication')) {
+        errorMsg += 'Email service not properly configured. Please contact administrator.';
+      } else if (emailError.message.includes('validation_error')) {
+        errorMsg += 'Invalid email address format.';
       } else {
         errorMsg += emailError.message;
       }
