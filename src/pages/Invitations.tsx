@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Link, useNavigate } from 'react-router-dom';
-import { emailCredentialsService } from '@/services/emailCredentialsService';
 
 
 interface InvitationRecord {
@@ -67,30 +66,6 @@ const Invitations = () => {
   const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('send');
   const [resendingInvitations, setResendingInvitations] = useState<string[]>([]);
-  const [emailPassword, setEmailPassword] = useState('');
-  const [gmailEmail, setGmailEmail] = useState('');
-  const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
-  const [loadingCredentials, setLoadingCredentials] = useState(true);
-
-  // Check for stored credentials on component mount
-  const checkStoredCredentials = async () => {
-    try {
-      setLoadingCredentials(true);
-      const hasCredentials = await emailCredentialsService.hasStoredCredentials();
-      setHasStoredCredentials(hasCredentials);
-      
-      if (hasCredentials) {
-        const primaryCredential = await emailCredentialsService.getPrimaryCredential();
-        if (primaryCredential) {
-          setGmailEmail(primaryCredential.email);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking stored credentials:', error);
-    } finally {
-      setLoadingCredentials(false);
-    }
-  };
 
   // Handle events error
   useEffect(() => {
@@ -102,10 +77,6 @@ const Invitations = () => {
       });
     }
   }, [eventsError, toast]);
-
-  useEffect(() => {
-    checkStoredCredentials();
-  }, []);
 
   // Filter invitations based on search and status
   useEffect(() => {
@@ -266,15 +237,6 @@ const Invitations = () => {
   };
 
   const resendInvitation = async (invitation: InvitationRecord) => {
-    if (!emailPassword) {
-      toast({
-        title: "Email Password Required",
-        description: "Please enter your email password to resend invitations.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (!invitation.invitationId) {
       toast({
         title: "Resend Failed",
@@ -294,9 +256,7 @@ const Invitations = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          emailPassword: emailPassword
-        })
+        body: JSON.stringify({})
       });
 
       const result = await response.json();
@@ -329,15 +289,6 @@ const Invitations = () => {
   };
 
   const resendSelectedInvitations = async () => {
-    if (!emailPassword) {
-      toast({
-        title: "Email Password Required",
-        description: "Please enter your email password to resend invitations.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (selectedInvitations.length === 0) {
       toast({
         title: "No Invitations Selected",
@@ -368,9 +319,7 @@ const Invitations = () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({
-            emailPassword: emailPassword
-          })
+          body: JSON.stringify({})
         });
 
         const result = await response.json();
@@ -736,54 +685,6 @@ const Invitations = () => {
                               <SelectItem value="pending">Pending</SelectItem>
                             </SelectContent>
                           </Select>
-                        </div>
-                      </div>
-                      
-                      {/* Email Password for Resending */}
-                      <div className="border-t pt-4">
-                        <div className="flex flex-col sm:flex-row gap-4 items-end">
-                          <div className="flex-1">
-                            <Label htmlFor="email-password">Email Password (for resending)</Label>
-                            <Input
-                              id="email-password"
-                              type="password"
-                              placeholder="Enter your email password..."
-                              value={emailPassword}
-                              onChange={(e) => setEmailPassword(e.target.value)}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Required for resending invitations. Use app-specific password for Gmail.
-                            </p>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              if (gmailEmail) {
-                                try {
-                                  await emailCredentialsService.deleteCredentials(gmailEmail);
-                                  setHasStoredCredentials(false);
-                                  setGmailEmail('');
-                                  setEmailPassword('');
-                                  toast({
-                                    title: "Cleared",
-                                    description: "Saved credentials have been cleared from the database.",
-                                  });
-                                } catch (error) {
-                                  console.error('Error clearing credentials:', error);
-                                  toast({
-                                    title: "Error",
-                                    description: "Failed to clear credentials from database.",
-                                    variant: "destructive",
-                                  });
-                                }
-                              } else {
-                                setEmailPassword('');
-                              }
-                            }}
-                          >
-                            Clear
-                          </Button>
                         </div>
                       </div>
                     </CardContent>

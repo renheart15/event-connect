@@ -3,25 +3,22 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  ArrowLeft, 
-  CheckCircle, 
-  XCircle, 
-  RefreshCw, 
-  Mail, 
-  User, 
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import {
+  ArrowLeft,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  Mail,
+  User,
   Calendar,
   MapPin,
   Users,
   AlertTriangle,
-  Send,
-  Key
+  Send
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { emailCredentialsService } from '@/services/emailCredentialsService';
 
 interface InvitationResult {
   email: string;
@@ -51,12 +48,6 @@ const InvitationSummary = () => {
   
   const [event, setEvent] = useState<Event | null>(null);
   const [invitationResults, setInvitationResults] = useState<InvitationResult[]>([]);
-  const [emailPassword, setEmailPassword] = useState('');
-  const [gmailEmail, setGmailEmail] = useState('');
-  const [showGmailEmailField, setShowGmailEmailField] = useState(false);
-  const [rememberPassword, setRememberPassword] = useState(false);
-  const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
-  const [loadingCredentials, setLoadingCredentials] = useState(true);
   const [isResending, setIsResending] = useState(false);
   const [selectedFailures, setSelectedFailures] = useState<string[]>([]);
 
@@ -72,48 +63,9 @@ const InvitationSummary = () => {
     
     // Clear the session storage after loading
     sessionStorage.removeItem('invitationResults');
-    
-    fetchEventDetails();
-    checkStoredCredentials();
-  }, [eventId, navigate]);
 
-  const checkStoredCredentials = async () => {
-    try {
-      setLoadingCredentials(true);
-      const hasCredentials = await emailCredentialsService.hasStoredCredentials();
-      setHasStoredCredentials(hasCredentials);
-      
-      if (hasCredentials) {
-        setRememberPassword(true);
-        // Auto-load the stored password
-        try {
-          const storedPassword = await emailCredentialsService.getStoredPassword();
-          if (storedPassword) {
-            setEmailPassword(storedPassword);
-            console.log('Password loaded successfully from database');
-          } else {
-            console.log('No stored password found in database');
-          }
-        } catch (error) {
-          console.error('Error loading stored password:', error);
-          // Reset hasStoredCredentials if we can't load the password
-          setHasStoredCredentials(false);
-          setRememberPassword(false);
-        }
-      } else {
-        // Ensure password field is cleared if no credentials
-        setEmailPassword('');
-        setRememberPassword(false);
-      }
-    } catch (error) {
-      console.error('Error checking stored credentials:', error);
-      setHasStoredCredentials(false);
-      setRememberPassword(false);
-      setEmailPassword('');
-    } finally {
-      setLoadingCredentials(false);
-    }
-  };
+    fetchEventDetails();
+  }, [eventId, navigate]);
 
   const fetchEventDetails = async () => {
     try {
@@ -134,33 +86,6 @@ const InvitationSummary = () => {
       }
     } catch (error) {
       console.error('Error fetching event:', error);
-    }
-  };
-
-  const handleEmailPasswordChange = (value: string) => {
-    setEmailPassword(value);
-  };
-
-
-  const handleRememberPasswordChange = async (checked: boolean) => {
-    setRememberPassword(checked);
-    
-    if (!checked && hasStoredCredentials) {
-      try {
-        await emailCredentialsService.deleteStoredPassword();
-        setHasStoredCredentials(false);
-        toast({
-          title: "Password Removed",
-          description: "Stored password has been removed from the database.",
-        });
-      } catch (error) {
-        console.error('Error removing password:', error);
-        toast({
-          title: "Error",
-          description: "Failed to remove password from database.",
-          variant: "destructive",
-        });
-      }
     }
   };
 
@@ -194,60 +119,6 @@ const InvitationSummary = () => {
       return;
     }
 
-    if (!emailPassword.trim()) {
-      toast({
-        title: "Password Required",
-        description: "Please enter your Gmail app password to resend invitations.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (showGmailEmailField && !gmailEmail.trim()) {
-      toast({
-        title: "Gmail Email Required",
-        description: "Please enter your Gmail email address.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (showGmailEmailField && !gmailEmail.trim().endsWith('@gmail.com')) {
-      toast({
-        title: "Invalid Gmail Address",
-        description: "Please enter a valid Gmail address (must end with @gmail.com).",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Store password if remember is checked
-    if (rememberPassword && emailPassword.trim()) {
-      try {
-        await emailCredentialsService.storePassword(emailPassword.trim(), gmailEmail.trim() || undefined);
-        setHasStoredCredentials(true);
-      } catch (error) {
-        console.error('Error storing password:', error);
-        
-        // Check if the error requires a Gmail email address
-        if (error.message.includes('Please provide a Gmail address')) {
-          setShowGmailEmailField(true);
-          toast({
-            title: "Gmail Address Required",
-            description: "Please provide your Gmail address to store the app password.",
-            variant: "destructive",
-          });
-          return; // Stop execution to let user provide Gmail address
-        }
-        
-        // Continue with resending invitations even if storing fails for other reasons
-        toast({
-          title: "Warning",
-          description: "Failed to store password, but invitations will still be sent.",
-        });
-      }
-    }
-
     setIsResending(true);
 
     try {
@@ -270,8 +141,7 @@ const InvitationSummary = () => {
             body: JSON.stringify({
               eventId,
               participantEmail: participant.email,
-              participantName: participant.name,
-              emailPassword: emailPassword.trim()
+              participantName: participant.name
             })
           });
 
@@ -520,79 +390,23 @@ const InvitationSummary = () => {
                     ))}
                   </div>
 
-                  {/* Gmail App Password for Resend */}
-                  <div className="border-t pt-4 space-y-4">
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium flex items-center gap-2">
-                        <Key className="w-4 h-4" />
-                        Gmail App Password (required for resend)
-                        {hasStoredCredentials && (
-                          <span className="text-xs text-green-600 dark:text-green-400">
-                            ✓ Stored in Database
-                          </span>
-                        )}
-                      </h4>
-                      
-                      {showGmailEmailField && (
-                        <div className="space-y-2">
-                          <Label htmlFor="resendGmailEmail">Gmail Email Address</Label>
-                          <Input
-                            id="resendGmailEmail"
-                            type="email"
-                            placeholder="your-email@gmail.com"
-                            value={gmailEmail}
-                            onChange={(e) => setGmailEmail(e.target.value)}
-                            className="max-w-md"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Your registered account email is not a Gmail address. Please provide your Gmail address.
-                          </p>
-                        </div>
-                      )}
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="resendPassword">App Password</Label>
-                        <Input
-                          id="resendPassword"
-                          type="password"
-                          placeholder={loadingCredentials ? "Loading saved password..." : "Your Gmail app password"}
-                          value={emailPassword}
-                          onChange={(e) => handleEmailPasswordChange(e.target.value)}
-                          className="max-w-md"
-                          disabled={loadingCredentials}
-                        />
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="rememberResendPassword"
-                          checked={rememberPassword}
-                          onCheckedChange={handleRememberPasswordChange}
-                        />
-                        <Label htmlFor="rememberResendPassword" className="text-xs text-muted-foreground">
-                          Remember password in secure database
-                        </Label>
-                      </div>
-                    </div>
-
-                    <Button
-                      onClick={handleResendInvitations}
-                      disabled={selectedFailures.length === 0 || !emailPassword.trim() || isResending}
-                      className="flex items-center gap-2"
-                    >
-                      {isResending ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          Resending...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-4 h-4" />
-                          Resend {selectedFailures.length} Invitation{selectedFailures.length !== 1 ? 's' : ''}
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={handleResendInvitations}
+                    disabled={selectedFailures.length === 0 || isResending}
+                    className="flex items-center gap-2 mt-4"
+                  >
+                    {isResending ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Resending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Resend {selectedFailures.length} Invitation{selectedFailures.length !== 1 ? 's' : ''}
+                      </>
+                    )}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
