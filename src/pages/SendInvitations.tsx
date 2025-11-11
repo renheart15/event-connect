@@ -8,13 +8,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Mail, Send, Plus, X, Key, Upload, Download, FileSpreadsheet, ArrowLeft, Calendar, MapPin, Users, Building2, Crown, Shield, User } from 'lucide-react';
+import { Mail, Send, Plus, X, Upload, Download, FileSpreadsheet, ArrowLeft, Calendar, MapPin, Users, Building2, Crown, Shield, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useRef } from 'react';
-import { emailCredentialsService } from '@/services/emailCredentialsService';
 import { API_CONFIG } from '@/config';
 
 interface Participant {
@@ -66,7 +65,7 @@ const SendInvitations = () => {
   const [activeTab, setActiveTab] = useState<'manual' | 'upload' | 'organization'>('manual');
   const [selectableMembers, setSelectableMembers] = useState<OrganizationMember[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Memoize current user ID to avoid re-parsing localStorage on every render
   const currentUserId = useMemo(() => {
     try {
@@ -80,13 +79,8 @@ const SendInvitations = () => {
     }
     return null;
   }, []);
-  
-  const [emailPassword, setEmailPassword] = useState('');
-  const [gmailEmail, setGmailEmail] = useState('');
-  const [showGmailEmailField, setShowGmailEmailField] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
-  const [rememberPassword, setRememberPassword] = useState(false);
-  const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
 
   useEffect(() => {
     if (!eventId) {
@@ -95,7 +89,6 @@ const SendInvitations = () => {
     }
 
     fetchOrganizations();
-    checkStoredCredentials();
   }, [eventId, navigate]);
 
   // Handle event loading error
@@ -127,30 +120,6 @@ const SendInvitations = () => {
       console.error('Error fetching organizations:', error);
     }
   };
-
-  const checkStoredCredentials = async () => {
-    try {
-      const hasCredentials = await emailCredentialsService.hasStoredCredentials();
-      setHasStoredCredentials(hasCredentials);
-      
-      if (hasCredentials) {
-        setRememberPassword(true);
-        // Auto-load the stored password
-        try {
-          const storedPassword = await emailCredentialsService.getStoredPassword();
-          if (storedPassword) {
-            setEmailPassword(storedPassword);
-          }
-        } catch (error) {
-          console.error('Error loading stored password:', error);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking stored credentials:', error);
-    } finally {
-    }
-  };
-
 
   const addParticipant = () => {
     const newParticipant: Participant = {
@@ -332,33 +301,6 @@ const SendInvitations = () => {
     });
   };
 
-  const handleEmailPasswordChange = (value: string) => {
-    setEmailPassword(value);
-  };
-
-  // Handle remember password checkbox
-  const handleRememberPasswordChange = async (checked: boolean) => {
-    setRememberPassword(checked);
-    
-    if (!checked && hasStoredCredentials) {
-      try {
-        await emailCredentialsService.deleteStoredPassword();
-        setHasStoredCredentials(false);
-        toast({
-          title: "Password Removed",
-          description: "Stored password has been removed from the database.",
-        });
-      } catch (error) {
-        console.error('Error removing password:', error);
-        toast({
-          title: "Error",
-          description: "Failed to remove password from database.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
   const getRoleIcon = (role: string, isOwner: boolean = false) => {
     if (isOwner) return <Crown className="w-4 h-4 text-yellow-600" />;
     if (role === 'admin') return <Shield className="w-4 h-4 text-blue-600" />;
@@ -414,27 +356,6 @@ const SendInvitations = () => {
     setSelectedMembers(new Set());
   };
 
-  // Clear saved password
-  const clearSavedPassword = async () => {
-    try {
-      await emailCredentialsService.deleteStoredPassword();
-      setHasStoredCredentials(false);
-      setEmailPassword('');
-      setRememberPassword(false);
-      toast({
-        title: "Cleared",
-        description: "Saved password has been cleared from the database.",
-      });
-    } catch (error) {
-      console.error('Error clearing password:', error);
-      toast({
-        title: "Error",
-        description: "Failed to clear password from database.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -459,7 +380,7 @@ const SendInvitations = () => {
     
     // Validate all participants
     const validParticipants = currentParticipants.filter(p => p.name.trim() && p.email.trim());
-    
+
     if (validParticipants.length === 0) {
       toast({
         title: "Error",
@@ -467,60 +388,6 @@ const SendInvitations = () => {
         variant: "destructive",
       });
       return;
-    }
-
-    if (!emailPassword.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter your Gmail app password to send invitations.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (showGmailEmailField && !gmailEmail.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter your Gmail email address.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (showGmailEmailField && !gmailEmail.trim().endsWith('@gmail.com')) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid Gmail address (must end with @gmail.com).",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Store password if remember is checked
-    if (rememberPassword && emailPassword.trim()) {
-      try {
-        await emailCredentialsService.storePassword(emailPassword.trim(), gmailEmail.trim() || undefined);
-        setHasStoredCredentials(true);
-      } catch (error) {
-        console.error('Error storing password:', error);
-        
-        // Check if the error requires a Gmail email address
-        if (error.message.includes('Please provide a Gmail address')) {
-          setShowGmailEmailField(true);
-          toast({
-            title: "Gmail Address Required",
-            description: "Please provide your Gmail address to store the app password.",
-            variant: "destructive",
-          });
-          return; // Stop execution to let user provide Gmail address
-        }
-        
-        // Continue with sending invitations even if storing fails for other reasons
-        toast({
-          title: "Warning",
-          description: "Failed to store password, but invitations will still be sent.",
-        });
-      }
     }
 
     if (validParticipants.length !== currentParticipants.length) {
@@ -550,8 +417,7 @@ const SendInvitations = () => {
             body: JSON.stringify({
               eventId,
               participantEmail: participant.email.trim(),
-              participantName: participant.name.trim(),
-              emailPassword: emailPassword.trim()
+              participantName: participant.name.trim()
             })
           });
 
@@ -582,8 +448,6 @@ const SendInvitations = () => {
         };
       });
 
-      // Credentials are already stored in database if remember is checked
-      
       // Store results in session storage for the summary page
       sessionStorage.setItem('invitationResults', JSON.stringify(results));
       
@@ -738,89 +602,6 @@ const SendInvitations = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Gmail App Password Input */}
-                <Card className="p-4 bg-blue-50 dark:bg-blue-950/20">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Key className="w-4 h-4" />
-                        <Label htmlFor="emailPassword" className="text-sm font-medium">
-                          Gmail App Password <span className="text-red-500">*</span>
-                        </Label>
-                        {hasStoredCredentials && (
-                          <span className="text-xs text-green-600 dark:text-green-400">
-                            ✓ Stored in Database
-                          </span>
-                        )}
-                      </div>
-                      {hasStoredCredentials && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={clearSavedPassword}
-                          className="text-xs h-auto py-1 px-2 text-red-500 hover:text-red-700"
-                        >
-                          Clear Stored
-                        </Button>
-                      )}
-                    </div>
-                    
-                    {showGmailEmailField && (
-                      <div className="space-y-2">
-                        <Label htmlFor="gmailEmail" className="text-sm font-medium">
-                          Gmail Email Address <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="gmailEmail"
-                          type="email"
-                          placeholder="your-email@gmail.com"
-                          value={gmailEmail}
-                          onChange={(e) => setGmailEmail(e.target.value)}
-                          required={showGmailEmailField}
-                          className="bg-white dark:bg-gray-800"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Your registered account email is not a Gmail address. Please provide your Gmail address to send invitations.
-                        </p>
-                      </div>
-                    )}
-                    
-                    <Input
-                      id="emailPassword"
-                      type="password"
-                      placeholder="Your Gmail app password"
-                      value={emailPassword}
-                      onChange={(e) => handleEmailPasswordChange(e.target.value)}
-                      required
-                      className="bg-white dark:bg-gray-800"
-                    />
-                    
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="rememberPassword"
-                        checked={rememberPassword}
-                        onCheckedChange={handleRememberPasswordChange}
-                      />
-                      <Label
-                        htmlFor="rememberPassword"
-                        className="text-xs text-muted-foreground cursor-pointer"
-                      >
-                        Remember password in secure database
-                      </Label>
-                    </div>
-                    
-                    <p className="text-xs text-muted-foreground">
-                      Required to send emails from your Gmail account. Use a Gmail app password for security.
-                      {rememberPassword && (
-                        <span className="block text-amber-600 dark:text-amber-400 mt-1">
-                          Password will be stored securely in the database with encryption.
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                </Card>
-
                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'manual' | 'upload' | 'organization')} className="w-full">
                   <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="manual" className="flex items-center gap-2">

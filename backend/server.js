@@ -17,7 +17,6 @@ const registrationFormRoutes = require('./routes/registrationForms');
 const registrationResponseRoutes = require('./routes/registrationResponses');
 const feedbackFormRoutes = require('./routes/feedbackForms'); // ✅ Added this line
 const locationTrackingRoutes = require('./routes/locationTracking');
-const emailCredentialsRoutes = require('./routes/emailCredentials');
 const organizationsRoutes = require('./routes/organizations');
 const organizationMembershipRoutes = require('./routes/organizationMembership');
 
@@ -184,7 +183,6 @@ app.use('/api/registration-responses', registrationResponseRoutes);
 app.use('/api/feedback-forms', feedbackFormRoutes); // ✅ Added this line
 app.use('/api/location-tracking', locationTrackingRoutes);
 console.log('🎯 [RENDER] Location tracking routes registered successfully');
-app.use('/api/email-credentials', emailCredentialsRoutes);
 app.use('/api/organizations', organizationsRoutes);
 app.use('/api/organization-membership', organizationMembershipRoutes);
 console.log('✅ [RENDER] All API routes registered');
