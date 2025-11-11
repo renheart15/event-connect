@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.com.eventconnect.mobile",
+        "paths": [
+          "/invitation/*",
+          "/app-invite/*"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "TEAMID.com.eventconnect.mobile"
+    ]
+  }
+}

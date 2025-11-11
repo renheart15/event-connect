@@ -159,35 +159,59 @@ router.post('/', auth, requireOrganizer, [
     
     // Create invitation page link
     // Use the configured frontend URL for email links
-    const frontendUrl = process.env.FRONTEND_URL || 'https://your-frontend-tunnel.trycloudflare.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://event-connect.site';
     const invitationLink = `${frontendUrl}/invitation/${invitation.invitationCode}`;
-    
+    const appDeepLink = `eventconnect://invitation/${invitation.invitationCode}`;
+
     console.log('=== EMAIL LINK DEBUG ===');
     console.log('Frontend URL:', frontendUrl);
     console.log('Invitation Link:', invitationLink);
+    console.log('App Deep Link:', appDeepLink);
     console.log('Request host:', req.get('host'));
     console.log('Request protocol:', req.protocol);
     console.log('========================');
-    
+
     const emailHtml = `
-      <h2>${emailTitle}</h2>
-      <p>Hello ${participantName},</p>
-      <p>${emailIntro}</p>
-      <p><strong>Event Details:</strong></p>
-      <ul>
-        <li>Date: ${event.date.toDateString()}</li>
-        <li>Location: ${event.location.address}</li>
-        <li>Description: ${event.description || 'No description provided'}</li>
-      </ul>
-      <p><strong>Your invitation code:</strong> ${invitation.invitationCode}</p>
-      <p>
-        <a href="${invitationLink}" 
-           style="display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 10px 0;">
-          View Your Invitation
-        </a>
-      </p>
-      <p>Click the link above to view your invitation details and access your check-in information for the event.</p>
-      <p>Best regards,<br>${organizer.name}</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #4C1D95;">${emailTitle}</h2>
+        <p>Hello <strong>${participantName}</strong>,</p>
+        <p>${emailIntro}</p>
+
+        <div style="background-color: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0;"><strong>Event Details:</strong></p>
+          <ul style="margin: 0; padding-left: 20px;">
+            <li style="margin: 5px 0;">Date: ${event.date.toDateString()}</li>
+            <li style="margin: 5px 0;">Location: ${event.location.address}</li>
+            <li style="margin: 5px 0;">Description: ${event.description || 'No description provided'}</li>
+          </ul>
+        </div>
+
+        <div style="background-color: #EEF2FF; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0;"><strong>Your invitation code:</strong> <span style="font-family: monospace; font-size: 18px; color: #4C1D95;">${invitation.invitationCode}</span></p>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${invitationLink}"
+             style="display: inline-block; padding: 16px 32px; background-color: #4C1D95; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px 0; font-size: 16px;">
+            📱 Open in Event Connect App
+          </a>
+        </div>
+
+        <div style="background-color: #FFF3CD; padding: 15px; border-radius: 8px; border-left: 4px solid #FFC107; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px;">
+            <strong>📲 Mobile App:</strong> If you have the Event Connect mobile app installed, tap the button above to open your invitation directly in the app!
+          </p>
+          <p style="margin: 10px 0 0 0; font-size: 14px;">
+            <strong>💻 No App?</strong> The link will take you to the web version where you can download the mobile app or view your invitation online.
+          </p>
+        </div>
+
+        <p style="color: #6B7280; font-size: 14px;">Click the button above to view your invitation details and access your check-in information for the event.</p>
+
+        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 30px 0;">
+
+        <p style="color: #6B7280; font-size: 14px;">Best regards,<br><strong>${organizer.name}</strong></p>
+      </div>
     `;
 
     // Send email and wait for confirmation using Resend
@@ -568,36 +592,60 @@ router.post('/:id/resend', auth, requireOrganizer, async (req, res) => {
 
     // Create invitation page link
     // Use the configured frontend URL for email links
-    const frontendUrl = process.env.FRONTEND_URL || 'https://your-frontend-tunnel.trycloudflare.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://event-connect.site';
     const invitationLink = `${frontendUrl}/invitation/${invitation.invitationCode}`;
-    
+    const appDeepLink = `eventconnect://invitation/${invitation.invitationCode}`;
+
     console.log('=== EMAIL LINK DEBUG ===');
     console.log('Frontend URL:', frontendUrl);
     console.log('Invitation Link:', invitationLink);
+    console.log('App Deep Link:', appDeepLink);
     console.log('Request host:', req.get('host'));
     console.log('Request protocol:', req.protocol);
     console.log('========================');
 
     // Send email with invitation link
     const emailHtml = `
-      <h2>Reminder: You're invited to ${invitation.event.title}</h2>
-      <p>Hello ${invitation.participantName || 'Guest'},</p>
-      <p>This is a reminder that you have been invited to attend <strong>${invitation.event.title}</strong></p>
-      <p><strong>Event Details:</strong></p>
-      <ul>
-        <li>Date: ${invitation.event.date ? invitation.event.date.toDateString() : 'Date TBD'}</li>
-        <li>Location: ${invitation.event.location?.address || 'Location TBD'}</li>
-        <li>Description: ${invitation.event.description || 'No description provided'}</li>
-      </ul>
-      <p><strong>Your invitation code:</strong> ${invitation.invitationCode}</p>
-      <p>
-        <a href="${invitationLink}" 
-           style="display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 10px 0;">
-          View Your Invitation
-        </a>
-      </p>
-      <p>Click the link above to view your invitation details and access your check-in information for the event.</p>
-      <p>Best regards,<br>${organizer.name}</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #4C1D95;">Reminder: You're invited to ${invitation.event.title}</h2>
+        <p>Hello <strong>${invitation.participantName || 'Guest'}</strong>,</p>
+        <p>This is a reminder that you have been invited to attend <strong>${invitation.event.title}</strong></p>
+
+        <div style="background-color: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0;"><strong>Event Details:</strong></p>
+          <ul style="margin: 0; padding-left: 20px;">
+            <li style="margin: 5px 0;">Date: ${invitation.event.date ? invitation.event.date.toDateString() : 'Date TBD'}</li>
+            <li style="margin: 5px 0;">Location: ${invitation.event.location?.address || 'Location TBD'}</li>
+            <li style="margin: 5px 0;">Description: ${invitation.event.description || 'No description provided'}</li>
+          </ul>
+        </div>
+
+        <div style="background-color: #EEF2FF; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0;"><strong>Your invitation code:</strong> <span style="font-family: monospace; font-size: 18px; color: #4C1D95;">${invitation.invitationCode}</span></p>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${invitationLink}"
+             style="display: inline-block; padding: 16px 32px; background-color: #4C1D95; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px 0; font-size: 16px;">
+            📱 Open in Event Connect App
+          </a>
+        </div>
+
+        <div style="background-color: #FFF3CD; padding: 15px; border-radius: 8px; border-left: 4px solid #FFC107; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px;">
+            <strong>📲 Mobile App:</strong> If you have the Event Connect mobile app installed, tap the button above to open your invitation directly in the app!
+          </p>
+          <p style="margin: 10px 0 0 0; font-size: 14px;">
+            <strong>💻 No App?</strong> The link will take you to the web version where you can download the mobile app or view your invitation online.
+          </p>
+        </div>
+
+        <p style="color: #6B7280; font-size: 14px;">Click the button above to view your invitation details and access your check-in information for the event.</p>
+
+        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 30px 0;">
+
+        <p style="color: #6B7280; font-size: 14px;">Best regards,<br><strong>${organizer.name}</strong></p>
+      </div>
     `;
 
     // Send email and wait for confirmation using Resend

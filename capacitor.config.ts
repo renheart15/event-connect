@@ -7,7 +7,8 @@ const config: CapacitorConfig = {
   server: {
     // Use bundled files for instant loading
     // Backend API is accessed separately via axios
-    androidScheme: 'https'
+    androidScheme: 'https',
+    hostname: 'event-connect.site'
   },
   plugins: {
     SplashScreen: {
@@ -30,6 +31,13 @@ const config: CapacitorConfig = {
       iconColor: "#488AFF",
       sound: "beep.wav"
     }
+  },
+  // App Links (Android) and Universal Links (iOS) configuration
+  android: {
+    allowMixedContent: true
+  },
+  ios: {
+    contentInset: 'automatic'
   }
 };
 

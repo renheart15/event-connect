@@ -30,6 +30,7 @@ initializeTheme();
 import Layout from "./components/Layout";
 import AutoLocationPermission from "./components/AutoLocationPermission";
 import ErrorBoundary from "./components/ErrorBoundary";
+import DeepLinkHandler from "./components/DeepLinkHandler";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -64,6 +65,7 @@ const App = () => (
         <UpdatePrompt />
         <AutoLocationPermission />
         <BrowserRouter>
+          <DeepLinkHandler />
           <Layout>
             <Routes>
               <Route path="/" element={<Index />} />

@@ -3,15 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Calendar, 
-  MapPin, 
-  Clock, 
-  User, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Calendar,
+  MapPin,
+  Clock,
+  User,
+  CheckCircle,
+  XCircle,
   Mail,
-  QrCode
+  QrCode,
+  Smartphone,
+  Download,
+  X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
@@ -54,6 +57,8 @@ const InvitationView = () => {
   const [error, setError] = useState<string | null>(null);
   const [responding, setResponding] = useState(false);
   const [requiresSignup, setRequiresSignup] = useState(false);
+  const [showAppBanner, setShowAppBanner] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (!code) {
@@ -62,6 +67,18 @@ const InvitationView = () => {
       return;
     }
 
+    // Detect if user is on mobile
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobileDevice = /android|iphone|ipad|ipod|windows phone/i.test(userAgent);
+      setIsMobile(isMobileDevice);
+
+      // Show banner only on mobile and if not dismissed before
+      const bannerDismissed = sessionStorage.getItem('appBannerDismissed');
+      setShowAppBanner(isMobileDevice && !bannerDismissed);
+    };
+
+    checkMobile();
     fetchInvitation();
   }, [code]);
 
@@ -214,6 +231,64 @@ const InvitationView = () => {
 
       <div className="max-w-4xl mx-auto px-6 py-4">
         <div className="space-y-6">
+          {/* Mobile App Download Banner */}
+          {showAppBanner && (
+            <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <Smartphone className="w-8 h-8 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-purple-900 mb-1">Get the Event Connect Mobile App</h3>
+                    <p className="text-sm text-purple-800 mb-3">
+                      For the best experience, download our mobile app to manage your invitations, check-in to events, and receive notifications.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-purple-600 hover:bg-purple-700 text-white"
+                        onClick={() => {
+                          // Try to open app first (will work if installed)
+                          window.location.href = `eventconnect://invitation/${code}`;
+
+                          // Fallback to download page after a delay
+                          setTimeout(() => {
+                            // Redirect to GitHub releases or app download page
+                            window.open('https://github.com/renheart15/event-connect/releases', '_blank');
+                          }, 2000);
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download App
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-purple-700"
+                        onClick={() => {
+                          setShowAppBanner(false);
+                          sessionStorage.setItem('appBannerDismissed', 'true');
+                        }}
+                      >
+                        Maybe Later
+                      </Button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowAppBanner(false);
+                      sessionStorage.setItem('appBannerDismissed', 'true');
+                    }}
+                    className="flex-shrink-0 text-purple-400 hover:text-purple-600"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Status Badge */}
           <div className="flex justify-center">
             {invitation.status === 'accepted' && (
