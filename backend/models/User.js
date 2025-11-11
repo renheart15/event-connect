@@ -72,20 +72,6 @@ const userSchema = new mongoose.Schema({
   },
   lastLogin: {
     type: Date
-  },
-  emailConfig: {
-    smtpHost: {
-      type: String,
-      default: 'smtp.gmail.com'
-    },
-    smtpPort: {
-      type: Number,
-      default: 587
-    },
-    isEmailConfigured: {
-      type: Boolean,
-      default: false
-    }
   }
 });
 

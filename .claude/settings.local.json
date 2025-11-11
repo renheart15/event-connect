@@ -83,7 +83,11 @@
       "Bash(set NODE_OPTIONS=--max-old-space-size=4096)",
       "Bash(git -C C:Usersralfaevent-connect status)",
       "Bash(git log:*)",
-      "Bash(nul)"
+      "Bash(nul)",
+      "Bash(for comp in alert-dialog breadcrumb carousel chart collapsible context-menu drawer hover-card input-otp menubar navigation-menu pagination resizable scroll-area slider sonner switch tabs textarea toggle toggle-group)",
+      "Bash(do echo \"=== $comp ===\")",
+      "Bash(done)",
+      "Bash(for comp in DashboardHeader InvitationForm)"
     ],
     "deny": [],
     "ask": []

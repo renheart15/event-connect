@@ -467,7 +467,7 @@ router.post('/send-invitations', auth, [
       }))
     );
 
-    // Here you would integrate with an email service like SendGrid, Nodemailer, etc.
+    // TODO: Integrate with Resend email service to send organization invitations
     // Example invitation email content:
     const invitationData = {
       organizationName: organization.name,

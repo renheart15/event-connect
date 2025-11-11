@@ -20,7 +20,6 @@ import FeedbackFormManager from '@/components/FeedbackFormManager';
 import QRCodeDisplay from '@/components/QRCodeDisplay';
 import GeofenceMap from '@/components/GeofenceMap';
 import Profile from '@/components/Profile';
-// import EmailSettings from '@/components/EmailSettings';
 import { exportEventSummary, exportDetailedEventReport } from '@/utils/reportUtils';
 import { useToast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
@@ -36,7 +35,6 @@ const OrganizerDashboard = () => {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isQRDialogOpen, setIsQRDialogOpen] = useState(false);
   const [isGeofenceDialogOpen, setIsGeofenceDialogOpen] = useState(false);
-  const [isEmailSettingsOpen, setIsEmailSettingsOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -962,11 +960,6 @@ const OrganizerDashboard = () => {
           isOpen={showProfile}
           onClose={() => setShowProfile(false)}
         />
-
-        {/* <EmailSettings
-          isOpen={isEmailSettingsOpen}
-          onClose={() => setIsEmailSettingsOpen(false)}
-        /> */}
       </div>
     </div>
   );

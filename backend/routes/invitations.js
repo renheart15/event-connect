@@ -14,6 +14,9 @@ const router = express.Router();
 // Initialize Resend with API key from environment
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Email configuration
+const EMAIL_FROM = process.env.EMAIL_FROM || 'Event Connect <noreply@event-connect.site>';
+
 // @route   POST /api/invitations
 // @desc    Send invitation to participant
 // @access  Private (Organizer only)
@@ -192,7 +195,7 @@ router.post('/', auth, requireOrganizer, [
 
     try {
       const { data, error } = await resend.emails.send({
-        from: 'Event Connect <onboarding@resend.dev>',
+        from: EMAIL_FROM,
         to: [participantEmail],
         subject: emailSubject,
         html: emailHtml,
@@ -251,14 +254,11 @@ router.post('/', auth, requireOrganizer, [
     let errorType = 'general';
     
     if (error.message.includes('authentication') || error.message.includes('auth') || error.message.includes('Invalid login') || error.message.includes('535')) {
-      errorMessage = 'Email authentication failed. Please check your email password or use an app-specific password for Gmail.';
+      errorMessage = 'Email service authentication failed. Please verify your email configuration and API key.';
       errorType = 'authentication';
     } else if (error.message.includes('connection') || error.message.includes('ECONNECTION') || error.message.includes('ETIMEDOUT')) {
       errorMessage = 'Failed to connect to email server. Please check your internet connection and try again.';
       errorType = 'connection';
-    } else if (error.message.includes('SMTP') || error.message.includes('smtp')) {
-      errorMessage = 'SMTP server error. Please verify your email provider settings and try again.';
-      errorType = 'smtp';
     } else if (error.message.includes('Email configuration')) {
       errorMessage = error.message;
       errorType = 'configuration';
@@ -266,7 +266,7 @@ router.post('/', auth, requireOrganizer, [
       errorMessage = error.message;
       errorType = 'duplicate';
     } else if (error.message.includes('Email sending failed')) {
-      // Extract the original error from nodemailer
+      // Extract the original error from email service
       const originalError = error.message.replace('Email sending failed: ', '');
       if (originalError.includes('550')) {
         errorMessage = 'Email was rejected by the recipient\'s server. Please verify the email address.';
@@ -603,7 +603,7 @@ router.post('/:id/resend', auth, requireOrganizer, async (req, res) => {
     // Send email and wait for confirmation using Resend
     try {
       const { data, error } = await resend.emails.send({
-        from: 'Event Connect <onboarding@resend.dev>',
+        from: EMAIL_FROM,
         to: [invitation.participantEmail],
         subject: `Reminder: Invitation to ${invitation.event.title}`,
         html: emailHtml,
@@ -656,7 +656,7 @@ router.post('/:id/resend', auth, requireOrganizer, async (req, res) => {
     
     let errorMessage = 'Failed to resend invitation';
     if (error.message.includes('authentication') || error.message.includes('auth') || error.message.includes('Invalid login') || error.message.includes('535')) {
-      errorMessage = 'Email authentication failed. Please check your email password or use an app-specific password for Gmail.';
+      errorMessage = 'Email service authentication failed. Please verify your email configuration and API key.';
     } else if (error.message.includes('connection') || error.message.includes('ECONNECTION') || error.message.includes('ETIMEDOUT')) {
       errorMessage = 'Failed to connect to email server. Please check your internet connection and try again.';
     } else if (error.message.includes('Email configuration')) {
