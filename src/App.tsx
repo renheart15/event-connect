@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import { initializeMobileAppDetection } from "./utils/mobileAppDetection";
 
 // Initialize theme on app load
 const initializeTheme = () => {
@@ -56,18 +58,24 @@ import { UpdatePrompt } from "./components/UpdatePrompt";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <UpdatePrompt />
-        <AutoLocationPermission />
-        <BrowserRouter>
-          <DeepLinkHandler />
-          <Layout>
-            <Routes>
+const App = () => {
+  // Initialize mobile app detection on mount
+  useEffect(() => {
+    initializeMobileAppDetection();
+  }, []);
+
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <UpdatePrompt />
+          <AutoLocationPermission />
+          <BrowserRouter>
+            <DeepLinkHandler />
+            <Layout>
+              <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -169,6 +177,7 @@ const App = () => (
       </TooltipProvider>
     </QueryClientProvider>
   </ErrorBoundary>
-);
+  );
+};
 
 export default App;
