@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from 'vite-plugin-pwa';
+import { capacitorStubPlugin } from './vite-plugin-capacitor-stub';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -12,16 +13,6 @@ export default defineConfig(({ mode }) => ({
     assetsDir: "assets",
     sourcemap: false,
     rollupOptions: {
-      // Mark mobile-only Capacitor plugins as external (they don't have web implementations)
-      external: [
-        '@capacitor/app',
-        '@capacitor/camera',
-        '@capacitor/haptics',
-        '@capacitor/local-notifications',
-        '@capacitor/splash-screen',
-        '@capacitor/status-bar',
-        '@capacitor-mlkit/barcode-scanning'
-      ],
       output: {
         manualChunks: undefined,
         entryFileNames: `assets/[name]-[hash].js`,
@@ -59,6 +50,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === "development" && componentTagger(),
+    capacitorStubPlugin(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.png', 'icon-192.png', 'icon-512.png'],
