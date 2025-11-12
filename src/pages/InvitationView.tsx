@@ -198,9 +198,25 @@ const InvitationView = () => {
     });
   };
 
-  const isExpired = (expiresAt: string, status: string, hasAttended?: boolean) => {
+  const isExpired = (expiresAt: string, status: string, hasAttended?: boolean, event?: Event) => {
     // Don't consider accepted invitations or invitations from participants who attended as expired
     if (status === 'accepted' || hasAttended) return false;
+
+    // If we have event data, check if the event has ended (date + endTime)
+    if (event) {
+      try {
+        const eventEndDateTime = new Date(`${event.date}T${event.endTime}`);
+        const now = new Date();
+        // Invitation is expired only after the event ends
+        return now > eventEndDateTime;
+      } catch (error) {
+        console.error('Error parsing event end time:', error);
+        // Fallback to expiresAt
+        return new Date() > new Date(expiresAt);
+      }
+    }
+
+    // Fallback: use expiresAt if no event data
     return new Date() > new Date(expiresAt);
   };
 
@@ -246,8 +262,16 @@ const InvitationView = () => {
     );
   }
 
-  const expired = isExpired(invitation.expiresAt, invitation.status, invitation.hasAttended);
+  const expired = isExpired(invitation.expiresAt, invitation.status, invitation.hasAttended, invitation.event);
   const canRespond = !expired && invitation.status === 'pending';
+
+  console.log('Invitation expiry check:', {
+    expiresAt: invitation.expiresAt,
+    eventDate: invitation.event?.date,
+    eventEndTime: invitation.event?.endTime,
+    isExpired: expired,
+    status: invitation.status
+  });
 
   console.log('Rendering invitation view with data:', invitation);
 
