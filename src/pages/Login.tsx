@@ -79,10 +79,9 @@ const Login = () => {
 
       // Check if we need to redirect to a specific page (e.g., invitation)
       const returnTo = searchParams.get('returnTo');
-      const fromInvitation = searchParams.get('fromInvitation');
-      
-      if (returnTo && fromInvitation === 'true') {
-        // User came from invitation link, redirect back to invitation
+
+      if (returnTo) {
+        // Redirect to the requested page (e.g., invitation page)
         navigate(decodeURIComponent(returnTo));
       } else {
         // Normal login, redirect based on role

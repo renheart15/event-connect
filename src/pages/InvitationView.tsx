@@ -77,33 +77,51 @@ const InvitationView = () => {
   const fetchInvitation = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_CONFIG.API_BASE}/invitations/code/${code}`);
+
+      // Get token if user is logged in
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      console.log('Fetching invitation with code:', code);
+      const response = await fetch(`${API_CONFIG.API_BASE}/invitations/code/${code}`, {
+        headers
+      });
+      console.log('Invitation response status:', response.status);
       const data = await response.json();
+      console.log('Invitation data:', data);
 
       if (data.success) {
+        console.log('Setting invitation data:', data.data);
         setInvitation(data.data);
         setRequiresSignup(data.requiresSignup || false);
-        
+
         // If participant needs to sign up, redirect to register page with pre-filled data
         if (data.requiresSignup) {
+          console.log('Requires signup, redirecting to register');
           const signupUrl = `/register?email=${encodeURIComponent(data.data.participantEmail)}&name=${encodeURIComponent(data.data.participantName)}&invitationCode=${encodeURIComponent(code)}&returnTo=${encodeURIComponent(`/invitation/${code}`)}`;
           navigate(signupUrl);
           return;
         }
-        
+
         // Check if user is already logged in
-        const token = localStorage.getItem('token');
         if (!token) {
-          // User needs to log in, redirect to login with invitation tracking to participant dashboard
-          navigate(`/login?returnTo=${encodeURIComponent('/participant-dashboard')}&fromInvitation=true`);
+          console.log('Not logged in, redirecting to login');
+          // User needs to log in, redirect to login and return here after
+          navigate(`/login?returnTo=${encodeURIComponent(`/invitation/${code}`)}`);
           return;
         }
-        
-        // User is logged in and came from invitation link, redirect to participant dashboard
-        // where they can see and respond to their invitations
-        navigate('/participant-dashboard');
-        return;
+
+        console.log('User is logged in, showing invitation');
+        // User is logged in - show them the invitation details
+        // (Component will render with invitation data)
       } else {
+        console.error('Failed to fetch invitation:', data.message);
         setError(data.message || 'Invitation not found');
       }
     } catch (error) {

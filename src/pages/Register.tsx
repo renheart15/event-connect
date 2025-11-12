@@ -120,7 +120,7 @@ const Register = () => {
       // Check if we need to return to invitation
       const returnTo = searchParams.get('returnTo');
       const invitationCode = searchParams.get('invitationCode');
-      
+
       if (invitationCode && returnTo) {
         // Mark the temporary account as no longer temporary
         try {
@@ -135,9 +135,12 @@ const Register = () => {
         } catch (error) {
           console.error('Error activating account:', error);
         }
-        
-        // Redirect to participant dashboard after signup from invitation
-        navigate('/participant-dashboard');
+
+        // Redirect back to the invitation page
+        navigate(decodeURIComponent(returnTo));
+      } else if (returnTo) {
+        // Redirect to the requested page
+        navigate(decodeURIComponent(returnTo));
       } else {
         // Normal registration flow - redirect based on role
         if (role === 'organizer') {
