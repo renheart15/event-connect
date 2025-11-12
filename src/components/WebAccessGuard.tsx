@@ -111,16 +111,18 @@ const WebAccessGuard: React.FC<WebAccessGuardProps> = ({
             </div>
 
             <div className="space-y-2">
-              <Button
-                onClick={() => {
-                  // Direct to GitHub releases for Android APK download
-                  window.open('https://github.com/renheart15/event-connect/releases/latest', '_blank');
-                }}
-                className="w-full bg-purple-600 hover:bg-purple-700"
+              <a
+                href="https://github.com/renheart15/event-connect/releases/download/v1.0.1/event-connect.apk"
+                download="EventConnect.apk"
+                className="block"
               >
-                <Download className="w-4 h-4 mr-2" />
-                Download Mobile App
-              </Button>
+                <Button
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Mobile App
+                </Button>
+              </a>
 
               <Button
                 onClick={() => navigate('/')}

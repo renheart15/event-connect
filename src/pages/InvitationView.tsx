@@ -234,16 +234,19 @@ const InvitationView = () => {
                     <p className="text-sm text-blue-800 mb-3">
                       For the best experience with QR code scanning, location tracking, and real-time notifications, download our mobile app.
                     </p>
-                    <Button
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => {
-                        window.open('https://github.com/renheart15/event-connect/releases/latest', '_blank');
-                      }}
+                    <a
+                      href="https://github.com/renheart15/event-connect/releases/download/v1.0.1/event-connect.apk"
+                      download="EventConnect.apk"
+                      className="inline-block"
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download App
-                    </Button>
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download App
+                      </Button>
+                    </a>
                   </div>
                 </div>
               </CardContent>
