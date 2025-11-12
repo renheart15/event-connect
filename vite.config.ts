@@ -12,16 +12,35 @@ export default defineConfig(({ mode }) => ({
     assetsDir: "assets",
     sourcemap: false,
     rollupOptions: {
+      external: [
+        '@capacitor/app',
+        '@capacitor/core',
+        '@capacitor/camera',
+        '@capacitor/geolocation',
+        '@capacitor/haptics',
+        '@capacitor/local-notifications',
+        '@capacitor/splash-screen',
+        '@capacitor/status-bar',
+        '@capacitor-mlkit/barcode-scanning'
+      ],
       output: {
         manualChunks: undefined,
         entryFileNames: `assets/[name]-[hash].js`,
         chunkFileNames: `assets/[name]-[hash].js`,
         assetFileNames: `assets/[name]-[hash].[ext]`,
+        globals: {
+          '@capacitor/app': 'capacitorApp',
+          '@capacitor/core': 'capacitorCore',
+          '@capacitor/camera': 'capacitorCamera',
+          '@capacitor/geolocation': 'capacitorGeolocation',
+          '@capacitor/haptics': 'capacitorHaptics',
+          '@capacitor/local-notifications': 'capacitorLocalNotifications',
+          '@capacitor/splash-screen': 'capacitorSplashScreen',
+          '@capacitor/status-bar': 'capacitorStatusBar',
+          '@capacitor-mlkit/barcode-scanning': 'capacitorBarcodeScanning'
+        }
       },
     },
-  },
-  optimizeDeps: {
-    include: ['@capacitor/core', '@capacitor/app']
   },
   server: {
     host: "::",
