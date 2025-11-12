@@ -60,7 +60,12 @@ const InvitationView = () => {
   const [showMobileBanner, setShowMobileBanner] = useState(false);
 
   useEffect(() => {
+    console.log('=== InvitationView MOUNTED ===');
+    console.log('URL code parameter:', code);
+    console.log('Current URL:', window.location.href);
+
     if (!code) {
+      console.error('No code in URL!');
       setError('Invalid invitation link');
       setLoading(false);
       return;
@@ -71,6 +76,7 @@ const InvitationView = () => {
     const isMobileBrowser = !isNativeApp && /android|iphone|ipad|ipod/i.test(navigator.userAgent);
     setShowMobileBanner(isMobileBrowser);
 
+    console.log('About to fetch invitation...');
     fetchInvitation();
   }, [code]);
 
@@ -210,15 +216,31 @@ const InvitationView = () => {
   }
 
   if (error || !invitation) {
+    console.log('Showing error screen. Error:', error, 'Invitation:', invitation);
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto">
-          <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invitation Not Found</h1>
-          <p className="text-gray-600 mb-6">{error || 'The invitation link you followed is invalid or has expired.'}</p>
-          <Button onClick={() => navigate('/')} variant="outline">
-            Return to Home
-          </Button>
+      <div className="min-h-screen bg-gray-50">
+        {/* Debug banner */}
+        <div className="bg-red-600 text-white px-4 py-2 text-xs">
+          <strong>DEBUG:</strong> InvitationView ERROR Page | Code: {code} | URL: {window.location.pathname}
+        </div>
+
+        <div className="flex items-center justify-center min-h-[80vh]">
+          <div className="text-center max-w-md mx-auto px-4">
+            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Invitation Not Found</h1>
+            <p className="text-gray-600 mb-6">{error || 'The invitation link you followed is invalid or has expired.'}</p>
+            <div className="text-xs text-left bg-gray-100 p-4 rounded mb-4 overflow-auto max-h-40">
+              <strong>Debug Info:</strong><br/>
+              Error: {error || 'none'}<br/>
+              Has Invitation: {invitation ? 'yes' : 'no'}<br/>
+              Code: {code || 'none'}<br/>
+              Loading: {loading ? 'yes' : 'no'}<br/>
+              Current URL: {window.location.href}
+            </div>
+            <Button onClick={() => navigate('/')} variant="outline">
+              Return to Home
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -227,8 +249,15 @@ const InvitationView = () => {
   const expired = isExpired(invitation.expiresAt, invitation.status, invitation.hasAttended);
   const canRespond = !expired && invitation.status === 'pending';
 
+  console.log('Rendering invitation view with data:', invitation);
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Debug banner */}
+      <div className="bg-purple-600 text-white px-4 py-2 text-xs">
+        <strong>DEBUG:</strong> InvitationView Page | Code: {code} | URL: {window.location.pathname}
+      </div>
+
       <div className="bg-white border-b px-6 py-4 mb-6">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
@@ -236,6 +265,9 @@ const InvitationView = () => {
             Event Invitation
           </h1>
           <p className="text-gray-600 mt-2">You've been invited to participate in an event</p>
+          <div className="text-xs bg-green-50 p-2 rounded mt-2 border border-green-200">
+            ✓ Invitation loaded successfully for: {invitation.participantName}
+          </div>
         </div>
       </div>
 
