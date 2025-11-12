@@ -31,6 +31,7 @@ const ParticipantDashboard = () => {
   const [myAttendance, setMyAttendance] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -691,25 +692,28 @@ const ParticipantDashboard = () => {
   }, []);
 
   // Fetch participant's invitations and attendance
-  useEffect(() => {
-    const fetchParticipantData = async () => {
-      if (!token) {
-        toast({
-          title: "Authentication required",
-          description: "Please log in to view your events",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 2000);
-        return;
+  const fetchParticipantData = async (isManualRefresh = false) => {
+    if (!token) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to view your events",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 2000);
+      return;
+    }
+
+    try {
+      if (isManualRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
       }
 
-      try {
-        setIsLoading(true);
-
-        // Fetch all data in parallel
-        const [invitationsResponse, attendanceResponse, scanHistoryResponse] = await Promise.all([
+      // Fetch all data in parallel
+      const [invitationsResponse, attendanceResponse, scanHistoryResponse] = await Promise.all([
           fetch(`${API_CONFIG.API_BASE}/invitations/my`, {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -759,9 +763,19 @@ const ParticipantDashboard = () => {
         setScanHistory([]);
       } finally {
         setIsLoading(false);
+        setIsRefreshing(false);
+
+        // Show success toast on manual refresh
+        if (isManualRefresh) {
+          toast({
+            title: "Refreshed",
+            description: "Your events have been updated",
+          });
+        }
       }
     };
 
+  useEffect(() => {
     fetchParticipantData();
   }, [token]);
 
@@ -3698,7 +3712,18 @@ const ParticipantDashboard = () => {
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Invitations</h2>
-            <span className="text-sm text-gray-500 dark:text-gray-400">{upcomingEvents.length} invitations</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500 dark:text-gray-400">{upcomingEvents.length} invitations</span>
+              <Button
+                onClick={() => fetchParticipantData(true)}
+                disabled={isRefreshing}
+                variant="outline"
+                size="sm"
+                className="h-8"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
           
           {upcomingEvents.length === 0 ? (
@@ -3917,7 +3942,18 @@ const ParticipantDashboard = () => {
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Currently Attending</h2>
-            <span className="text-sm text-gray-500 dark:text-gray-400">{activeEvents.length} events</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500 dark:text-gray-400">{activeEvents.length} events</span>
+              <Button
+                onClick={() => fetchParticipantData(true)}
+                disabled={isRefreshing}
+                variant="outline"
+                size="sm"
+                className="h-8"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
           
           {activeEvents.length === 0 ? (
@@ -4035,6 +4071,15 @@ const ParticipantDashboard = () => {
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Completed Events</h2>
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-500 dark:text-gray-400">{completedEvents.length} events</span>
+              <Button
+                onClick={() => fetchParticipantData(true)}
+                disabled={isRefreshing}
+                variant="outline"
+                size="sm"
+                className="h-8"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
               {completedEvents.length > 0 && (
                 <Button
                   variant="outline"
