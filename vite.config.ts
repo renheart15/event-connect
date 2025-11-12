@@ -12,21 +12,16 @@ export default defineConfig(({ mode }) => ({
     assetsDir: "assets",
     sourcemap: false,
     rollupOptions: {
-      external: [
-        '@capacitor/app',
-        '@capacitor/core'
-      ],
       output: {
         manualChunks: undefined,
         entryFileNames: `assets/[name]-[hash].js`,
         chunkFileNames: `assets/[name]-[hash].js`,
         assetFileNames: `assets/[name]-[hash].[ext]`,
-        globals: {
-          '@capacitor/app': 'CapacitorApp',
-          '@capacitor/core': 'CapacitorCore'
-        }
       },
     },
+  },
+  optimizeDeps: {
+    include: ['@capacitor/core', '@capacitor/app']
   },
   server: {
     host: "::",
