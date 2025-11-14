@@ -160,8 +160,8 @@ class NotificationService {
         notifications: [
           {
             id: this.notificationId++,
-            title: '📡 Location Update Required',
-            body: `Your location for ${eventName} hasn't updated recently. Please ensure GPS is enabled and app is running.`,
+            title: '⏱️ Countdown Has Begun',
+            body: `Your location for ${eventName} hasn't updated recently. Countdown timer is active. Update your location or you may be marked absent.`,
             sound: 'default',
             smallIcon: 'ic_stat_notification',
             largeIcon: 'ic_launcher',
@@ -175,6 +175,62 @@ class NotificationService {
       console.log('📢 Sent stale data notification');
     } catch (error) {
       console.error('❌ Error sending stale data notification:', error);
+    }
+  }
+
+  async sendCountdownBeganNotification(eventName: string, timeRemaining: string) {
+    if (!this.permissionGranted || !Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: this.notificationId++,
+            title: '⏱️ Countdown Has Begun',
+            body: `You left ${eventName} premises. Countdown timer started: ${timeRemaining} remaining. Return soon or you may be marked absent.`,
+            sound: 'default',
+            smallIcon: 'ic_stat_notification',
+            largeIcon: 'ic_launcher',
+            extra: {
+              type: 'countdown_began',
+              eventName
+            }
+          }
+        ]
+      });
+      console.log('📢 Sent countdown began notification');
+    } catch (error) {
+      console.error('❌ Error sending countdown began notification:', error);
+    }
+  }
+
+  async sendOneMinuteLeftNotification(eventName: string) {
+    if (!this.permissionGranted || !Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: this.notificationId++,
+            title: '🚨 Only 1 Minute Left!',
+            body: `Critical: Only 1 minute remaining outside ${eventName}! Return immediately or you will be marked absent.`,
+            sound: 'default',
+            smallIcon: 'ic_stat_notification',
+            largeIcon: 'ic_launcher',
+            extra: {
+              type: 'one_minute_left',
+              eventName
+            }
+          }
+        ]
+      });
+      console.log('📢 Sent 1 minute left notification');
+    } catch (error) {
+      console.error('❌ Error sending 1 minute left notification:', error);
     }
   }
 

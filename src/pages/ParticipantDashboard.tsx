@@ -12,7 +12,6 @@ import ParticipantNotifications from '@/components/ParticipantNotifications';
 import FeedbackFormView from '@/components/FeedbackFormView';
 import RegistrationFormModal from '@/components/RegistrationFormModal';
 import ProgressIndicator from '@/components/ProgressIndicator';
-import ParticipantTimerModal from '@/components/ParticipantTimerModal';
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -127,6 +126,7 @@ const ParticipantDashboard = () => {
   const lastExceededNotificationRef = useRef<Date | null>(null);
   const lastOutsideNotificationRef = useRef<Date | null>(null);
   const lastInsideNotificationRef = useRef<Date | null>(null);
+  const lastOneMinuteLeftNotificationRef = useRef<Date | null>(null);
   const previousLocationStatusRef = useRef<string | null>(null);
 
   const user = (() => {
@@ -1339,10 +1339,10 @@ const ParticipantDashboard = () => {
           const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
           if (!lastNotificationTime || lastNotificationTime < fiveMinutesAgo) {
-            // Send stale data notification
+            // Send stale data notification - "Countdown Has Begun"
             await notificationService.sendStaleDataNotification(eventName);
             lastStaleNotificationRef.current = now;
-            console.log('📡 Stale location notification sent');
+            console.log('⏱️ Stale location countdown notification sent');
           }
         }
       } else {
@@ -1383,16 +1383,16 @@ const ParticipantDashboard = () => {
       if (currentStatus !== previousStatus) {
         previousLocationStatusRef.current = currentStatus;
 
-        // Detect outside geofence
+        // Detect outside geofence - Send "Countdown Has Begun" notification
         if (currentStatus === 'outside' && previousStatus !== 'outside') {
           const timeRemaining = event.maxTimeOutside - (currentLocationStatus.currentTimeOutside || 0);
           if (timeRemaining > 0) {
-            await notificationService.sendOutsideGeofenceNotification(
+            await notificationService.sendCountdownBeganNotification(
               eventName,
               formatTimeRemaining(timeRemaining)
             );
             lastOutsideNotificationRef.current = now;
-            console.log('⚠️ Outside geofence notification sent');
+            console.log('⏱️ Countdown began notification sent');
           }
         }
 
@@ -1421,6 +1421,25 @@ const ParticipantDashboard = () => {
           await notificationService.sendExceededLimitNotification(eventName);
           lastExceededNotificationRef.current = now;
           console.log('🚫 Exceeded limit notification sent');
+        }
+      }
+
+      // Check for 1 minute left notification (continuously monitor time remaining)
+      if (currentStatus === 'outside' || currentStatus === 'warning') {
+        const timeRemaining = event.maxTimeOutside - (currentLocationStatus.currentTimeOutside || 0);
+        const oneMinuteInSeconds = 60;
+
+        // Send notification when exactly 1 minute left (within 5 second window to catch it)
+        if (timeRemaining <= oneMinuteInSeconds && timeRemaining >= (oneMinuteInSeconds - 5)) {
+          const lastOneMinuteNotif = lastOneMinuteLeftNotificationRef.current;
+          const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+          // Only send if we haven't sent one in the last 5 minutes
+          if (!lastOneMinuteNotif || lastOneMinuteNotif < fiveMinutesAgo) {
+            await notificationService.sendOneMinuteLeftNotification(eventName);
+            lastOneMinuteLeftNotificationRef.current = now;
+            console.log('🚨 1 minute left notification sent');
+          }
         }
       }
     };
@@ -2983,6 +3002,136 @@ const ParticipantDashboard = () => {
     }
   };
 
+  // State for countdown timer
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update current time every second for real-time countdown when outside/stale
+  useEffect(() => {
+    // Check if we need real-time updates (participant is outside or stale)
+    const needsRealtimeUpdate = currentLocationStatus &&
+      (!currentLocationStatus.isWithinGeofence || currentLocationStatus.outsideTimer?.reason === 'stale');
+
+    const interval = needsRealtimeUpdate ? 1000 : 60000; // 1 second if outside/stale, 1 minute otherwise
+
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, [currentLocationStatus?.isWithinGeofence, currentLocationStatus?.outsideTimer?.reason]);
+
+  // State for location alert banner
+  const [showLocationAlert, setShowLocationAlert] = useState(false);
+  const [isLocationAlertFading, setIsLocationAlertFading] = useState(false);
+  const [locationAlertType, setLocationAlertType] = useState<'inside' | 'outside'>('inside');
+  const locationAlertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const locationAlertFadeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Monitor location status changes and show banner
+  useEffect(() => {
+    if (!currentLocationStatus) return;
+
+    const isInside = currentLocationStatus.isWithinGeofence;
+
+    // Show alert banner
+    setLocationAlertType(isInside ? 'inside' : 'outside');
+    setShowLocationAlert(true);
+    setIsLocationAlertFading(false);
+
+    // Clear any existing timeouts
+    if (locationAlertTimeoutRef.current) {
+      clearTimeout(locationAlertTimeoutRef.current);
+    }
+    if (locationAlertFadeTimeoutRef.current) {
+      clearTimeout(locationAlertFadeTimeoutRef.current);
+    }
+
+    // Start fade out after 4.5 seconds
+    locationAlertTimeoutRef.current = setTimeout(() => {
+      setIsLocationAlertFading(true);
+    }, 4500);
+
+    // Hide completely after 5 seconds
+    locationAlertFadeTimeoutRef.current = setTimeout(() => {
+      setShowLocationAlert(false);
+      setIsLocationAlertFading(false);
+    }, 5000);
+
+    return () => {
+      if (locationAlertTimeoutRef.current) {
+        clearTimeout(locationAlertTimeoutRef.current);
+      }
+      if (locationAlertFadeTimeoutRef.current) {
+        clearTimeout(locationAlertFadeTimeoutRef.current);
+      }
+    };
+  }, [currentLocationStatus?.isWithinGeofence]);
+
+  // Helper function to calculate time remaining until event ends
+  const getTimeRemaining = (event: any, attendance?: any) => {
+    const eventDateStr = typeof event.date === 'string'
+      ? event.date.split('T')[0]
+      : new Date(event.date).toISOString().split('T')[0];
+
+    if (!event.endTime) return null;
+
+    const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
+    const eventEndTime = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
+
+    const now = currentTime;
+    const diffMs = eventEndTime.getTime() - now.getTime();
+
+    if (diffMs <= 0) {
+      return { text: 'Event ended', expired: true, showCountdown: false };
+    }
+
+    // Check if participant is outside or stale
+    const isOutsideOrStale = currentLocationStatus &&
+      (!currentLocationStatus.isWithinGeofence || currentLocationStatus.outsideTimer?.reason === 'stale');
+
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+    // Show seconds countdown only if outside/stale
+    if (isOutsideOrStale) {
+      if (hours > 0) {
+        return {
+          text: `${hours}h ${minutes}m ${seconds}s remaining`,
+          expired: false,
+          showCountdown: true
+        };
+      } else if (minutes > 0) {
+        return {
+          text: `${minutes}m ${seconds}s remaining`,
+          expired: false,
+          showCountdown: true
+        };
+      } else {
+        return {
+          text: `${seconds}s remaining`,
+          expired: false,
+          showCountdown: true
+        };
+      }
+    } else {
+      // Normal display without seconds
+      if (hours > 0) {
+        return {
+          text: `${hours}h ${minutes}m remaining`,
+          expired: false,
+          showCountdown: false
+        };
+      } else {
+        return {
+          text: `${minutes}m remaining`,
+          expired: false,
+          showCountdown: false
+        };
+      }
+    }
+  };
+
   // Helper functions to process data
   const getCurrentlyAttending = () => {
 
@@ -3997,7 +4146,7 @@ const ParticipantDashboard = () => {
                       <h3 className="font-semibold text-gray-900 dark:text-white">{attendance.event.title}</h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{attendance.event.description}</p>
                       
-                      <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center flex-wrap gap-2 mt-2 text-xs">
                         {attendance.status === 'absent' ? (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
                             • Marked Absent
@@ -4007,9 +4156,27 @@ const ParticipantDashboard = () => {
                             • Currently Attending
                           </span>
                         )}
-                        <span className="ml-2">
+                        <span className="text-gray-500 dark:text-gray-400">
                           Duration: {formatDuration(attendance.checkInTime)}
                         </span>
+                        {(() => {
+                          const timeRemaining = getTimeRemaining(attendance.event, attendance);
+                          if (timeRemaining) {
+                            return (
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                timeRemaining.expired
+                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300'
+                                  : timeRemaining.showCountdown
+                                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300 animate-pulse'
+                                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
+                              }`}>
+                                <Clock className="w-3 h-3 mr-1" />
+                                {timeRemaining.text}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                       
                       <div className="flex items-center mt-3 text-xs text-gray-500 dark:text-gray-400">
@@ -5978,11 +6145,45 @@ const ParticipantDashboard = () => {
         </div>
       )}
 
-      {/* Timer Modal */}
-      {user._id && <ParticipantTimerModal participantId={user._id} />}
+      {/* Location Alert Banner - Disappears after 5 seconds */}
+      {showLocationAlert && currentLocationStatus && (
+        <div
+          className={`fixed top-0 left-0 right-0 py-2 px-4 text-center text-sm font-medium z-50 transition-all duration-300 ${
+            !isOnline ? 'mt-6' : ''
+          } ${
+            locationAlertType === 'inside'
+              ? 'bg-green-500 text-white'
+              : 'bg-orange-500 text-white'
+          }`}
+          style={{
+            animation: isLocationAlertFading
+              ? 'fadeOut 0.5s ease-out'
+              : 'slideDown 0.3s ease-out'
+          }}
+        >
+          <div className="flex items-center justify-center gap-2">
+            {locationAlertType === 'inside' ? (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                <span>You are inside the event premises</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-4 h-4" />
+                <span>You are outside the event premises</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* Top Header Bar */}
-      <div className={`flex items-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 ${!isOnline ? 'mt-6' : ''}`}>
+      <div className={`flex items-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 transition-all duration-300 ${
+        !isOnline && showLocationAlert ? 'mt-16' :
+        !isOnline ? 'mt-6' :
+        showLocationAlert ? 'mt-10' : ''
+      }`}>
         {/* Menu Button */}
         <button
           onClick={() => setShowHistoryDropdown(!showHistoryDropdown)}
@@ -6212,9 +6413,27 @@ const ParticipantDashboard = () => {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  Duration: {formatDuration(attendance.checkInTime)}
-                </p>
+                <div className="flex items-center gap-2 flex-wrap text-xs text-gray-600 dark:text-gray-400">
+                  <span>Duration: {formatDuration(attendance.checkInTime)}</span>
+                  {(() => {
+                    const timeRemaining = getTimeRemaining(attendance.event, attendance);
+                    if (timeRemaining) {
+                      return (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-medium ${
+                          timeRemaining.expired
+                            ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300'
+                            : timeRemaining.showCountdown
+                              ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300 animate-pulse'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
+                        }`}>
+                          <Clock className="w-3 h-3 mr-1" />
+                          {timeRemaining.text}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
                 <div className="flex gap-1">
                   <Button
                     onClick={() => handleOpenFeedbackForm(attendance.event._id, attendance.event.title)}
