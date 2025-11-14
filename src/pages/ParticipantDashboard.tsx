@@ -3067,68 +3067,77 @@ const ParticipantDashboard = () => {
     };
   }, [currentLocationStatus?.isWithinGeofence]);
 
-  // Helper function to calculate time remaining until event ends
+  // Helper function to show outside premises countdown timer
   const getTimeRemaining = (event: any, attendance?: any) => {
-    const eventDateStr = typeof event.date === 'string'
-      ? event.date.split('T')[0]
-      : new Date(event.date).toISOString().split('T')[0];
+    // Only show if we have location status
+    if (!currentLocationStatus) return null;
 
-    if (!event.endTime) return null;
+    const currentlyAttending = getCurrentlyAttending();
+    if (currentlyAttending.length === 0) return null;
 
-    const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
-    const eventEndTime = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
-
-    const now = currentTime;
-    const diffMs = eventEndTime.getTime() - now.getTime();
-
-    if (diffMs <= 0) {
-      return { text: 'Event ended', expired: true, showCountdown: false };
-    }
+    const currentEvent = currentlyAttending[0].event;
 
     // Check if participant is outside or stale
-    const isOutsideOrStale = currentLocationStatus &&
-      (!currentLocationStatus.isWithinGeofence || currentLocationStatus.outsideTimer?.reason === 'stale');
+    const isOutsideOrStale = !currentLocationStatus.isWithinGeofence ||
+                             currentLocationStatus.outsideTimer?.reason === 'stale';
 
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+    // Calculate time remaining outside premises
+    const maxTimeOutside = currentEvent.maxTimeOutside || 0;
+    const currentTimeOutside = currentLocationStatus.currentTimeOutside || 0;
+    const timeRemainingSeconds = maxTimeOutside - currentTimeOutside;
 
-    // Show seconds countdown only if outside/stale
-    if (isOutsideOrStale) {
+    // If inside premises, show full available time
+    if (!isOutsideOrStale) {
+      const hours = Math.floor(maxTimeOutside / 3600);
+      const minutes = Math.floor((maxTimeOutside % 3600) / 60);
+
       if (hours > 0) {
         return {
-          text: `${hours}h ${minutes}m ${seconds}s remaining`,
+          text: `${hours}h ${minutes}m available`,
           expired: false,
-          showCountdown: true
-        };
-      } else if (minutes > 0) {
-        return {
-          text: `${minutes}m ${seconds}s remaining`,
-          expired: false,
-          showCountdown: true
+          showCountdown: false
         };
       } else {
         return {
-          text: `${seconds}s remaining`,
+          text: `${minutes}m available`,
           expired: false,
-          showCountdown: true
+          showCountdown: false
         };
       }
+    }
+
+    // If outside/stale and time exceeded
+    if (timeRemainingSeconds <= 0) {
+      return {
+        text: 'Time exceeded!',
+        expired: true,
+        showCountdown: true
+      };
+    }
+
+    // Show real-time countdown with seconds when outside
+    const hours = Math.floor(timeRemainingSeconds / 3600);
+    const minutes = Math.floor((timeRemainingSeconds % 3600) / 60);
+    const seconds = timeRemainingSeconds % 60;
+
+    if (hours > 0) {
+      return {
+        text: `${hours}h ${minutes}m ${seconds}s remaining`,
+        expired: false,
+        showCountdown: true
+      };
+    } else if (minutes > 0) {
+      return {
+        text: `${minutes}m ${seconds}s remaining`,
+        expired: false,
+        showCountdown: true
+      };
     } else {
-      // Normal display without seconds
-      if (hours > 0) {
-        return {
-          text: `${hours}h ${minutes}m remaining`,
-          expired: false,
-          showCountdown: false
-        };
-      } else {
-        return {
-          text: `${minutes}m remaining`,
-          expired: false,
-          showCountdown: false
-        };
-      }
+      return {
+        text: `${seconds}s remaining`,
+        expired: false,
+        showCountdown: true
+      };
     }
   };
 
