@@ -3030,8 +3030,20 @@ const ParticipantDashboard = () => {
       eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
     }
 
+    // Debug logging
+    const isExpired = now > eventEndTime;
+    console.log('🔍 [EXPIRY CHECK] Invitation:', invitation._id);
+    console.log('  Event:', event.title);
+    console.log('  Status:', invitation.status);
+    console.log('  Event Date:', eventDateStr);
+    console.log('  Event End Time (input):', event.endTime);
+    console.log('  Event End DateTime (calculated):', eventEndTime.toISOString(), '/', eventEndTime.toString());
+    console.log('  Current Time:', now.toISOString(), '/', now.toString());
+    console.log('  Time Difference (minutes):', ((now.getTime() - eventEndTime.getTime()) / 1000 / 60).toFixed(2));
+    console.log('  Is Expired?', isExpired);
+
     // Invitation expires immediately after event ends
-    return now > eventEndTime;
+    return isExpired;
   };
 
   // Get events by category

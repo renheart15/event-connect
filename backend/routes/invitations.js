@@ -450,10 +450,26 @@ router.get('/code/:code', async (req, res) => {
 
       // Combine date and end time, interpret as Singapore time
       eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
+
+      // Debug logging
+      console.log('🔍 [BACKEND EXPIRY CHECK] GET /code/:code');
+      console.log('  Event:', event.title);
+      console.log('  Event Date:', event.date);
+      console.log('  Date String:', dateStr);
+      console.log('  Event End Time (input):', event.endTime);
+      console.log('  Event End DateTime (calculated):', eventEndTime.toISOString(), '/', eventEndTime.toString());
+      console.log('  Current Time:', now.toISOString(), '/', now.toString());
+      console.log('  Time Difference (minutes):', ((now.getTime() - eventEndTime.getTime()) / 1000 / 60).toFixed(2));
+      console.log('  Invitation Status:', invitation.status);
+      console.log('  Will expire?', now > eventEndTime && invitation.status !== 'accepted');
     } else {
       // Fallback to duration-based calculation
       const eventDate = new Date(event.date);
       eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
+
+      console.log('🔍 [BACKEND EXPIRY CHECK] Using duration fallback');
+      console.log('  Event End Time:', eventEndTime.toString());
+      console.log('  Current Time:', now.toString());
     }
 
     // Invitation expires immediately after event ends
@@ -844,6 +860,17 @@ router.put('/:id/respond', optionalAuth, [
 
       // Combine date and end time, interpret as Singapore time
       eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
+
+      // Debug logging
+      console.log('🔍 [BACKEND EXPIRY CHECK] PUT /respond');
+      console.log('  Event:', event.title);
+      console.log('  Date String:', dateStr);
+      console.log('  Event End Time (input):', event.endTime);
+      console.log('  Event End DateTime (calculated):', eventEndTime.toISOString(), '/', eventEndTime.toString());
+      console.log('  Current Time:', now.toISOString(), '/', now.toString());
+      console.log('  Time Difference (minutes):', ((now.getTime() - eventEndTime.getTime()) / 1000 / 60).toFixed(2));
+      console.log('  Invitation Status:', invitation.status);
+      console.log('  Will expire?', now > eventEndTime && invitation.status !== 'accepted');
     } else {
       // Fallback to duration-based calculation
       const eventDate = new Date(event.date);
