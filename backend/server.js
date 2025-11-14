@@ -8,6 +8,9 @@ const MongoStore = require('connect-mongo');
 const path = require('path');
 require('dotenv').config();
 
+// Set timezone to Singapore to ensure consistent date/time handling
+process.env.TZ = 'Asia/Singapore';
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const eventRoutes = require('./routes/events');

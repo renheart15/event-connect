@@ -3021,7 +3021,7 @@ const ParticipantDashboard = () => {
     let eventEndTime: Date;
 
     if (event.startTime && event.endTime) {
-      // Use actual end time if available with proper timezone conversion
+      // Use actual end time if available with proper timezone conversion (Singapore)
       const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
       eventEndTime = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
     } else {
@@ -3030,6 +3030,7 @@ const ParticipantDashboard = () => {
       eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
     }
 
+    // Invitation expires immediately after event ends
     return now > eventEndTime;
   };
 
