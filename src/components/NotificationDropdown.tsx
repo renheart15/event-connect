@@ -6,6 +6,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -16,7 +23,8 @@ import {
   Users,
   ExternalLink,
   RefreshCw,
-  Check
+  Check,
+  List
 } from 'lucide-react';
 import { API_CONFIG } from '@/config';
 
@@ -40,6 +48,7 @@ const NotificationDropdown: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [acknowledgingAlerts, setAcknowledgingAlerts] = useState<Set<string>>(new Set());
+  const [isViewAllOpen, setIsViewAllOpen] = useState(false);
 
   const fetchLocationAlerts = async (showRefreshing = false) => {
     try {
@@ -204,6 +213,7 @@ const NotificationDropdown: React.FC = () => {
   const hasUnreadAlerts = alerts.length > 0;
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="relative p-2" title="Notifications">
@@ -229,15 +239,30 @@ const NotificationDropdown: React.FC = () => {
                 </Badge>
               )}
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => fetchLocationAlerts(true)}
-              disabled={refreshing}
-              className="h-6 w-6 p-0"
-            >
-              <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
-            </Button>
+            <div className="flex items-center gap-1">
+              {alerts.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsViewAllOpen(true)}
+                  className="h-6 px-2 text-xs"
+                  title="View all alerts"
+                >
+                  <List className="w-3 h-3 mr-1" />
+                  View All
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => fetchLocationAlerts(true)}
+                disabled={refreshing}
+                className="h-6 w-6 p-0"
+                title="Refresh alerts"
+              >
+                <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -318,6 +343,118 @@ const NotificationDropdown: React.FC = () => {
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
+
+    {/* View All Alerts Dialog */}
+    <Dialog open={isViewAllOpen} onOpenChange={setIsViewAllOpen}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Bell className="w-5 h-5" />
+            All Location Alerts ({alerts.length})
+          </DialogTitle>
+          <DialogDescription>
+            All active location alerts across your events
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto pr-2">
+          {alerts.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <Users className="w-12 h-12 mx-auto mb-4 text-green-500 opacity-50" />
+              <p className="text-lg font-medium text-green-600">All Clear!</p>
+              <p className="text-sm mt-2">All participants are within premises</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {alerts.map((alert) => {
+                const alertKey = `${alert.statusId}-${alert.alertId}`;
+                const isAcknowledging = acknowledgingAlerts.has(alertKey);
+
+                return (
+                  <div
+                    key={`${alert.alertId}-${alert.timestamp}`}
+                    className={`p-4 rounded-lg border transition-colors ${
+                      alert.type === 'exceeded_limit'
+                        ? 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
+                        : alert.type === 'warning'
+                        ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800'
+                        : 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 mt-1">
+                        {getAlertIcon(alert.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <p className="font-semibold text-base">{alert.participantName}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">{alert.participantEmail}</p>
+                          </div>
+                          <Badge
+                            variant={
+                              alert.type === 'exceeded_limit'
+                                ? 'destructive'
+                                : alert.type === 'warning'
+                                ? 'secondary'
+                                : 'default'
+                            }
+                            className="text-xs"
+                          >
+                            {getAlertText(alert.type)}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 mb-2">
+                          <MapPin className="w-4 h-4" />
+                          <span className="font-medium">{alert.eventTitle}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatTime(alert.timestamp)}
+                          </div>
+                          {!alert.isWithinGeofence && (
+                            <span className="text-orange-600 font-medium">
+                              Outside premises
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            acknowledgeAlert(alert.statusId, alert.alertId);
+                          }}
+                          disabled={isAcknowledging}
+                          className="h-8 w-8 p-0"
+                          title="Acknowledge alert"
+                        >
+                          <Check className="w-4 h-4" />
+                        </Button>
+                        <Link to={`/event/${alert.eventId}/monitor`}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            title="View location tracking"
+                            onClick={() => setIsViewAllOpen(false)}
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };
 
