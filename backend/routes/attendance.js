@@ -476,7 +476,7 @@ router.get('/my', auth, async (req, res) => {
     })
       .populate({
         path: 'event',
-        select: 'title date location eventCode organizer description status startTime endTime published',
+        select: 'title date location eventCode organizer description status startTime endTime published maxTimeOutside geofenceRadius',
         match: { published: { $eq: true } }, // Only populate published events (explicitly true, not null/undefined)
         populate: {
           path: 'organizer',
@@ -555,7 +555,7 @@ router.get('/scan-history', auth, async (req, res) => {
     const attendanceLogs = await AttendanceLog.find({ participant: req.user._id })
       .populate({
         path: 'event',
-        select: 'title date location eventCode published',
+        select: 'title date location eventCode published maxTimeOutside geofenceRadius',
         match: { published: { $eq: true } } // Only populate published events (explicitly true, not null/undefined)
       })
       .populate('invitation', 'invitationCode')

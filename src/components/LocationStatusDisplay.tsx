@@ -9,11 +9,19 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   MapPin,
   Clock,
   AlertTriangle,
   CheckCircle,
-  XCircle
+  XCircle,
+  Bell
 } from 'lucide-react';
 import { useLocationTracking } from '@/hooks/useLocationTracking';
 import { useToast } from '@/hooks/use-toast';
@@ -68,6 +76,7 @@ const LiveCountdownTimer: React.FC<{
 
 const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }) => {
   const { toast } = useToast();
+  const [isAlertsDialogOpen, setIsAlertsDialogOpen] = useState(false);
 
   const {
     locationStatuses,
@@ -138,6 +147,88 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
       default: return 'Unknown Status';
     }
   };
+
+  // Generate alerts from location statuses
+  const getAlerts = () => {
+    const alerts: Array<{
+      id: string;
+      type: 'stale' | 'outside' | 'exceeded' | 'absent';
+      severity: 'warning' | 'error';
+      participant: { name: string; email: string };
+      message: string;
+      time: string;
+    }> = [];
+
+    locationStatuses.forEach((status) => {
+      const lastUpdate = new Date(status.lastLocationUpdate);
+      const now = new Date();
+      const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+      const isStale = minutesSinceUpdate > 3;
+
+      // Stale location alert
+      if (isStale && status.status !== 'absent') {
+        alerts.push({
+          id: `${status._id}-stale`,
+          type: 'stale',
+          severity: minutesSinceUpdate > 10 ? 'error' : 'warning',
+          participant: { name: status.participant.name, email: status.participant.email },
+          message: `Location not updating for ${Math.floor(minutesSinceUpdate)} minutes`,
+          time: lastUpdate.toLocaleTimeString('en-US', { hour12: true })
+        });
+      }
+
+      // Outside geofence alert (only if timer is active and participant is outside)
+      if (status.outsideTimer?.isActive && !status.isWithinGeofence && !isStale) {
+        const maxTimeOutside = status.event?.maxTimeOutside || 15;
+        const maxTimeSeconds = maxTimeOutside * 60;
+        const remainingSeconds = Math.max(0, maxTimeSeconds - status.currentTimeOutside);
+        const remainingMinutes = Math.floor(remainingSeconds / 60);
+
+        alerts.push({
+          id: `${status._id}-outside`,
+          type: 'outside',
+          severity: remainingMinutes <= 5 ? 'error' : 'warning',
+          participant: { name: status.participant.name, email: status.participant.email },
+          message: `Outside premises - ${remainingMinutes} minutes remaining`,
+          time: status.outsideTimer.startTime ? new Date(status.outsideTimer.startTime).toLocaleTimeString('en-US', { hour12: true }) : 'N/A'
+        });
+      }
+
+      // Exceeded time limit alert
+      if (status.status === 'exceeded_limit') {
+        alerts.push({
+          id: `${status._id}-exceeded`,
+          type: 'exceeded',
+          severity: 'error',
+          participant: { name: status.participant.name, email: status.participant.email },
+          message: 'Exceeded outside time limit',
+          time: lastUpdate.toLocaleTimeString('en-US', { hour12: true })
+        });
+      }
+
+      // Absent alert
+      if (status.status === 'absent') {
+        alerts.push({
+          id: `${status._id}-absent`,
+          type: 'absent',
+          severity: 'error',
+          participant: { name: status.participant.name, email: status.participant.email },
+          message: 'Marked as absent',
+          time: lastUpdate.toLocaleTimeString('en-US', { hour12: true })
+        });
+      }
+    });
+
+    // Sort by severity (errors first) and then by time
+    return alerts.sort((a, b) => {
+      if (a.severity !== b.severity) {
+        return a.severity === 'error' ? -1 : 1;
+      }
+      return 0;
+    });
+  };
+
+  const alerts = getAlerts();
 
   if (loading) {
     return (
@@ -210,6 +301,59 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Location Alerts Section */}
+      {alerts.length > 0 && (
+        <Card className="border-orange-200 dark:border-orange-800">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
+                <Bell className="w-5 h-5" />
+                Location Alerts ({alerts.length})
+              </CardTitle>
+              <Button
+                onClick={() => setIsAlertsDialogOpen(true)}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Bell className="w-4 h-4" />
+                View All
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {alerts.slice(0, 3).map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`flex items-start gap-3 p-3 rounded-lg border ${
+                    alert.severity === 'error'
+                      ? 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
+                      : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800'
+                  }`}
+                >
+                  <AlertTriangle
+                    className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                      alert.severity === 'error' ? 'text-red-600' : 'text-yellow-600'
+                    }`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm">{alert.participant.name}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">{alert.message}</p>
+                    <p className="text-xs text-gray-500 mt-1">Last update: {alert.time}</p>
+                  </div>
+                </div>
+              ))}
+              {alerts.length > 3 && (
+                <p className="text-center text-sm text-gray-500 pt-2">
+                  + {alerts.length - 3} more alert{alerts.length - 3 !== 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Location Status List */}
@@ -381,13 +525,13 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       return null;
                     }
 
-                    // Don't show outside timer if the timer reason is 'stale' - stale warning takes priority
-                    if (status.outsideTimer?.reason === 'stale') {
+                    // Don't show outside timer if location is stale
+                    if (isStale) {
                       return null;
                     }
 
-                    // Only show timer if backend has activated it for 'outside' reason (not stale)
-                    if (status.outsideTimer?.isActive && status.outsideTimer?.reason === 'outside') {
+                    // Only show timer if backend has activated it and participant is outside
+                    if (status.outsideTimer?.isActive && !status.isWithinGeofence) {
                       // Get maxTimeOutside from event (with fallback to 15 minutes)
                       const maxTimeOutside = status.event?.maxTimeOutside || 15;
                       const maxTimeSeconds = maxTimeOutside * 60;
@@ -451,6 +595,63 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
           </div>
         </CardContent>
       </Card>
+
+      {/* View All Alerts Dialog */}
+      <Dialog open={isAlertsDialogOpen} onOpenChange={setIsAlertsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="w-5 h-5" />
+              All Location Alerts ({alerts.length})
+            </DialogTitle>
+            <DialogDescription>
+              Active location alerts for all participants
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 mt-4">
+            {alerts.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <CheckCircle className="w-12 h-12 mx-auto mb-4 opacity-50 text-green-500" />
+                <p className="text-lg">No Active Alerts</p>
+                <p className="text-sm">All participants are within expected parameters</p>
+              </div>
+            ) : (
+              alerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`flex items-start gap-3 p-4 rounded-lg border ${
+                    alert.severity === 'error'
+                      ? 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
+                      : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800'
+                  }`}
+                >
+                  <AlertTriangle
+                    className={`w-6 h-6 mt-0.5 flex-shrink-0 ${
+                      alert.severity === 'error' ? 'text-red-600' : 'text-yellow-600'
+                    }`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-base">{alert.participant.name}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{alert.participant.email}</p>
+                      </div>
+                      <Badge variant={alert.severity === 'error' ? 'destructive' : 'secondary'} className="text-xs">
+                        {alert.type === 'stale' && 'Stale Location'}
+                        {alert.type === 'outside' && 'Outside'}
+                        {alert.type === 'exceeded' && 'Exceeded'}
+                        {alert.type === 'absent' && 'Absent'}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">{alert.message}</p>
+                    <p className="text-xs text-gray-500 mt-1">Last update: {alert.time}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -3069,74 +3069,92 @@ const ParticipantDashboard = () => {
 
   // Helper function to show outside premises countdown timer
   const getTimeRemaining = (event: any, attendance?: any) => {
-    // Only show if we have location status
-    if (!currentLocationStatus) return null;
+    // Get maxTimeOutside from the event (default to 0 if not set)
+    const maxTimeOutside = event.maxTimeOutside || 0;
 
-    const currentlyAttending = getCurrentlyAttending();
-    if (currentlyAttending.length === 0) return null;
+    // If no maxTimeOutside is set, don't show time display
+    if (maxTimeOutside === 0) return null;
 
-    const currentEvent = currentlyAttending[0].event;
+    // If we have location status, show real-time countdown
+    if (currentLocationStatus) {
+      // Check if participant is outside or stale
+      const isOutsideOrStale = !currentLocationStatus.isWithinGeofence ||
+                               currentLocationStatus.outsideTimer?.reason === 'stale';
 
-    // Check if participant is outside or stale
-    const isOutsideOrStale = !currentLocationStatus.isWithinGeofence ||
-                             currentLocationStatus.outsideTimer?.reason === 'stale';
+      // Calculate time remaining outside premises
+      const currentTimeOutside = currentLocationStatus.currentTimeOutside || 0;
+      const timeRemainingSeconds = maxTimeOutside - currentTimeOutside;
 
-    // Calculate time remaining outside premises
-    const maxTimeOutside = currentEvent.maxTimeOutside || 0;
-    const currentTimeOutside = currentLocationStatus.currentTimeOutside || 0;
-    const timeRemainingSeconds = maxTimeOutside - currentTimeOutside;
+      // If inside premises, show full available time
+      if (!isOutsideOrStale) {
+        const hours = Math.floor(maxTimeOutside / 3600);
+        const minutes = Math.floor((maxTimeOutside % 3600) / 60);
 
-    // If inside premises, show full available time
-    if (!isOutsideOrStale) {
-      const hours = Math.floor(maxTimeOutside / 3600);
-      const minutes = Math.floor((maxTimeOutside % 3600) / 60);
+        if (hours > 0) {
+          return {
+            text: `${hours}h ${minutes}m available`,
+            expired: false,
+            showCountdown: false
+          };
+        } else {
+          return {
+            text: `${minutes}m available`,
+            expired: false,
+            showCountdown: false
+          };
+        }
+      }
+
+      // If outside/stale and time exceeded
+      if (timeRemainingSeconds <= 0) {
+        return {
+          text: 'Time exceeded!',
+          expired: true,
+          showCountdown: true
+        };
+      }
+
+      // Show real-time countdown with seconds when outside
+      const hours = Math.floor(timeRemainingSeconds / 3600);
+      const minutes = Math.floor((timeRemainingSeconds % 3600) / 60);
+      const seconds = timeRemainingSeconds % 60;
 
       if (hours > 0) {
         return {
-          text: `${hours}h ${minutes}m available`,
+          text: `${hours}h ${minutes}m ${seconds}s remaining`,
           expired: false,
-          showCountdown: false
+          showCountdown: true
+        };
+      } else if (minutes > 0) {
+        return {
+          text: `${minutes}m ${seconds}s remaining`,
+          expired: false,
+          showCountdown: true
         };
       } else {
         return {
-          text: `${minutes}m available`,
+          text: `${seconds}s remaining`,
           expired: false,
-          showCountdown: false
+          showCountdown: true
         };
       }
     }
 
-    // If outside/stale and time exceeded
-    if (timeRemainingSeconds <= 0) {
-      return {
-        text: 'Time exceeded!',
-        expired: true,
-        showCountdown: true
-      };
-    }
-
-    // Show real-time countdown with seconds when outside
-    const hours = Math.floor(timeRemainingSeconds / 3600);
-    const minutes = Math.floor((timeRemainingSeconds % 3600) / 60);
-    const seconds = timeRemainingSeconds % 60;
+    // If no location status yet, just show the available time
+    const hours = Math.floor(maxTimeOutside / 3600);
+    const minutes = Math.floor((maxTimeOutside % 3600) / 60);
 
     if (hours > 0) {
       return {
-        text: `${hours}h ${minutes}m ${seconds}s remaining`,
+        text: `${hours}h ${minutes}m available`,
         expired: false,
-        showCountdown: true
-      };
-    } else if (minutes > 0) {
-      return {
-        text: `${minutes}m ${seconds}s remaining`,
-        expired: false,
-        showCountdown: true
+        showCountdown: false
       };
     } else {
       return {
-        text: `${seconds}s remaining`,
+        text: `${minutes}m available`,
         expired: false,
-        showCountdown: true
+        showCountdown: false
       };
     }
   };
