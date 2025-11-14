@@ -121,19 +121,43 @@ router.post('/', auth, requireOrganizer, [
       // Update the existing invitation for pending or expired invitations
       invitation = existingInvitation;
       invitation.sentAt = new Date();
-      invitation.expiresAt = new Date(event.date.getTime() + 24 * 60 * 60 * 1000);
+
+      // Calculate proper expiration time based on when event actually ends
+      const eventDate = new Date(event.date);
+      let eventEndTime;
+      if (event.startTime && event.endTime) {
+        const [endHour, endMin] = event.endTime.split(':').map(Number);
+        eventEndTime = new Date(eventDate);
+        eventEndTime.setHours(endHour, endMin, 0, 0);
+      } else {
+        eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
+      }
+      // Invitation expires 24 hours after event ends
+      invitation.expiresAt = new Date(eventEndTime.getTime() + 24 * 60 * 60 * 1000);
+
       // Reset status to pending if it was expired
       if (invitation.status === 'expired') {
         invitation.status = 'pending';
       }
     } else {
-      // Create new invitation
+      // Calculate proper expiration time based on when event actually ends
+      const eventDate = new Date(event.date);
+      let eventEndTime;
+      if (event.startTime && event.endTime) {
+        const [endHour, endMin] = event.endTime.split(':').map(Number);
+        eventEndTime = new Date(eventDate);
+        eventEndTime.setHours(endHour, endMin, 0, 0);
+      } else {
+        eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
+      }
+
+      // Create new invitation - expires 24 hours after event ends
       invitation = new Invitation({
         event: eventId,
         participant: participant._id,
         participantEmail,
         participantName,
-        expiresAt: new Date(event.date.getTime() + 24 * 60 * 60 * 1000) // Expires 24h after event
+        expiresAt: new Date(eventEndTime.getTime() + 24 * 60 * 60 * 1000) // Expires 24h after event ends
       });
     }
 
@@ -470,7 +494,7 @@ router.get('/my', auth, async (req, res) => {
       .populate({
         path: 'event',
         select: 'title date location description organizer published',
-        match: { published: { $eq: true } }, // Only populate published events (explicitly true, not null/undefined)
+        // Participants can see all invitations they received, regardless of event publication status
         populate: {
           path: 'organizer',
           select: 'name email'
@@ -478,10 +502,10 @@ router.get('/my', auth, async (req, res) => {
       })
       .sort({ sentAt: -1 });
 
-    // Filter out invitations where event didn't populate (unpublished events)
+    // Filter out invitations where event didn't populate (should rarely happen, only if event was deleted)
     const filteredInvitations = invitations.filter(invitation => invitation.event !== null);
 
-    // Add attendance information and update status for each invitation (only published events)
+    // Add attendance information and update status for each invitation
     const invitationsWithAttendance = await Promise.all(
       filteredInvitations.map(async (invitation) => {
         // Update event status
@@ -888,18 +912,18 @@ router.delete('/my/expired', auth, async (req, res) => {
   try {
     const now = new Date();
     
-    // Find all invitations for the current user, populate event data (only published events)
+    // Find all invitations for the current user, populate event data
     const allInvitations = await Invitation.find({
       participant: req.user._id
     }).populate({
-      path: 'event',
-      match: { published: { $eq: true } } // Only populate published events (explicitly true, not null/undefined)
+      path: 'event'
+      // Participants can see all invitations they received, regardless of event publication status
     });
 
-    // Filter out invitations where event didn't populate (unpublished events)
+    // Filter out invitations where event didn't populate (should rarely happen, only if event was deleted)
     const filteredInvitations = allInvitations.filter(invitation => invitation.event !== null);
 
-    // Check attendance for each invitation (only published events)
+    // Check attendance for each invitation
     const invitationsWithAttendance = await Promise.all(
       filteredInvitations.map(async (invitation) => {
         const attendance = await AttendanceLog.findOne({

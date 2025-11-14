@@ -1054,7 +1054,8 @@ const ParticipantDashboard = () => {
           // Allow check-in 30 minutes before start time
           const checkInStartTime = new Date(eventStartTime.getTime() - 30 * 60 * 1000);
 
-          return now >= checkInStartTime && (invitation.status === 'accepted' || invitation.status === 'pending');
+          // Only monitor location for accepted invitations (user has agreed to attend)
+          return now >= checkInStartTime && invitation.status === 'accepted';
         } else {
           // Fallback to old logic if times are not available
           const eventDate = new Date(event.date);
@@ -1065,8 +1066,9 @@ const ParticipantDashboard = () => {
           if (event.status === 'completed') {
             return false;
           }
-          
-          return now >= eventStartTime && (invitation.status === 'accepted' || invitation.status === 'pending');
+
+          // Only monitor location for accepted invitations (user has agreed to attend)
+          return now >= eventStartTime && invitation.status === 'accepted';
         }
       });
 
@@ -2997,8 +2999,17 @@ const ParticipantDashboard = () => {
 
   // Helper function to check if invitation is expired
   const isInvitationExpired = (invitation: any) => {
-    // Don't consider accepted invitations or invitations from participants who attended as expired
-    if (invitation.status === 'accepted' || invitation.hasAttended) return false;
+    // Don't consider accepted invitations as expired (they should stay visible until event ends)
+    if (invitation.status === 'accepted') return false;
+
+    // Check if participant has attended this event (checked in)
+    const hasAttended = myAttendance.some(attendance =>
+      (attendance.event._id || attendance.event) === invitation.event._id
+    );
+
+    // Don't show as expired if you've already checked into the event
+    // (it will appear in "Currently Attending" or "Completed Events" instead)
+    if (hasAttended) return false;
 
     const now = new Date();
     const event = invitation.event;
@@ -3029,9 +3040,18 @@ const ParticipantDashboard = () => {
     return myInvitations;
   };
 
-  // Get expired invitations
+  // Get expired invitations (events that have passed but you never attended)
   const getExpiredInvitations = () => {
-    return myInvitations.filter(invitation => isInvitationExpired(invitation));
+    // Get IDs of events you've checked out from (completed events)
+    const completedEventIds = myAttendance
+      .filter(attendance => attendance.checkOutTime)
+      .map(attendance => attendance.event._id || attendance.event);
+
+    // Only show expired invitations for events you haven't attended
+    return myInvitations.filter(invitation =>
+      isInvitationExpired(invitation) &&
+      !completedEventIds.includes(invitation.event._id)
+    );
   };
 
   // Get active (non-expired) invitations
@@ -3875,7 +3895,7 @@ const ParticipantDashboard = () => {
                 </div>
               )}
               
-              {/* Expired Invitations */}
+              {/* Expired Invitations (Never Attended) */}
               {expiredInvitations.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -3903,14 +3923,14 @@ const ParticipantDashboard = () => {
                             <span className="mx-2">•</span>
                             <span>{formatEventTime(invitation.event)}</span>
                           </div>
-                          
+
                           {/* Expired Status */}
                           <div className="flex items-center mt-3">
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                              Expired
+                              Expired - Not Attended
                             </span>
                             <span className="ml-2 text-xs text-gray-500 dark:text-gray-500">
-                              Event has ended
+                              Event ended without check-in
                             </span>
                           </div>
                         </div>
@@ -4068,7 +4088,10 @@ const ParticipantDashboard = () => {
       return (
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Completed Events</h2>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Completed Events</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Events you attended and checked out from</p>
+            </div>
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-500 dark:text-gray-400">{completedEvents.length} events</span>
               <Button
