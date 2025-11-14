@@ -3020,15 +3020,9 @@ const ParticipantDashboard = () => {
 
     let eventEndTime: Date;
 
-    if (event.startTime && event.endTime) {
-      // Use actual end time if available with proper timezone conversion (Singapore)
-      const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
-      eventEndTime = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
-    } else {
-      // Fallback to duration-based calculation
-      const eventDate = new Date(event.date);
-      eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
-    }
+    // Use actual end time with proper timezone conversion (Singapore)
+    const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
+    eventEndTime = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
 
     // Debug logging
     const isExpired = now > eventEndTime;

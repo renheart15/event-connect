@@ -123,21 +123,14 @@ router.post('/', auth, requireOrganizer, [
       invitation.sentAt = new Date();
 
       // Calculate proper expiration time based on when event actually ends (Singapore timezone)
-      let eventEndTime;
-      if (event.startTime && event.endTime) {
-        // Get date string in YYYY-MM-DD format
-        const eventDate = new Date(event.date);
-        const year = eventDate.getFullYear();
-        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-        const day = String(eventDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
+      const eventDate = new Date(event.date);
+      const year = eventDate.getFullYear();
+      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+      const day = String(eventDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
 
-        // Combine date and end time, interpret as Singapore time
-        const [endHour, endMin] = event.endTime.split(':').map(Number);
-        eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
-      } else {
-        eventEndTime = new Date(new Date(event.date).getTime() + (event.duration || 3600000)); // Default 1 hour
-      }
+      // Combine date and end time, interpret as Singapore time
+      const eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
       // Invitation expires immediately after event ends
       invitation.expiresAt = eventEndTime;
 
@@ -147,20 +140,14 @@ router.post('/', auth, requireOrganizer, [
       }
     } else {
       // Calculate proper expiration time based on when event actually ends (Singapore timezone)
-      let eventEndTime;
-      if (event.startTime && event.endTime) {
-        // Get date string in YYYY-MM-DD format
-        const eventDate = new Date(event.date);
-        const year = eventDate.getFullYear();
-        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-        const day = String(eventDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
+      const eventDate = new Date(event.date);
+      const year = eventDate.getFullYear();
+      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+      const day = String(eventDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
 
-        // Combine date and end time, interpret as Singapore time
-        eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
-      } else {
-        eventEndTime = new Date(new Date(event.date).getTime() + (event.duration || 3600000)); // Default 1 hour
-      }
+      // Combine date and end time, interpret as Singapore time
+      const eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
 
       // Create new invitation - expires immediately after event ends
       invitation = new Invitation({
@@ -408,11 +395,12 @@ router.get('/code/:code', async (req, res) => {
     }
 
     // Find invitation by code and populate related data
-    const invitation = await Invitation.findOne({ 
-      invitationCode: code.toUpperCase() 
+    const invitation = await Invitation.findOne({
+      invitationCode: code.toUpperCase()
     })
     .populate({
       path: 'event',
+      select: 'title description date startTime endTime duration location organizer status published',
       populate: {
         path: 'organizer',
         select: 'name email'
@@ -438,39 +426,36 @@ router.get('/code/:code', async (req, res) => {
     const now = new Date();
     const event = invitation.event;
 
+    // Debug: Log full event object to see what fields are populated
+    console.log('🔍 [BACKEND EXPIRY CHECK] GET /code/:code - Full Event Data:');
+    console.log('  Event ID:', event._id);
+    console.log('  Event Title:', event.title);
+    console.log('  Event Date:', event.date);
+    console.log('  Event startTime:', event.startTime);
+    console.log('  Event endTime:', event.endTime);
+    console.log('  Event duration:', event.duration);
+    console.log('  Event keys:', Object.keys(event));
+    console.log('  Full event object:', JSON.stringify(event, null, 2));
+
     let eventEndTime;
 
-    if (event.startTime && event.endTime) {
-      // Use actual end time if available (Singapore timezone)
-      const eventDate = new Date(event.date);
-      const year = eventDate.getFullYear();
-      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-      const day = String(eventDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
+    // Use actual end time (Singapore timezone)
+    const eventDate = new Date(event.date);
+    const year = eventDate.getFullYear();
+    const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+    const day = String(eventDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
 
-      // Combine date and end time, interpret as Singapore time
-      eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
+    // Combine date and end time, interpret as Singapore time
+    eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
 
-      // Debug logging
-      console.log('🔍 [BACKEND EXPIRY CHECK] GET /code/:code');
-      console.log('  Event:', event.title);
-      console.log('  Event Date:', event.date);
-      console.log('  Date String:', dateStr);
-      console.log('  Event End Time (input):', event.endTime);
-      console.log('  Event End DateTime (calculated):', eventEndTime.toISOString(), '/', eventEndTime.toString());
-      console.log('  Current Time:', now.toISOString(), '/', now.toString());
-      console.log('  Time Difference (minutes):', ((now.getTime() - eventEndTime.getTime()) / 1000 / 60).toFixed(2));
-      console.log('  Invitation Status:', invitation.status);
-      console.log('  Will expire?', now > eventEndTime && invitation.status !== 'accepted');
-    } else {
-      // Fallback to duration-based calculation
-      const eventDate = new Date(event.date);
-      eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
-
-      console.log('🔍 [BACKEND EXPIRY CHECK] Using duration fallback');
-      console.log('  Event End Time:', eventEndTime.toString());
-      console.log('  Current Time:', now.toString());
-    }
+    // Debug logging
+    console.log('✅ Using event endTime');
+    console.log('  Event End DateTime (calculated):', eventEndTime.toISOString(), '/', eventEndTime.toString());
+    console.log('  Current Time:', now.toISOString(), '/', now.toString());
+    console.log('  Time Difference (minutes):', ((now.getTime() - eventEndTime.getTime()) / 1000 / 60).toFixed(2));
+    console.log('  Invitation Status:', invitation.status);
+    console.log('  Will expire?', now > eventEndTime && invitation.status !== 'accepted');
 
     // Invitation expires immediately after event ends
     if (now > eventEndTime && invitation.status !== 'accepted') {
@@ -526,7 +511,7 @@ router.get('/my', auth, async (req, res) => {
     const invitations = await Invitation.find({ participant: req.user._id })
       .populate({
         path: 'event',
-        select: 'title date location description organizer published',
+        select: 'title date startTime endTime duration location description organizer published status',
         // Participants can see all invitations they received, regardless of event publication status
         populate: {
           path: 'organizer',
@@ -850,32 +835,26 @@ router.put('/:id/respond', optionalAuth, [
 
     let eventEndTime;
 
-    if (event.startTime && event.endTime) {
-      // Use actual end time if available (Singapore timezone)
-      const eventDate = new Date(event.date);
-      const year = eventDate.getFullYear();
-      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-      const day = String(eventDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
+    // Use actual end time (Singapore timezone)
+    const eventDate = new Date(event.date);
+    const year = eventDate.getFullYear();
+    const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+    const day = String(eventDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
 
-      // Combine date and end time, interpret as Singapore time
-      eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
+    // Combine date and end time, interpret as Singapore time
+    eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
 
-      // Debug logging
-      console.log('🔍 [BACKEND EXPIRY CHECK] PUT /respond');
-      console.log('  Event:', event.title);
-      console.log('  Date String:', dateStr);
-      console.log('  Event End Time (input):', event.endTime);
-      console.log('  Event End DateTime (calculated):', eventEndTime.toISOString(), '/', eventEndTime.toString());
-      console.log('  Current Time:', now.toISOString(), '/', now.toString());
-      console.log('  Time Difference (minutes):', ((now.getTime() - eventEndTime.getTime()) / 1000 / 60).toFixed(2));
-      console.log('  Invitation Status:', invitation.status);
-      console.log('  Will expire?', now > eventEndTime && invitation.status !== 'accepted');
-    } else {
-      // Fallback to duration-based calculation
-      const eventDate = new Date(event.date);
-      eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
-    }
+    // Debug logging
+    console.log('🔍 [BACKEND EXPIRY CHECK] PUT /respond');
+    console.log('  Event:', event.title);
+    console.log('  Date String:', dateStr);
+    console.log('  Event End Time (input):', event.endTime);
+    console.log('  Event End DateTime (calculated):', eventEndTime.toISOString(), '/', eventEndTime.toString());
+    console.log('  Current Time:', now.toISOString(), '/', now.toString());
+    console.log('  Time Difference (minutes):', ((now.getTime() - eventEndTime.getTime()) / 1000 / 60).toFixed(2));
+    console.log('  Invitation Status:', invitation.status);
+    console.log('  Will expire?', now > eventEndTime && invitation.status !== 'accepted');
 
     if (now > eventEndTime && invitation.status !== 'accepted') {
       // Check if participant has attended the event (has attendance record)
@@ -997,21 +976,15 @@ router.delete('/my/expired', auth, async (req, res) => {
 
       let eventEndTime;
 
-      if (event.startTime && event.endTime) {
-        // Use actual end time if available (Singapore timezone)
-        const eventDate = new Date(event.date);
-        const year = eventDate.getFullYear();
-        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-        const day = String(eventDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
+      // Use actual end time (Singapore timezone)
+      const eventDate = new Date(event.date);
+      const year = eventDate.getFullYear();
+      const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+      const day = String(eventDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
 
-        // Combine date and end time, interpret as Singapore time
-        eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
-      } else {
-        // Fallback to duration-based calculation
-        const eventDate = new Date(event.date);
-        eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000)); // Default 1 hour
-      }
+      // Combine date and end time, interpret as Singapore time
+      eventEndTime = new Date(`${dateStr}T${event.endTime}:00`);
 
       // Invitation expires immediately after event ends (matching frontend logic)
       return now > eventEndTime;
