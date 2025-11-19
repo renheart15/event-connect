@@ -210,11 +210,22 @@ router.get('/participant/:participantId/event/:eventId/status',
 
       // Calculate real-time values
       const statusObj = locationStatus.toObject();
+
+      // ALWAYS calculate currentTimeOutside (whether timer is active or paused)
       if (locationStatus.outsideTimer.isActive) {
         statusObj.currentTimeOutside = locationStatus.calculateTotalTimeOutside();
+        console.log(`⏱️ [API-SINGLE] Timer ACTIVE - currentTimeOutside: ${statusObj.currentTimeOutside}s (${Math.floor(statusObj.currentTimeOutside / 60)}m ${statusObj.currentTimeOutside % 60}s)`);
       } else {
-        statusObj.currentTimeOutside = locationStatus.outsideTimer.totalTimeOutside;
+        statusObj.currentTimeOutside = locationStatus.outsideTimer.totalTimeOutside || 0;
+        console.log(`⏸️ [API-SINGLE] Timer PAUSED - currentTimeOutside: ${statusObj.currentTimeOutside}s (${Math.floor(statusObj.currentTimeOutside / 60)}m ${statusObj.currentTimeOutside % 60}s)`);
       }
+
+      console.log(`📊 [API-SINGLE] Participant ${participantId}:`);
+      console.log(`   - isWithinGeofence: ${statusObj.isWithinGeofence}`);
+      console.log(`   - outsideTimer.isActive: ${statusObj.outsideTimer.isActive}`);
+      console.log(`   - outsideTimer.reason: ${statusObj.outsideTimer.reason || 'N/A'}`);
+      console.log(`   - currentTimeOutside: ${statusObj.currentTimeOutside}s`);
+      console.log(`   - status: ${statusObj.status}`);
 
       // PRIORITIZATION: Use registration data from attendance log if available, otherwise use user account data
       if (statusObj.attendanceLog) {
