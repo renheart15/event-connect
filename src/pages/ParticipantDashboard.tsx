@@ -1658,11 +1658,49 @@ const ParticipantDashboard = () => {
 
       // Check if Google Barcode Scanner Module is available, install if needed
       setScanningStatus('Preparing scanner...');
-      const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
-      if (!available) {
-        setScanningStatus('Installing scanner module...');
-        await BarcodeScanner.installGoogleBarcodeScannerModule();
-        setScanningStatus('Scanner module installed!');
+      try {
+        const { available } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+        if (!available) {
+          setScanningStatus('Installing scanner module...');
+
+          // Show user-friendly message about module installation
+          toast({
+            title: "Installing Scanner Module",
+            description: "Please wait while we download the barcode scanner module. This only happens once.",
+            duration: 5000,
+          });
+
+          await BarcodeScanner.installGoogleBarcodeScannerModule();
+
+          // Wait a moment for installation to complete
+          await new Promise(resolve => setTimeout(resolve, 1500));
+
+          // Verify installation succeeded
+          const { available: nowAvailable } = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable();
+          if (!nowAvailable) {
+            throw new Error('Scanner module installation failed');
+          }
+
+          setScanningStatus('Scanner module installed!');
+        }
+      } catch (moduleError: any) {
+        console.error('Google Barcode Scanner Module error:', moduleError);
+
+        // If module installation fails, fall back to web camera
+        toast({
+          title: "Using Alternative Scanner",
+          description: "Native scanner unavailable. Using web camera instead.",
+          duration: 3000,
+        });
+
+        // Cleanup and switch to web camera
+        document.body.classList.remove('barcode-scanner-active');
+        setIsCameraActive(false);
+        setIsScanning(false);
+
+        // Use web camera as fallback
+        await startWebCamera();
+        return; // Exit early since we're using web camera
       }
 
       // Hide the UI behind the scanner
@@ -3150,12 +3188,13 @@ const ParticipantDashboard = () => {
 
       // Calculate time remaining outside premises
       const currentTimeOutside = currentLocationStatus.currentTimeOutside || 0;
-      const timeRemainingSeconds = maxTimeOutside - currentTimeOutside;
+      const maxTimeOutsideSeconds = maxTimeOutside * 60; // Convert minutes to seconds
+      const timeRemainingSeconds = maxTimeOutsideSeconds - currentTimeOutside;
 
-      // If inside premises, show full available time
+      // If inside premises, show remaining available time
       if (!isOutsideOrStale) {
-        const hours = Math.floor(maxTimeOutside / 3600);
-        const minutes = Math.floor((maxTimeOutside % 3600) / 60);
+        const hours = Math.floor(timeRemainingSeconds / 3600);
+        const minutes = Math.floor((timeRemainingSeconds % 3600) / 60);
 
         if (hours > 0) {
           return {
@@ -3208,8 +3247,9 @@ const ParticipantDashboard = () => {
     }
 
     // If no location status yet, just show the available time
-    const hours = Math.floor(maxTimeOutside / 3600);
-    const minutes = Math.floor((maxTimeOutside % 3600) / 60);
+    const maxTimeOutsideSeconds = maxTimeOutside * 60; // Convert minutes to seconds
+    const hours = Math.floor(maxTimeOutsideSeconds / 3600);
+    const minutes = Math.floor((maxTimeOutsideSeconds % 3600) / 60);
 
     if (hours > 0) {
       return {

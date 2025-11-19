@@ -58,6 +58,16 @@ const attendanceLogSchema = new mongoose.Schema({
   lastLocationUpdate: {
     type: Date
   },
+  // Registration form data (cached for performance)
+  // These fields take priority over participant.name and participant.email for display
+  registrationName: {
+    type: String,
+    trim: true
+  },
+  registrationEmail: {
+    type: String,
+    trim: true
+  },
   createdAt: {
     type: Date,
     default: Date.now
