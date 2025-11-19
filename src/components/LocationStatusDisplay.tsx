@@ -23,17 +23,19 @@ interface LocationStatusDisplayProps {
 
 // Live Countdown Timer Component that counts down from maxTimeOutside to zero
 const LiveCountdownTimer: React.FC<{
-  startTime: Date;
+  dataFetchTime: Date;  // Time when we fetched the data from backend
   baseSeconds: number;
   maxTimeSeconds: number;
-}> = ({ startTime, baseSeconds, maxTimeSeconds }) => {
+}> = ({ dataFetchTime, baseSeconds, maxTimeSeconds }) => {
   const [remainingSeconds, setRemainingSeconds] = useState(maxTimeSeconds - baseSeconds);
 
   useEffect(() => {
     // Calculate initial remaining time
     const now = new Date();
-    const elapsedSinceStart = Math.floor((now.getTime() - startTime.getTime()) / 1000);
-    const totalElapsed = baseSeconds + elapsedSinceStart;
+    // Calculate how much time has passed since we fetched the data
+    const elapsedSinceDataFetch = Math.floor((now.getTime() - dataFetchTime.getTime()) / 1000);
+    // baseSeconds already contains the total time from backend, just add time since data fetch
+    const totalElapsed = baseSeconds + elapsedSinceDataFetch;
     const remaining = Math.max(0, maxTimeSeconds - totalElapsed);
     setRemainingSeconds(remaining);
 
@@ -43,7 +45,7 @@ const LiveCountdownTimer: React.FC<{
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [startTime, baseSeconds, maxTimeSeconds]);
+  }, [dataFetchTime, baseSeconds, maxTimeSeconds]);
 
   const formatTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -329,11 +331,12 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
 
                           // Show live countdown timer if timer is active
                           if (status.outsideTimer.isActive) {
-                            const timerStartTime = new Date(status.outsideTimer.startTime || status.lastLocationUpdate);
+                            // Use lastLocationUpdate as the data fetch time (when backend last calculated currentTimeOutside)
+                            const dataFetchTime = new Date(status.lastLocationUpdate);
 
                             return (
                               <LiveCountdownTimer
-                                startTime={timerStartTime}
+                                dataFetchTime={dataFetchTime}
                                 baseSeconds={status.currentTimeOutside}
                                 maxTimeSeconds={maxTimeSeconds}
                               />
@@ -406,11 +409,12 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                               {(() => {
                                 // Show live countdown timer if timer is active
                                 if (status.outsideTimer.isActive) {
-                                  const timerStartTime = new Date(status.outsideTimer.startTime || status.lastLocationUpdate);
+                                  // Use lastLocationUpdate as the data fetch time (when backend last calculated currentTimeOutside)
+                                  const dataFetchTime = new Date(status.lastLocationUpdate);
 
                                   return (
                                     <LiveCountdownTimer
-                                      startTime={timerStartTime}
+                                      dataFetchTime={dataFetchTime}
                                       baseSeconds={status.currentTimeOutside}
                                       maxTimeSeconds={maxTimeSeconds}
                                     />

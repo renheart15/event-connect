@@ -3191,22 +3191,29 @@ const ParticipantDashboard = () => {
       const maxTimeOutsideSeconds = maxTimeOutside * 60; // Convert minutes to seconds
       const timeRemainingSeconds = maxTimeOutsideSeconds - currentTimeOutside;
 
-      // If inside premises, show remaining available time
+      // If inside premises, show remaining available time with countdown
       if (!isOutsideOrStale) {
         const hours = Math.floor(timeRemainingSeconds / 3600);
         const minutes = Math.floor((timeRemainingSeconds % 3600) / 60);
+        const seconds = timeRemainingSeconds % 60;
 
         if (hours > 0) {
           return {
-            text: `${hours}h ${minutes}m available`,
+            text: `${hours}h ${minutes}m ${seconds}s available`,
             expired: false,
-            showCountdown: false
+            showCountdown: true
+          };
+        } else if (minutes > 0) {
+          return {
+            text: `${minutes}m ${seconds}s available`,
+            expired: false,
+            showCountdown: true
           };
         } else {
           return {
-            text: `${minutes}m available`,
+            text: `${seconds}s available`,
             expired: false,
-            showCountdown: false
+            showCountdown: true
           };
         }
       }
@@ -3246,22 +3253,29 @@ const ParticipantDashboard = () => {
       }
     }
 
-    // If no location status yet, just show the available time
+    // If no location status yet, show the available time with countdown
     const maxTimeOutsideSeconds = maxTimeOutside * 60; // Convert minutes to seconds
     const hours = Math.floor(maxTimeOutsideSeconds / 3600);
     const minutes = Math.floor((maxTimeOutsideSeconds % 3600) / 60);
+    const seconds = maxTimeOutsideSeconds % 60;
 
     if (hours > 0) {
       return {
-        text: `${hours}h ${minutes}m available`,
+        text: `${hours}h ${minutes}m ${seconds}s available`,
         expired: false,
-        showCountdown: false
+        showCountdown: true
+      };
+    } else if (minutes > 0) {
+      return {
+        text: `${minutes}m ${seconds}s available`,
+        expired: false,
+        showCountdown: true
       };
     } else {
       return {
-        text: `${minutes}m available`,
+        text: `${seconds}s available`,
         expired: false,
-        showCountdown: false
+        showCountdown: true
       };
     }
   };
