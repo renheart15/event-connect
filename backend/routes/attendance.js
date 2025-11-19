@@ -12,6 +12,74 @@ const { fromZonedTime } = require('date-fns-tz');
 
 const router = express.Router();
 
+// Helper function to extract name/email from registration response using field definitions
+const extractNameEmailFromRegistration = async (eventId, participantId) => {
+  try {
+    const registrationResponse = await RegistrationResponse.findOne({
+      event: eventId,
+      participant: participantId
+    }).populate('registrationForm');
+
+    if (!registrationResponse || !registrationResponse.responses || !registrationResponse.registrationForm) {
+      console.log(`📝 [EXTRACT] No registration response found for participant ${participantId}`);
+      return { name: null, email: null };
+    }
+
+    const fields = registrationResponse.registrationForm.fields || [];
+    let nameValue = null;
+    let emailValue = null;
+
+    console.log(`📝 [EXTRACT] Found ${fields.length} fields in registration form`);
+
+    // Convert Map to plain object for easier access
+    const responsesObj = registrationResponse.responses instanceof Map
+      ? Object.fromEntries(registrationResponse.responses)
+      : registrationResponse.responses;
+
+    console.log(`📝 [EXTRACT] Responses object keys:`, Object.keys(responsesObj));
+
+    // Match fields by label or type to find name and email
+    for (const field of fields) {
+      const fieldId = field.id;
+      const fieldLabel = (field.label || '').toLowerCase();
+      const fieldType = field.type;
+
+      // Try multiple ways to get the response value
+      let responseValue = responsesObj[fieldId] ||
+                         registrationResponse.responses.get?.(fieldId) ||
+                         registrationResponse.responses[fieldId];
+
+      console.log(`📝 [EXTRACT] Field "${field.label}" (id: ${fieldId}, type: ${fieldType}): value="${responseValue}"`);
+
+      // Check if this field is a name field (by label or common patterns)
+      if (!nameValue && responseValue) {
+        const namePatterns = ['name', 'fullname', 'full name', 'participant', 'student'];
+        if (namePatterns.some(pattern => fieldLabel.includes(pattern))) {
+          nameValue = responseValue;
+          console.log(`✅ [EXTRACT] Found name field: "${field.label}" = "${nameValue}"`);
+        }
+      }
+
+      // Check if this field is an email field (by type or label)
+      if (!emailValue && responseValue) {
+        if (fieldType === 'email' || fieldLabel.includes('email') || fieldLabel.includes('e-mail')) {
+          emailValue = responseValue;
+          console.log(`✅ [EXTRACT] Found email field: "${field.label}" = "${emailValue}"`);
+        }
+      }
+
+      // Break early if we found both
+      if (nameValue && emailValue) break;
+    }
+
+    console.log(`📝 [EXTRACT] Final result: name="${nameValue}", email="${emailValue}"`);
+    return { name: nameValue, email: emailValue };
+  } catch (error) {
+    console.error('⚠️ [EXTRACT] Failed to extract registration data:', error);
+    return { name: null, email: null };
+  }
+};
+
 // @route   POST /api/attendance/checkin
 // @desc    Check in using QR code
 // @access  Public (but requires valid QR data)
@@ -151,54 +219,17 @@ router.post('/checkin', [
     });
 
     // Fetch registration data for this participant if it exists
-    let registrationName = null;
-    let registrationEmail = null;
+    console.log(`📝 [CHECK-IN] Extracting registration data for participant ${participantId}`);
+    const { name: registrationName, email: registrationEmail } = await extractNameEmailFromRegistration(eventId, participantId);
 
-    try {
-      const registrationResponse = await RegistrationResponse.findOne({
-        event: eventId,
-        participant: participantId
-      });
+    // FALLBACK: If no registration response or no name/email in registration, use participant's user data
+    let finalName = registrationName || invitation.participant.name;
+    let finalEmail = registrationEmail || invitation.participant.email;
 
-      if (registrationResponse && registrationResponse.responses) {
-        const nameVariations = [
-          'name', 'fullName', 'full_name', 'participantName', 'participant_name',
-          'Name', 'Full Name', 'Participant Name', 'fullname', 'FULL NAME',
-          'studentName', 'student_name', 'Student Name', 'yourName', 'your_name'
-        ];
-
-        const emailVariations = [
-          'email', 'Email', 'emailAddress', 'email_address', 'Email Address',
-          'EMAIL', 'e-mail', 'E-mail', 'E-Mail', 'participantEmail', 'participant_email',
-          'studentEmail', 'student_email', 'yourEmail', 'your_email'
-        ];
-
-        // Find name field
-        let nameField = nameVariations.find(field => registrationResponse.responses.has(field));
-        if (!nameField) {
-          const responseKeys = Array.from(registrationResponse.responses.keys());
-          nameField = responseKeys.find(key =>
-            nameVariations.some(variation => key.toLowerCase() === variation.toLowerCase())
-          );
-        }
-
-        // Find email field
-        let emailField = emailVariations.find(field => registrationResponse.responses.has(field));
-        if (!emailField) {
-          const responseKeys = Array.from(registrationResponse.responses.keys());
-          emailField = responseKeys.find(key =>
-            emailVariations.some(variation => key.toLowerCase() === variation.toLowerCase())
-          );
-        }
-
-        registrationName = nameField ? registrationResponse.responses.get(nameField) : null;
-        registrationEmail = emailField ? registrationResponse.responses.get(emailField) : null;
-
-        console.log(`📝 [CHECK-IN] Found registration data: name="${registrationName}", email="${registrationEmail}"`);
-      }
-    } catch (regError) {
-      console.error('⚠️ Failed to fetch registration data:', regError);
-      // Continue with check-in even if registration fetch fails
+    if (!registrationName || !registrationEmail) {
+      console.log(`📝 [CHECK-IN] Missing registration data, using user account data: name="${finalName}", email="${finalEmail}"`);
+    } else {
+      console.log(`📝 [CHECK-IN] Using registration data: name="${finalName}", email="${finalEmail}"`);
     }
 
     if (existingAttendance) {
@@ -217,9 +248,9 @@ router.post('/checkin', [
       existingAttendance.status = 'checked-in';
       existingAttendance.invitation = invitationId; // Update invitation reference
 
-      // Store registration data if available
-      if (registrationName) existingAttendance.registrationName = registrationName;
-      if (registrationEmail) existingAttendance.registrationEmail = registrationEmail;
+      // Store registration data (with fallback to user data)
+      existingAttendance.registrationName = finalName;
+      existingAttendance.registrationEmail = finalEmail;
 
       await existingAttendance.save();
 
@@ -236,8 +267,8 @@ router.post('/checkin', [
         checkInTime: new Date(),
         checkInLocation: location || null,
         status: 'checked-in',
-        registrationName: registrationName,
-        registrationEmail: registrationEmail
+        registrationName: finalName,
+        registrationEmail: finalEmail
       });
 
       console.log('✅ Created new attendance record for check-in');
@@ -439,6 +470,54 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
       responseMap.set(response.participant.toString(), response);
     });
 
+    // Helper function to extract name/email from registration response
+    const extractRegistrationData = (response) => {
+      if (!response || !response.responses || !response.registrationForm) {
+        return { name: null, email: null };
+      }
+
+      const fields = response.registrationForm.fields || [];
+      let nameValue = null;
+      let emailValue = null;
+
+      // Convert Map to plain object for easier access
+      const responsesObj = response.responses instanceof Map
+        ? Object.fromEntries(response.responses)
+        : response.responses;
+
+      // Match fields by label or type to find name and email
+      for (const field of fields) {
+        const fieldId = field.id;
+        const fieldLabel = (field.label || '').toLowerCase();
+        const fieldType = field.type;
+
+        // Try multiple ways to get the response value
+        const responseValue = responsesObj[fieldId] ||
+                             response.responses.get?.(fieldId) ||
+                             response.responses[fieldId];
+
+        // Check if this field is a name field (by label or common patterns)
+        if (!nameValue && responseValue) {
+          const namePatterns = ['name', 'fullname', 'full name', 'participant', 'student'];
+          if (namePatterns.some(pattern => fieldLabel.includes(pattern))) {
+            nameValue = responseValue;
+          }
+        }
+
+        // Check if this field is an email field (by type or label)
+        if (!emailValue && responseValue) {
+          if (fieldType === 'email' || fieldLabel.includes('email') || fieldLabel.includes('e-mail')) {
+            emailValue = responseValue;
+          }
+        }
+
+        // Break early if we found both
+        if (nameValue && emailValue) break;
+      }
+
+      return { name: nameValue, email: emailValue };
+    };
+
     // Enrich attendance logs with registration response data (name, email)
     const enrichedLogs = attendanceLogs.map(log => {
       const logObj = log.toObject();
@@ -458,53 +537,16 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
       // PRIORITY 2: If no cached data, lookup registration response
       const response = responseMap.get(log.participant._id.toString());
 
-      if (response && response.responses) {
-        // Extract name and email from registration responses
-        // Extended list of common field names for name (case-insensitive matching)
-        const nameVariations = [
-          'name', 'fullName', 'full_name', 'participantName', 'participant_name',
-          'Name', 'Full Name', 'Participant Name', 'fullname', 'FULL NAME',
-          'studentName', 'student_name', 'Student Name', 'yourName', 'your_name'
-        ];
-
-        const emailVariations = [
-          'email', 'Email', 'emailAddress', 'email_address', 'Email Address',
-          'EMAIL', 'e-mail', 'E-mail', 'E-Mail', 'participantEmail', 'participant_email',
-          'studentEmail', 'student_email', 'yourEmail', 'your_email'
-        ];
-
-        // Try to find name field (prioritize exact match, then case-insensitive)
-        let nameField = nameVariations.find(field => response.responses.has(field));
-
-        // If no exact match, try case-insensitive search
-        if (!nameField) {
-          const responseKeys = Array.from(response.responses.keys());
-          nameField = responseKeys.find(key =>
-            nameVariations.some(variation => key.toLowerCase() === variation.toLowerCase())
-          );
-        }
-
-        // Try to find email field (prioritize exact match, then case-insensitive)
-        let emailField = emailVariations.find(field => response.responses.has(field));
-
-        // If no exact match, try case-insensitive search
-        if (!emailField) {
-          const responseKeys = Array.from(response.responses.keys());
-          emailField = responseKeys.find(key =>
-            emailVariations.some(variation => key.toLowerCase() === variation.toLowerCase())
-          );
-        }
-
-        // Use registration response data if available, otherwise fall back to user account data
-        const registrationName = nameField ? response.responses.get(nameField) : null;
-        const registrationEmail = emailField ? response.responses.get(emailField) : null;
+      if (response) {
+        // Use the new extraction method that properly handles field IDs
+        const { name, email } = extractRegistrationData(response);
 
         // Only override if registration data exists and is not empty
-        if (registrationName && registrationName.trim() !== '') {
-          logObj.participant.name = registrationName;
+        if (name && name.trim() !== '') {
+          logObj.participant.name = name;
         }
-        if (registrationEmail && registrationEmail.trim() !== '') {
-          logObj.participant.email = registrationEmail;
+        if (email && email.trim() !== '') {
+          logObj.participant.email = email;
         }
 
         console.log(`📝 [LOOKUP DATA] Participant ${log.participant._id}: Using registration name="${logObj.participant.name}", email="${logObj.participant.email}"`);
@@ -971,54 +1013,17 @@ router.post('/join', auth, [
     });
 
     // Fetch registration data if it exists
-    let registrationName = null;
-    let registrationEmail = null;
+    console.log(`📝 [JOIN-EVENT] Extracting registration data for participant ${userId}`);
+    const { name: registrationName, email: registrationEmail } = await extractNameEmailFromRegistration(event._id, userId);
 
-    try {
-      const registrationResponse = await RegistrationResponse.findOne({
-        event: event._id,
-        participant: userId
-      });
+    // FALLBACK: If no registration response or no name/email in registration, use participant's user data
+    const finalName = registrationName || req.user.name;
+    const finalEmail = registrationEmail || req.user.email;
 
-      if (registrationResponse && registrationResponse.responses) {
-        const nameVariations = [
-          'name', 'fullName', 'full_name', 'participantName', 'participant_name',
-          'Name', 'Full Name', 'Participant Name', 'fullname', 'FULL NAME',
-          'studentName', 'student_name', 'Student Name', 'yourName', 'your_name'
-        ];
-
-        const emailVariations = [
-          'email', 'Email', 'emailAddress', 'email_address', 'Email Address',
-          'EMAIL', 'e-mail', 'E-mail', 'E-Mail', 'participantEmail', 'participant_email',
-          'studentEmail', 'student_email', 'yourEmail', 'your_email'
-        ];
-
-        // Find name field
-        let nameField = nameVariations.find(field => registrationResponse.responses.has(field));
-        if (!nameField) {
-          const responseKeys = Array.from(registrationResponse.responses.keys());
-          nameField = responseKeys.find(key =>
-            nameVariations.some(variation => key.toLowerCase() === variation.toLowerCase())
-          );
-        }
-
-        // Find email field
-        let emailField = emailVariations.find(field => registrationResponse.responses.has(field));
-        if (!emailField) {
-          const responseKeys = Array.from(registrationResponse.responses.keys());
-          emailField = responseKeys.find(key =>
-            emailVariations.some(variation => key.toLowerCase() === variation.toLowerCase())
-          );
-        }
-
-        registrationName = nameField ? registrationResponse.responses.get(nameField) : null;
-        registrationEmail = emailField ? registrationResponse.responses.get(emailField) : null;
-
-        console.log(`📝 [JOIN-EVENT] Found registration data: name="${registrationName}", email="${registrationEmail}"`);
-      }
-    } catch (regError) {
-      console.error('⚠️ Failed to fetch registration data:', regError);
-      // Continue with join-event even if registration fetch fails
+    if (!registrationName || !registrationEmail) {
+      console.log(`📝 [JOIN-EVENT] Missing registration data, using user account data: name="${finalName}", email="${finalEmail}"`);
+    } else {
+      console.log(`📝 [JOIN-EVENT] Using registration data: name="${finalName}", email="${finalEmail}"`);
     }
 
     // Create attendance record directly (no invitation needed for public events)
@@ -1029,8 +1034,8 @@ router.post('/join', auth, [
         event: event._id,
         participant: userId,
         status: 'registered', // Always start as registered, let auto check-in handle geofence verification
-        registrationName: registrationName,
-        registrationEmail: registrationEmail
+        registrationName: finalName,
+        registrationEmail: finalEmail
         // checkInTime will be set by auto check-in when participant is inside geofence
         // invitation will be null/undefined (optional field)
       });
@@ -1391,55 +1396,21 @@ router.post('/checkin-direct', auth, [
 
     // Fetch registration data if it exists and not already stored
     if (!attendanceRecord.registrationName || !attendanceRecord.registrationEmail) {
-      try {
-        const registrationResponse = await RegistrationResponse.findOne({
-          event: eventId,
-          participant: userId
-        });
+      console.log(`📝 [DIRECT-CHECK-IN] Extracting registration data for participant ${userId}`);
+      const { name: registrationName, email: registrationEmail } = await extractNameEmailFromRegistration(eventId, userId);
 
-        if (registrationResponse && registrationResponse.responses) {
-          const nameVariations = [
-            'name', 'fullName', 'full_name', 'participantName', 'participant_name',
-            'Name', 'Full Name', 'Participant Name', 'fullname', 'FULL NAME',
-            'studentName', 'student_name', 'Student Name', 'yourName', 'your_name'
-          ];
+      // FALLBACK: If no registration response or no name/email in registration, use participant's user data
+      const finalName = registrationName || req.user.name;
+      const finalEmail = registrationEmail || req.user.email;
 
-          const emailVariations = [
-            'email', 'Email', 'emailAddress', 'email_address', 'Email Address',
-            'EMAIL', 'e-mail', 'E-mail', 'E-Mail', 'participantEmail', 'participant_email',
-            'studentEmail', 'student_email', 'yourEmail', 'your_email'
-          ];
-
-          // Find name field
-          let nameField = nameVariations.find(field => registrationResponse.responses.has(field));
-          if (!nameField) {
-            const responseKeys = Array.from(registrationResponse.responses.keys());
-            nameField = responseKeys.find(key =>
-              nameVariations.some(variation => key.toLowerCase() === variation.toLowerCase())
-            );
-          }
-
-          // Find email field
-          let emailField = emailVariations.find(field => registrationResponse.responses.has(field));
-          if (!emailField) {
-            const responseKeys = Array.from(registrationResponse.responses.keys());
-            emailField = responseKeys.find(key =>
-              emailVariations.some(variation => key.toLowerCase() === variation.toLowerCase())
-            );
-          }
-
-          const registrationName = nameField ? registrationResponse.responses.get(nameField) : null;
-          const registrationEmail = emailField ? registrationResponse.responses.get(emailField) : null;
-
-          if (registrationName) attendanceRecord.registrationName = registrationName;
-          if (registrationEmail) attendanceRecord.registrationEmail = registrationEmail;
-
-          console.log(`📝 [DIRECT-CHECK-IN] Found registration data: name="${registrationName}", email="${registrationEmail}"`);
-        }
-      } catch (regError) {
-        console.error('⚠️ Failed to fetch registration data:', regError);
-        // Continue with check-in even if registration fetch fails
+      if (!registrationName || !registrationEmail) {
+        console.log(`📝 [DIRECT-CHECK-IN] Missing registration data, using user account data: name="${finalName}", email="${finalEmail}"`);
+      } else {
+        console.log(`📝 [DIRECT-CHECK-IN] Using registration data: name="${finalName}", email="${finalEmail}"`);
       }
+
+      attendanceRecord.registrationName = finalName;
+      attendanceRecord.registrationEmail = finalEmail;
     }
 
     // Update attendance record with check-in
