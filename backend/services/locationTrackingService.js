@@ -102,6 +102,12 @@ class LocationTrackingService {
         throw new Error('Event not found');
       }
 
+      // CRITICAL FIX: Don't process location updates for completed events
+      if (event.status === 'completed') {
+        console.log(`⏹️ [LOCATION UPDATE] Event "${event.title}" is completed, skipping location update`);
+        return null; // Return null to indicate update was skipped
+      }
+
       let locationStatus = await ParticipantLocationStatus.findOne({
         event: eventId,
         participant: participantId
@@ -109,6 +115,12 @@ class LocationTrackingService {
 
       if (!locationStatus) {
         throw new Error('Location status not found. Please initialize tracking first.');
+      }
+
+      // CRITICAL FIX: Skip location updates for inactive participants (marked absent)
+      if (!locationStatus.isActive) {
+        console.log(`⏹️ [LOCATION UPDATE] Skipping update for inactive participant: ${locationStatus.participant.name} (marked absent)`);
+        return locationStatus;
       }
 
       // Log battery level if provided
@@ -146,6 +158,10 @@ class LocationTrackingService {
       locationStatus.distanceFromCenter = Math.round(distanceFromCenter);
       locationStatus.isWithinGeofence = isWithinGeofence;
 
+      // CRITICAL FIX: Manually update lastLocationUpdate only when receiving new location data
+      // This ensures stale detection works correctly (no longer updated by pre-save hook)
+      locationStatus.lastLocationUpdate = new Date();
+
       // Handle geofence status change
       if (wasWithinGeofence && !isWithinGeofence) {
         // Participant left the geofence
@@ -158,6 +174,15 @@ class LocationTrackingService {
       // Update status based on current state and timer
       await this.updateParticipantStatus(locationStatus, event);
 
+      // CRITICAL FIX: Re-check if participant is still active before saving
+      // Prevents race condition where cleanup runs during location update processing
+      const freshStatus = await ParticipantLocationStatus.findById(locationStatus._id);
+      if (!freshStatus || !freshStatus.isActive) {
+        console.log(`⏹️ [RACE CONDITION] Participant deactivated during update, discarding changes`);
+        return freshStatus || locationStatus;
+      }
+
+      // Only save if still active
       await locationStatus.save();
       return locationStatus;
     } catch (error) {
@@ -182,9 +207,9 @@ class LocationTrackingService {
   // Handle participant returning to geofence
   async handleParticipantReturnedToGeofence(locationStatus, event) {
     console.log(`Participant ${locationStatus.participant.name} returned to geofence for event ${event.title}`);
-    
-    // Stop outside timer
-    locationStatus.stopOutsideTimer();
+
+    // Pause outside timer (preserves accumulated time)
+    locationStatus.pauseOutsideTimer();
     locationStatus.status = 'inside';
 
     // Add return alert
@@ -215,8 +240,8 @@ class LocationTrackingService {
       // Participant returned from being stale - preserve accumulated time
       console.log(`✅ [RETURNED FROM STALE] Participant data is fresh again. Preserving accumulated time.`);
 
-      // Stop the stale timer and preserve the total time
-      locationStatus.stopOutsideTimer();
+      // Pause the stale timer and preserve the total time
+      locationStatus.pauseOutsideTimer();
 
       // If they're still outside the geofence, restart timer with reason 'outside'
       if (!locationStatus.isWithinGeofence) {
@@ -224,6 +249,9 @@ class LocationTrackingService {
         locationStatus.startOutsideTimer();
         locationStatus.outsideTimer.reason = 'outside';
         locationStatus.status = 'outside';
+
+        // CRITICAL FIX: Restart monitoring timer (previously stopped when pauseOutsideTimer was called)
+        this.startMonitoringTimer(locationStatus._id, event.maxTimeOutside);
       } else {
         console.log(`✅ [TIMER CLEARED] Participant inside geofence. Timer cleared.`);
         locationStatus.status = 'inside';
@@ -251,24 +279,28 @@ class LocationTrackingService {
       // Start monitoring timer for stale participants (if not already running)
       this.startMonitoringTimer(locationStatus._id, event.maxTimeOutside);
 
-      // Count time AFTER the 3-minute stale threshold (not the entire stale time)
+      // CRITICAL FIX: Include previously accumulated time + new stale time
       const timeAfterStaleThreshold = minutesSinceUpdate - 3; // Minutes after stale threshold
-      totalTime = Math.floor(Math.max(0, timeAfterStaleThreshold) * 60); // Convert to seconds, ensure non-negative
+      const newStaleTime = Math.floor(Math.max(0, timeAfterStaleThreshold) * 60); // Convert to seconds
+      totalTime = locationStatus.outsideTimer.totalTimeOutside + newStaleTime; // Add to accumulated time
 
-      console.log(`⏱️ [STALE TIMER] Stale threshold reached 3 min ago. Countdown started: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
+      console.log(`⏱️ [STALE TIMER] Previously accumulated: ${locationStatus.outsideTimer.totalTimeOutside}s (${Math.floor(locationStatus.outsideTimer.totalTimeOutside / 60)} min)`);
+      console.log(`⏱️ [STALE TIMER] New stale time: ${newStaleTime}s (${Math.floor(newStaleTime / 60)} min)`);
+      console.log(`⏱️ [STALE TIMER] Total time: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
       console.log(`⏱️ [STALE TIMER] Started monitoring timer to check every 1 second`);
+    }
+
+    // CRITICAL FIX: Safety check BEFORE calculating maxTimeOutsideSeconds
+    // If maxTimeOutside is 0 or not set, use default of 15 minutes
+    if (!event.maxTimeOutside || event.maxTimeOutside === 0) {
+      console.log(`⚠️ [WARNING] Event maxTimeOutside not set or is 0, using default 15 minutes`);
+      event.maxTimeOutside = 15;
     }
 
     const maxTimeOutsideSeconds = event.maxTimeOutside * 60; // Convert minutes to seconds
 
     console.log(`📊 [LIMIT CHECK] Total time: ${totalTime}s (${Math.floor(totalTime / 60)} min) / Max: ${maxTimeOutsideSeconds}s (${event.maxTimeOutside} min)`);
     console.log(`📊 [LIMIT CHECK] Will trigger absence: ${totalTime >= maxTimeOutsideSeconds}`);
-
-    // Safety check: If maxTimeOutside is 0 or not set, use default of 15 minutes
-    if (!event.maxTimeOutside || event.maxTimeOutside === 0) {
-      console.log(`⚠️ [WARNING] Event maxTimeOutside not set, using default 15 minutes`);
-      event.maxTimeOutside = 15;
-    }
 
     // Check if limit exceeded
     if (totalTime >= maxTimeOutsideSeconds) {
@@ -289,7 +321,7 @@ class LocationTrackingService {
 
         // Deactivate location tracking for this participant
         locationStatus.isActive = false;
-        locationStatus.stopOutsideTimer();
+        locationStatus.pauseOutsideTimer();
 
         // Clear monitoring timer
         this.clearMonitoringTimer(locationStatus._id);
@@ -395,8 +427,8 @@ class LocationTrackingService {
       });
 
       if (locationStatus) {
-        // Stop any active timer
-        locationStatus.stopOutsideTimer();
+        // Pause any active timer (preserves accumulated time)
+        locationStatus.pauseOutsideTimer();
         locationStatus.isActive = false;
         await locationStatus.save();
 
@@ -518,6 +550,49 @@ class LocationTrackingService {
       console.log('✅ [STALE CHECK] Completed stale participant check');
     } catch (error) {
       console.error('❌ [STALE CHECK] Error checking stale participants:', error);
+      throw error;
+    }
+  }
+
+  // Stop location tracking for all participants in an event (when event completes)
+  async stopAllTrackingForEvent(eventId) {
+    try {
+      console.log(`🛑 [CLEANUP] Stopping all location tracking for event ${eventId}`);
+
+      // Find all active location statuses for this event
+      const locationStatuses = await ParticipantLocationStatus.find({
+        event: eventId,
+        isActive: true
+      });
+
+      console.log(`🛑 [CLEANUP] Found ${locationStatuses.length} active participant(s) to clean up`);
+
+      let cleanedUp = 0;
+
+      for (const locationStatus of locationStatuses) {
+        try {
+          // Pause any active timer (preserves accumulated time)
+          locationStatus.pauseOutsideTimer();
+          locationStatus.isActive = false;
+          await locationStatus.save();
+
+          // Clear monitoring timer
+          this.clearMonitoringTimer(locationStatus._id);
+
+          cleanedUp++;
+        } catch (err) {
+          console.error(`❌ [CLEANUP] Error cleaning up participant ${locationStatus.participant}:`, err.message);
+        }
+      }
+
+      // Remove event from active tracking
+      this.activeTracking.delete(eventId);
+
+      console.log(`✅ [CLEANUP] Cleaned up ${cleanedUp} participant(s) for completed event`);
+
+      return cleanedUp;
+    } catch (error) {
+      console.error('❌ [CLEANUP] Error stopping all tracking for event:', error);
       throw error;
     }
   }

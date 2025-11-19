@@ -1021,18 +1021,18 @@ const ParticipantDashboard = () => {
     }
   }, [myAttendance]);
 
-  // Automatic location monitoring for invited participants in active events
+  // Automatic location monitoring for ALL participants (invited and uninvited) in active events
   useEffect(() => {
     const startAutomaticMonitoring = async () => {
-      if (!user._id || !myInvitations.length) return;
+      if (!user._id) return;
 
       // Get current active events that the user is invited to
       const now = new Date();
       const activeInvitedEvents = myInvitations.filter(invitation => {
         const event = invitation.event;
 
-        // Don't include completed events in monitoring
-        if (event.status === 'completed') {
+        // CRITICAL: Only monitor events with "active" status
+        if (event.status !== 'active') {
           return false;
         }
 
@@ -1061,19 +1061,53 @@ const ParticipantDashboard = () => {
           const eventDate = new Date(event.date);
           const eventEndTime = new Date(eventDate.getTime() + (event.duration || 3600000));
           const eventStartTime = new Date(eventDate.getTime() - 30 * 60 * 1000);
-          
-          // Don't include completed events in monitoring
-          if (event.status === 'completed') {
-            return false;
-          }
 
           // Only monitor location for accepted invitations (user has agreed to attend)
           return now >= eventStartTime && invitation.status === 'accepted';
         }
       });
 
+      // Get events that participant joined without invitation (via event code)
+      const activeUninvitedEvents = myAttendance
+        .filter(attendance => {
+          const event = attendance.event;
 
-      if (activeInvitedEvents.length > 0 && !locationWatchId) {
+          // CRITICAL: Only monitor participants with status 'registered'
+          // Exclude: checked-in, checked-out, absent
+          if (attendance.status !== 'registered' || event.status !== 'active') {
+            return false;
+          }
+
+          // Must not have an invitation for this event
+          const hasInvitation = myInvitations.some(inv => inv.event._id === event._id);
+          if (hasInvitation) {
+            return false; // Already handled in activeInvitedEvents
+          }
+
+          // Event must be within the check-in time window
+          const eventDateStr = typeof event.date === 'string'
+            ? event.date.split('T')[0]
+            : new Date(event.date).toISOString().split('T')[0];
+
+          if (event.startTime && event.endTime) {
+            const startDateTimeStr = `${eventDateStr}T${event.startTime}:00`;
+            const eventStartTime = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
+            const checkInStartTime = new Date(eventStartTime.getTime() - 30 * 60 * 1000);
+
+            return now >= checkInStartTime;
+          }
+
+          return true; // Include if no time constraints
+        })
+        .map(attendance => ({
+          event: attendance.event,
+          isUninvited: true // Mark as uninvited for special handling
+        }));
+
+      // Combine both invited and uninvited events
+      const allActiveEvents = [...activeInvitedEvents, ...activeUninvitedEvents];
+
+      if (allActiveEvents.length > 0 && !locationWatchId) {
         // Check location permissions
         const hasPermission = await checkLocationPermissions();
         if (!hasPermission) {
@@ -1086,13 +1120,13 @@ const ParticipantDashboard = () => {
         }
 
         // Start location monitoring for automatic check-in
-        
+
         if (Capacitor.isNativePlatform()) {
           const watchId = await Geolocation.watchPosition({
             enableHighAccuracy: true,
             timeout: 15000
           }, async (position) => {
-            if (position && activeInvitedEvents.length > 0) {
+            if (position && allActiveEvents.length > 0) {
               await checkAutoCheckIn({
                 latitude: position.coords.latitude,
                 longitude: position.coords.longitude,
@@ -1102,7 +1136,7 @@ const ParticipantDashboard = () => {
                 speed: position.coords.speed || null,
                 heading: position.coords.heading || null,
                 toJSON: function() { return this; }
-              } as GeolocationCoordinates, activeInvitedEvents);
+              } as GeolocationCoordinates, allActiveEvents);
             }
           });
           setLocationWatchId(watchId as any);
@@ -1110,7 +1144,7 @@ const ParticipantDashboard = () => {
           if (navigator.geolocation) {
             const watchId = navigator.geolocation.watchPosition(
               async (position) => {
-                await checkAutoCheckIn(position.coords, activeInvitedEvents);
+                await checkAutoCheckIn(position.coords, allActiveEvents);
               },
               (error) => {
               },
@@ -1126,30 +1160,34 @@ const ParticipantDashboard = () => {
 
         toast({
           title: "Auto Check-in Active",
-          description: `Monitoring location for ${activeInvitedEvents.length} active event(s).`,
+          description: `Monitoring location for ${allActiveEvents.length} active event(s).`,
         });
       }
     };
 
     startAutomaticMonitoring();
-  }, [myInvitations, user._id, locationWatchId]);
+  }, [myInvitations, myAttendance, user._id, locationWatchId]);
 
   // Function to check if participant is within event geofence for auto check-in
   const checkAutoCheckIn = async (coords: GeolocationCoordinates, activeEvents: any[]) => {
-    for (const invitation of activeEvents) {
+    for (const eventData of activeEvents) {
       try {
+        // Extract event and determine if this is an uninvited participant
+        const event = eventData.event;
+        const isUninvited = eventData.isUninvited || false;
+
         // Check if already checked in to this event
         const alreadyCheckedIn = myAttendance.some(
-          attendance => attendance.event._id === invitation.event._id && attendance.status === 'checked-in'
+          attendance => attendance.event._id === event._id && attendance.status === 'checked-in'
         );
-        
+
         if (alreadyCheckedIn) continue;
 
         // Calculate distance from event location
-        const locationData = invitation.event.location;
+        const locationData = event.location;
         if (locationData?.coordinates?.coordinates && Array.isArray(locationData.coordinates.coordinates)) {
           const [eventLng, eventLat] = locationData.coordinates.coordinates;
-          
+
           const distance = calculateDistance(
             coords.latitude,
             coords.longitude,
@@ -1157,13 +1195,13 @@ const ParticipantDashboard = () => {
             eventLng
           );
 
-          const geofenceRadius = invitation.event.geofenceRadius || 100; // Default 100 meters
-          
-          
+          const geofenceRadius = event.geofenceRadius || 100; // Default 100 meters
+
+
           if (distance <= geofenceRadius) {
-            
-            // Perform automatic check-in
-            await performAutoCheckIn(invitation.event, coords);
+
+            // Perform automatic check-in (handles both invited and uninvited)
+            await performAutoCheckIn(event, coords, isUninvited);
           }
         } else {
         }
@@ -1172,43 +1210,68 @@ const ParticipantDashboard = () => {
     }
   };
 
-  // Function to perform automatic check-in
-  const performAutoCheckIn = async (event: any, coords: GeolocationCoordinates) => {
+  // Function to perform automatic check-in (handles both invited and uninvited participants)
+  const performAutoCheckIn = async (event: any, coords: GeolocationCoordinates, isUninvited: boolean = false) => {
     try {
-      // Find the invitation for this event to get the proper QR data
-      const invitation = myInvitations.find(inv => inv.event._id === event._id);
-      
-      if (!invitation) {
-        return;
+      let response;
+
+      if (isUninvited) {
+        // Uninvited participant (joined via code) - use direct check-in endpoint
+        console.log(`[AUTO CHECK-IN] Uninvited participant checking in to ${event.title}`);
+
+        response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            eventId: event._id,
+            location: {
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+              accuracy: coords.accuracy
+            }
+          })
+        });
+      } else {
+        // Invited participant - use QR-based check-in endpoint
+        const invitation = myInvitations.find(inv => inv.event._id === event._id);
+
+        if (!invitation) {
+          console.warn(`[AUTO CHECK-IN] No invitation found for event ${event._id}`);
+          return;
+        }
+
+        // Create QR data format expected by the API
+        const qrData = JSON.stringify({
+          invitationId: invitation._id,
+          eventId: event._id,
+          participantId: user._id,
+          code: invitation.invitationCode
+        });
+
+        console.log(`[AUTO CHECK-IN] Invited participant checking in to ${event.title}`);
+
+        response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            qrData: qrData,
+            location: {
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+              accuracy: coords.accuracy
+            }
+          })
+        });
       }
-      
-      // Create QR data format expected by the API
-      const qrData = JSON.stringify({
-        invitationId: invitation._id,
-        eventId: event._id,
-        participantId: user._id,
-        code: invitation.invitationCode
-      });
-      
-      
-      const response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          qrData: qrData,
-          location: {
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            accuracy: coords.accuracy
-          }
-        })
-      });
 
       const result = await response.json();
-      
+
       if (result.success) {
         // Send native notification
         await notificationService.sendAutoCheckInNotification(event.title);
@@ -1217,7 +1280,7 @@ const ParticipantDashboard = () => {
         if (result.data.attendanceLog && result.data.attendanceLog._id) {
           await startLocationWatching(event._id, result.data.attendanceLog._id);
         }
-        
+
         // Refresh attendance data
         const attendanceResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/my`, {
           headers: {
@@ -1225,14 +1288,18 @@ const ParticipantDashboard = () => {
             'Content-Type': 'application/json'
           }
         });
-        
+
         if (attendanceResponse.ok) {
           const attendanceData = await attendanceResponse.json();
           setMyAttendance(attendanceData.data.attendanceLogs);
         }
+
+        console.log(`[AUTO CHECK-IN] ✅ Successfully checked in to ${event.title}`);
       } else {
+        console.warn(`[AUTO CHECK-IN] Failed: ${result.message}`);
       }
     } catch (error) {
+      console.error(`[AUTO CHECK-IN] Error:`, error);
     }
   };
 

@@ -84,6 +84,19 @@ const updateSingleEventStatus = async (eventId, forceUpdate = false, eventInstan
       event.status = expectedStatus;
       await event.save();
       console.log(`✅ Updated "${event.title}" from ${oldStatus} to ${expectedStatus}${forceUpdate ? ' (forced)' : ''}`);
+
+      // CRITICAL FIX: Clean up location tracking when event completes
+      if (expectedStatus === 'completed' && oldStatus === 'active') {
+        try {
+          const locationTrackingService = require('../services/locationTrackingService');
+          await locationTrackingService.stopAllTrackingForEvent(eventId);
+          console.log(`🧹 [CLEANUP] Location tracking cleaned up for completed event: ${event.title}`);
+        } catch (cleanupError) {
+          console.error(`❌ [CLEANUP] Failed to clean up location tracking for ${event.title}:`, cleanupError.message);
+          // Don't fail the status update if cleanup fails
+        }
+      }
+
       return expectedStatus;
     }
     console.log(`⏹️ No update needed for "${event.title}" - status already correct or update conditions not met`);
@@ -107,10 +120,23 @@ const updateAllEventStatuses = async () => {
       const expectedStatus = calculateEventStatus(event);
 
       if (event.status !== expectedStatus) {
+        const oldStatus = event.status;
         event.status = expectedStatus;
         await event.save();
         updatedCount++;
         console.log(`✅ Updated "${event.title}" to ${expectedStatus}`);
+
+        // CRITICAL FIX: Clean up location tracking when event completes
+        if (expectedStatus === 'completed' && oldStatus === 'active') {
+          try {
+            const locationTrackingService = require('../services/locationTrackingService');
+            await locationTrackingService.stopAllTrackingForEvent(event._id);
+            console.log(`🧹 [CLEANUP] Location tracking cleaned up for completed event: ${event.title}`);
+          } catch (cleanupError) {
+            console.error(`❌ [CLEANUP] Failed to clean up location tracking for ${event.title}:`, cleanupError.message);
+            // Don't fail the status update if cleanup fails
+          }
+        }
       }
     }
 

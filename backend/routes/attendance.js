@@ -96,8 +96,16 @@ router.post('/checkin', [
       });
     }
 
-    // Check if check-in is within allowed time window
+    // CRITICAL: Check if event is active (per requirements)
     const event = invitation.event;
+    if (event.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot check in - event is ${event.status}. Event must be active.`
+      });
+    }
+
+    // Check if check-in is within allowed time window
     const now = new Date();
 
     if (event.startTime && event.date) {
@@ -136,28 +144,46 @@ router.post('/checkin', [
       }
     }
 
-    // Check if already checked in
+    // Check if already checked in (CRITICAL FIX: check actual status, not just existence)
     const existingAttendance = await AttendanceLog.findOne({
       event: eventId,
       participant: participantId
     });
 
     if (existingAttendance) {
-      return res.status(400).json({
-        success: false,
-        message: 'Participant has already checked in'
-      });
-    }
+      // If attendance record exists, check if they're ACTUALLY checked in
+      if (existingAttendance.checkInTime || existingAttendance.status === 'checked-in') {
+        return res.status(400).json({
+          success: false,
+          message: 'Participant has already checked in'
+        });
+      }
 
-    // Create attendance log
-    const attendanceLog = await AttendanceLog.create({
-      event: eventId,
-      participant: participantId,
-      invitation: invitationId,
-      checkInTime: new Date(),
-      checkInLocation: location || null,
-      status: 'checked-in'
-    });
+      // Attendance exists but not checked in yet (status: 'registered')
+      // Update existing record instead of creating new one
+      existingAttendance.checkInTime = new Date();
+      existingAttendance.checkInLocation = location || null;
+      existingAttendance.status = 'checked-in';
+      existingAttendance.invitation = invitationId; // Update invitation reference
+      await existingAttendance.save();
+
+      console.log('✅ Updated existing attendance record for check-in');
+
+      // Use existing attendance record for the rest of the flow
+      var attendanceLog = existingAttendance;
+    } else {
+      // Create new attendance log
+      var attendanceLog = await AttendanceLog.create({
+        event: eventId,
+        participant: participantId,
+        invitation: invitationId,
+        checkInTime: new Date(),
+        checkInLocation: location || null,
+        status: 'checked-in'
+      });
+
+      console.log('✅ Created new attendance record for check-in');
+    }
 
     // Initialize or reset location tracking for this participant/event
     const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
@@ -837,34 +863,22 @@ router.post('/join', auth, [
 
     // Create attendance record directly (no invitation needed for public events)
     try {
+      // CRITICAL FIX: Always set status to 'registered' when joining
+      // Auto check-in will happen only when participant is inside geofence AND event is active
       const attendanceRecord = new AttendanceLog({
         event: event._id,
         participant: userId,
-        status: event.status === 'active' ? 'checked-in' : 'registered', // Auto check-in for active events
-        // For active events, automatically check them in so they appear in "Currently Attending"
-        checkInTime: event.status === 'active' ? new Date() : undefined
+        status: 'registered', // Always start as registered, let auto check-in handle geofence verification
+        // checkInTime will be set by auto check-in when participant is inside geofence
         // invitation will be null/undefined (optional field)
       });
 
       await attendanceRecord.save();
       console.log('Attendance record created successfully:', attendanceRecord._id);
-      console.log('Auto-checked in for active event:', event.status === 'active');
+      console.log('Status set to "registered" - auto check-in will verify geofence before checking in');
 
-      // Initialize location tracking for active events (so participants can be tracked)
-      if (event.status === 'active') {
-        try {
-          const locationTrackingService = require('../services/locationTrackingService');
-          await locationTrackingService.initializeLocationTracking(
-            event._id,
-            userId,
-            attendanceRecord._id
-          );
-          console.log('✅ Location tracking initialized for participant:', req.user.name);
-        } catch (locationError) {
-          console.error('⚠️ Failed to initialize location tracking:', locationError);
-          // Don't fail the join if location tracking fails - it's not critical
-        }
-      }
+      // Note: Location tracking will be initialized when participant auto-checks-in
+      // This ensures they are actually inside the geofence before tracking starts
 
       // Return success response
       res.json({
@@ -1177,6 +1191,15 @@ router.post('/checkin-direct', auth, [
     }
 
     console.log('Event found:', event.title);
+
+    // CRITICAL: Check if event is active (per requirements)
+    if (event.status !== 'active') {
+      console.log('Event is not active:', event.status);
+      return res.status(400).json({
+        success: false,
+        message: `Cannot check in - event is ${event.status}. Event must be active.`
+      });
+    }
 
     // Check if user has an attendance record for this event
     let attendanceRecord = await AttendanceLog.findOne({

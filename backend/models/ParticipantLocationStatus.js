@@ -108,7 +108,8 @@ const participantLocationStatusSchema = new mongoose.Schema({
 // Update timestamp on save
 participantLocationStatusSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
-  this.lastLocationUpdate = Date.now();
+  // CRITICAL FIX: Don't update lastLocationUpdate here - only when actually receiving new location data
+  // Updating on every save makes stale detection unreliable
   next();
 });
 
@@ -132,8 +133,8 @@ participantLocationStatusSchema.methods.startOutsideTimer = function() {
   }
 };
 
-// Stop the outside timer and add session time to total
-participantLocationStatusSchema.methods.stopOutsideTimer = function() {
+// Pause the outside timer and add session time to total (preserves accumulated time)
+participantLocationStatusSchema.methods.pauseOutsideTimer = function() {
   if (this.outsideTimer.isActive && this.outsideTimer.currentSessionStart) {
     const sessionTime = Math.floor((Date.now() - this.outsideTimer.currentSessionStart) / 1000);
     this.outsideTimer.totalTimeOutside += sessionTime;

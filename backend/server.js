@@ -23,8 +23,9 @@ const locationTrackingRoutes = require('./routes/locationTracking');
 const organizationsRoutes = require('./routes/organizations');
 const organizationMembershipRoutes = require('./routes/organizationMembership');
 
-// Import cron job
+// Import cron jobs
 const { updateEventStatuses } = require('./utils/updateEventStatuses');
+const { startStaleParticipantChecker } = require('./utils/checkStaleParticipants');
 
 const app = express();
 
@@ -170,8 +171,9 @@ mongoose.connect(process.env.MONGODB_URI, {
   console.log(`🚀 [RENDER BACKEND ${timestamp}] Connected to MongoDB - Render backend is online!`);
   console.log(`📊 Database logging enabled - all queries will be tracked`);
 
-  // ✅ Start cron job after successful DB connection
+  // ✅ Start cron jobs after successful DB connection
   updateEventStatuses();
+  startStaleParticipantChecker();
 })
 .catch((err) => console.error('MongoDB connection error:', err));
 
