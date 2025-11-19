@@ -654,7 +654,7 @@ router.get('/my', auth, async (req, res) => {
       .populate({
         path: 'event',
         select: 'title date location eventCode organizer description status startTime endTime published maxTimeOutside geofenceRadius',
-        match: { published: { $eq: true } }, // Only populate published events (explicitly true, not null/undefined)
+        // Allow all events that participant has joined/checked into, regardless of published status
         populate: {
           path: 'organizer',
           select: 'name email'
@@ -663,26 +663,26 @@ router.get('/my', auth, async (req, res) => {
       .populate('invitation', 'invitationCode')
       .sort({ checkInTime: -1 });
 
-    // Filter out attendance logs where event didn't populate (unpublished events)
+    // Filter out attendance logs where event didn't populate (should rarely happen now)
     const filteredAttendanceLogs = attendanceLogs.filter(log => log.event !== null);
 
     console.log('🔍 [ATTENDANCE MY DEBUG] Total attendance records:', attendanceLogs.length);
-    console.log('🔍 [ATTENDANCE MY DEBUG] Filtered (published events only):', filteredAttendanceLogs.length);
+    console.log('🔍 [ATTENDANCE MY DEBUG] Filtered (events that populated):', filteredAttendanceLogs.length);
 
-    // Debug which events were filtered out
+    // Debug which events didn't populate (if any)
     const filteredOutLogs = attendanceLogs.filter(log => log.event === null);
     if (filteredOutLogs.length > 0) {
-      console.log('🔒 [PUBLISHED FILTER] Filtered out', filteredOutLogs.length, 'attendance records for unpublished events');
+      console.log('⚠️ [EVENT NOT FOUND] Filtered out', filteredOutLogs.length, 'attendance records where event no longer exists');
       filteredOutLogs.forEach((log, index) => {
-        console.log(`🔒 [PUBLISHED FILTER] Filtered attendance ${index + 1}:`, {
+        console.log(`⚠️ [EVENT NOT FOUND] Attendance ${index + 1}:`, {
           attendanceId: log._id,
           eventId: log.event,
-          reason: 'Event not published or null'
+          reason: 'Event not found in database'
         });
       });
     }
 
-    console.log('🔍 [ATTENDANCE MY DEBUG] Found', filteredAttendanceLogs.length, 'published attendance records');
+    console.log('🔍 [ATTENDANCE MY DEBUG] Found', filteredAttendanceLogs.length, 'attendance records with valid events');
 
     // Debug each record - focus on the new one
     filteredAttendanceLogs.forEach((log, index) => {
@@ -732,17 +732,17 @@ router.get('/scan-history', auth, async (req, res) => {
     const attendanceLogs = await AttendanceLog.find({ participant: req.user._id })
       .populate({
         path: 'event',
-        select: 'title date location eventCode published maxTimeOutside geofenceRadius',
-        match: { published: { $eq: true } } // Only populate published events (explicitly true, not null/undefined)
+        select: 'title date location eventCode published maxTimeOutside geofenceRadius'
+        // Allow all events that participant has scanned into, regardless of published status
       })
       .populate('invitation', 'invitationCode')
       .sort({ checkInTime: -1 })
       .limit(50); // Limit to last 50 scans
 
-    // Filter out attendance logs where event didn't populate (unpublished events)
+    // Filter out attendance logs where event didn't populate (should rarely happen)
     const filteredAttendanceLogs = attendanceLogs.filter(log => log.event !== null);
 
-    // Transform data to match frontend scan history format (only published events)
+    // Transform data to match frontend scan history format
     const scanHistory = filteredAttendanceLogs.map((log, index) => ({
       id: log._id.toString(),
       eventTitle: log.event.title,

@@ -3164,6 +3164,47 @@ const ParticipantDashboard = () => {
     };
   }, [currentLocationStatus?.isWithinGeofence]);
 
+  // Live Countdown Timer Component (same as web monitor)
+  const LiveCountdownTimer: React.FC<{
+    dataFetchTime: Date;
+    baseSeconds: number;
+    maxTimeSeconds: number;
+  }> = ({ dataFetchTime, baseSeconds, maxTimeSeconds }) => {
+    const [remainingSeconds, setRemainingSeconds] = useState(maxTimeSeconds - baseSeconds);
+
+    useEffect(() => {
+      // Calculate initial remaining time
+      const now = new Date();
+      const elapsedSinceDataFetch = Math.floor((now.getTime() - dataFetchTime.getTime()) / 1000);
+      const totalElapsed = baseSeconds + elapsedSinceDataFetch;
+      const remaining = Math.max(0, maxTimeSeconds - totalElapsed);
+      setRemainingSeconds(remaining);
+
+      // Update every second
+      const interval = setInterval(() => {
+        setRemainingSeconds(prev => Math.max(0, prev - 1));
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }, [dataFetchTime, baseSeconds, maxTimeSeconds]);
+
+    const formatTime = (seconds: number): string => {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+
+      if (hours > 0) {
+        return `${hours}h ${minutes}m ${secs}s`;
+      } else if (minutes > 0) {
+        return `${minutes}m ${secs}s`;
+      } else {
+        return `${secs}s`;
+      }
+    };
+
+    return <span>{formatTime(remainingSeconds)} available</span>;
+  };
+
   // Helper function to show outside premises countdown timer
   const getTimeRemaining = (event: any, attendance?: any) => {
     // Get maxTimeOutside from the event (default to 0 if not set)
@@ -3172,101 +3213,31 @@ const ParticipantDashboard = () => {
     // If no maxTimeOutside is set, don't show time display
     if (maxTimeOutside === 0) return null;
 
-    // If we have location status, show real-time countdown
+    // If we have location status, use LiveCountdownTimer (same as web monitor)
     if (currentLocationStatus) {
-      // DEBUG LOGGING
-      console.log('🔍 [MOBILE-TIMER] currentLocationStatus:', {
-        isWithinGeofence: currentLocationStatus.isWithinGeofence,
-        currentTimeOutside: currentLocationStatus.currentTimeOutside,
-        outsideTimerActive: currentLocationStatus.outsideTimer?.isActive,
-        outsideTimerReason: currentLocationStatus.outsideTimer?.reason,
-        lastLocationUpdate: currentLocationStatus.lastLocationUpdate
+      const baseTimeOutside = currentLocationStatus.currentTimeOutside || 0;
+      const maxTimeOutsideSeconds = maxTimeOutside * 60;
+      const dataFetchTime = new Date(currentLocationStatus.lastLocationUpdate);
+
+      console.log('🔍 [MOBILE-TIMER] Using LiveCountdownTimer:', {
+        baseTimeOutside,
+        maxTimeOutsideSeconds,
+        dataFetchTime: dataFetchTime.toISOString()
       });
 
-      // Check if participant is outside or stale
-      const isOutsideOrStale = !currentLocationStatus.isWithinGeofence ||
-                               currentLocationStatus.outsideTimer?.reason === 'stale';
-
-      // Calculate time remaining outside premises with real-time elapsed time
-      const baseTimeOutside = currentLocationStatus.currentTimeOutside || 0;
-
-      console.log(`🔍 [MOBILE-TIMER] baseTimeOutside: ${baseTimeOutside}s`);
-
-      // Add elapsed time since last update to get real-time value
-      const lastUpdate = new Date(currentLocationStatus.lastLocationUpdate);
-      const now = currentTime; // Use the state that updates every second
-      const elapsedSinceUpdate = Math.floor((now.getTime() - lastUpdate.getTime()) / 1000);
-
-      // Calculate actual current time outside (base + elapsed)
-      const currentTimeOutside = baseTimeOutside + elapsedSinceUpdate;
-
-      const maxTimeOutsideSeconds = maxTimeOutside * 60; // Convert minutes to seconds
-      const timeRemainingSeconds = maxTimeOutsideSeconds - currentTimeOutside;
-
-      // If inside premises, show remaining available time with countdown
-      if (!isOutsideOrStale) {
-        const hours = Math.floor(timeRemainingSeconds / 3600);
-        const minutes = Math.floor((timeRemainingSeconds % 3600) / 60);
-        const seconds = timeRemainingSeconds % 60;
-
-        if (hours > 0) {
-          return {
-            text: `${hours}h ${minutes}m ${seconds}s available`,
-            expired: false,
-            showCountdown: true
-          };
-        } else if (minutes > 0) {
-          return {
-            text: `${minutes}m ${seconds}s available`,
-            expired: false,
-            showCountdown: true
-          };
-        } else {
-          return {
-            text: `${seconds}s available`,
-            expired: false,
-            showCountdown: true
-          };
-        }
-      }
-
-      // If outside/stale and time exceeded
-      if (timeRemainingSeconds <= 0) {
-        return {
-          text: 'Time exceeded!',
-          expired: true,
-          showCountdown: true
-        };
-      }
-
-      // Show real-time countdown with seconds when outside
-      const hours = Math.floor(timeRemainingSeconds / 3600);
-      const minutes = Math.floor((timeRemainingSeconds % 3600) / 60);
-      const seconds = timeRemainingSeconds % 60;
-
-      if (hours > 0) {
-        return {
-          text: `${hours}h ${minutes}m ${seconds}s remaining`,
-          expired: false,
-          showCountdown: true
-        };
-      } else if (minutes > 0) {
-        return {
-          text: `${minutes}m ${seconds}s remaining`,
-          expired: false,
-          showCountdown: true
-        };
-      } else {
-        return {
-          text: `${seconds}s remaining`,
-          expired: false,
-          showCountdown: true
-        };
-      }
+      return {
+        text: <LiveCountdownTimer
+          dataFetchTime={dataFetchTime}
+          baseSeconds={baseTimeOutside}
+          maxTimeSeconds={maxTimeOutsideSeconds}
+        />,
+        expired: baseTimeOutside >= maxTimeOutsideSeconds,
+        showCountdown: true
+      };
     }
 
-    // If no location status yet, show the available time with countdown
-    const maxTimeOutsideSeconds = maxTimeOutside * 60; // Convert minutes to seconds
+    // If no location status yet, show full time available
+    const maxTimeOutsideSeconds = maxTimeOutside * 60;
     const hours = Math.floor(maxTimeOutsideSeconds / 3600);
     const minutes = Math.floor((maxTimeOutsideSeconds % 3600) / 60);
     const seconds = maxTimeOutsideSeconds % 60;
@@ -3275,19 +3246,19 @@ const ParticipantDashboard = () => {
       return {
         text: `${hours}h ${minutes}m ${seconds}s available`,
         expired: false,
-        showCountdown: true
+        showCountdown: false
       };
     } else if (minutes > 0) {
       return {
         text: `${minutes}m ${seconds}s available`,
         expired: false,
-        showCountdown: true
+        showCountdown: false
       };
     } else {
       return {
         text: `${seconds}s available`,
         expired: false,
-        showCountdown: true
+        showCountdown: false
       };
     }
   };
@@ -3452,9 +3423,13 @@ const ParticipantDashboard = () => {
     try {
       const response = await fetch(`${API_CONFIG.API_BASE}/events/public`);
       const result = await response.json();
-      
+
       if (result.success) {
-        setPublicEvents(result.data.events || []);
+        // Filter to show upcoming and active events (exclude draft, completed, cancelled)
+        const availablePublicEvents = (result.data.events || []).filter((event: any) =>
+          event.status === 'upcoming' || event.status === 'active'
+        );
+        setPublicEvents(availablePublicEvents);
       } else {
         toast({
           title: "Error",
@@ -4783,14 +4758,14 @@ const ParticipantDashboard = () => {
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Browse Events</h2>
-            <Button 
+            <Button
               onClick={fetchPublicEvents}
+              disabled={isRefreshing}
               variant="outline"
               size="sm"
-              className="flex items-center gap-2"
+              className="h-8"
             >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
           </div>
           
@@ -6058,20 +6033,30 @@ const ParticipantDashboard = () => {
   // Fetch current location status for active events
   const fetchLocationStatus = async (eventId: string) => {
     if (!token || !user._id) return;
-    
+
     try {
-      const response = await fetch(`${API_CONFIG.API_BASE}/events/location-tracking/participant/${user._id}/event/${eventId}/status`, {
+      console.log(`🔄 [FETCH] Fetching location status for event ${eventId}, participant ${user._id}`);
+      const url = `${API_CONFIG.API_BASE}/events/location-tracking/participant/${user._id}/event/${eventId}/status`;
+      console.log(`🔄 [FETCH] URL: ${url}`);
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
+      console.log(`🔄 [FETCH] Response status: ${response.status}`);
+
       if (response.ok) {
         const data = await response.json();
+        console.log(`✅ [FETCH] Received location status:`, data.data);
         setCurrentLocationStatus(data.data);
+      } else {
+        console.error(`❌ [FETCH] Failed to fetch location status: ${response.status}`);
       }
     } catch (error) {
+      console.error(`❌ [FETCH] Error fetching location status:`, error);
     }
   };
 
