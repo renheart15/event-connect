@@ -461,6 +461,7 @@ class LocationTrackingService {
       })
       .populate('participant', 'name email')
       .populate('event', 'title maxTimeOutside')
+      .populate('attendanceLog', 'registrationName registrationEmail') // Populate attendance log for registration data
       .sort({ 'participant.name': 1 });
 
       // Calculate real-time values and check for stale data
@@ -484,6 +485,21 @@ class LocationTrackingService {
         } else {
           statusObj.currentTimeOutside = status.outsideTimer.totalTimeOutside;
         }
+
+        // PRIORITIZATION: Use registration data from attendance log if available, otherwise use user account data
+        if (statusObj.attendanceLog) {
+          // Priority 1: Registration response data from attendance log
+          if (statusObj.attendanceLog.registrationName && statusObj.attendanceLog.registrationName.trim() !== '') {
+            statusObj.participant.name = statusObj.attendanceLog.registrationName;
+            console.log(`📝 [LOCATION-STATUS] Using registration name for participant ${statusObj.participant._id}: "${statusObj.participant.name}"`);
+          }
+
+          if (statusObj.attendanceLog.registrationEmail && statusObj.attendanceLog.registrationEmail.trim() !== '') {
+            statusObj.participant.email = statusObj.attendanceLog.registrationEmail;
+            console.log(`📝 [LOCATION-STATUS] Using registration email for participant ${statusObj.participant._id}: "${statusObj.participant.email}"`);
+          }
+        }
+        // Priority 2: User account data (already populated by default)
 
         return statusObj;
       }));

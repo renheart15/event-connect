@@ -1533,21 +1533,13 @@ const ParticipantDashboard = () => {
       const event = attendance.event;
 
       try {
-        // Get current location
-        const location = await getCurrentLocationSafely();
-        if (!location) return;
-
-        // Validate geofence - participant must be inside premises
-        const geofenceCheck = validateGeofence(event, location);
-
-        // Only start tracking if BOTH conditions are met:
-        // 1. Event is active
-        // 2. Participant is inside premises (geofence)
-        if (geofenceCheck.valid && event.status === 'active') {
-          console.log('✅ Auto-starting location tracking - Event active AND inside premises');
+        // If participant is already checked-in, they've proven they're inside premises
+        // No need to re-validate geofence - just start tracking
+        if (attendance.status === 'checked-in' && event.status === 'active') {
+          console.log('✅ Auto-starting location tracking - Participant already checked in');
           await startLocationWatching(event._id, attendance._id);
         } else {
-          console.log('⏸️ Not starting tracking - Outside premises or event not active');
+          console.log('⏸️ Not starting tracking - Participant not checked-in or event not active');
         }
       } catch (error) {
         console.error('Error in automatic tracking check:', error);
@@ -3186,8 +3178,17 @@ const ParticipantDashboard = () => {
       const isOutsideOrStale = !currentLocationStatus.isWithinGeofence ||
                                currentLocationStatus.outsideTimer?.reason === 'stale';
 
-      // Calculate time remaining outside premises
-      const currentTimeOutside = currentLocationStatus.currentTimeOutside || 0;
+      // Calculate time remaining outside premises with real-time elapsed time
+      const baseTimeOutside = currentLocationStatus.currentTimeOutside || 0;
+
+      // Add elapsed time since last update to get real-time value
+      const lastUpdate = new Date(currentLocationStatus.lastLocationUpdate);
+      const now = currentTime; // Use the state that updates every second
+      const elapsedSinceUpdate = Math.floor((now.getTime() - lastUpdate.getTime()) / 1000);
+
+      // Calculate actual current time outside (base + elapsed)
+      const currentTimeOutside = baseTimeOutside + elapsedSinceUpdate;
+
       const maxTimeOutsideSeconds = maxTimeOutside * 60; // Convert minutes to seconds
       const timeRemainingSeconds = maxTimeOutsideSeconds - currentTimeOutside;
 
@@ -6293,11 +6294,25 @@ const ParticipantDashboard = () => {
         </div>
       )}
 
+      {/* Persistent Stale Location Warning Banner - Does NOT auto-dismiss */}
+      {currentLocationStatus?.outsideTimer?.reason === 'stale' && (
+        <div
+          className={`fixed top-0 left-0 right-0 py-2 px-4 text-center text-sm font-medium z-50 bg-orange-600 text-white border-b-2 border-orange-700 ${
+            !isOnline ? 'mt-6' : ''
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2">
+            <AlertTriangle className="w-4 h-4 animate-pulse" />
+            <span className="font-semibold">⚠️ Location Not Updating - Please check your GPS</span>
+          </div>
+        </div>
+      )}
+
       {/* Location Alert Banner - Disappears after 5 seconds */}
-      {showLocationAlert && currentLocationStatus && (
+      {showLocationAlert && currentLocationStatus && currentLocationStatus.outsideTimer?.reason !== 'stale' && (
         <div
           className={`fixed top-0 left-0 right-0 py-2 px-4 text-center text-sm font-medium z-50 transition-all duration-300 ${
-            !isOnline ? 'mt-6' : ''
+            !isOnline ? 'mt-6' : currentLocationStatus?.outsideTimer?.reason === 'stale' ? 'mt-10' : ''
           } ${
             locationAlertType === 'inside'
               ? 'bg-green-500 text-white'
@@ -6328,6 +6343,10 @@ const ParticipantDashboard = () => {
 
       {/* Top Header Bar */}
       <div className={`flex items-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 transition-all duration-300 ${
+        currentLocationStatus?.outsideTimer?.reason === 'stale' && !isOnline && showLocationAlert ? 'mt-[7.5rem]' :
+        currentLocationStatus?.outsideTimer?.reason === 'stale' && !isOnline ? 'mt-16' :
+        currentLocationStatus?.outsideTimer?.reason === 'stale' && showLocationAlert ? 'mt-20' :
+        currentLocationStatus?.outsideTimer?.reason === 'stale' ? 'mt-10' :
         !isOnline && showLocationAlert ? 'mt-16' :
         !isOnline ? 'mt-6' :
         showLocationAlert ? 'mt-10' : ''
@@ -6644,18 +6663,28 @@ const ParticipantDashboard = () => {
               
               {currentLocationStatus ? (
                 <div className="space-y-1">
+                  {/* Show stale location badge if applicable */}
+                  {currentLocationStatus.outsideTimer?.reason === 'stale' && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded text-xs text-orange-800 dark:text-orange-200 font-medium">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>⚠️ Location Not Updating</span>
+                    </div>
+                  )}
+
                   <p className="text-xs text-gray-600 dark:text-gray-400">
                     Status: <span className={`font-medium ${
-                      currentLocationStatus.isWithinGeofence 
+                      currentLocationStatus.isWithinGeofence
                         ? 'text-green-600 dark:text-green-400'
                         : currentLocationStatus.status === 'warning'
                         ? 'text-yellow-600 dark:text-yellow-400'
                         : 'text-red-600 dark:text-red-400'
                     }`}>
-                      {currentLocationStatus.isWithinGeofence ? 'Inside Event Area' : 
-                       currentLocationStatus.status === 'warning' ? 'Outside Warning' :
-                       currentLocationStatus.status === 'exceeded_limit' ? 'Time Exceeded' :
-                       'Outside Event Area'}
+                      {currentLocationStatus.outsideTimer?.reason === 'stale'
+                        ? 'Location Stale - Timer Active'
+                        : currentLocationStatus.isWithinGeofence ? 'Inside Event Area' :
+                          currentLocationStatus.status === 'warning' ? 'Outside Warning' :
+                          currentLocationStatus.status === 'exceeded_limit' ? 'Time Exceeded' :
+                          'Outside Event Area'}
                     </span>
                   </p>
                   
@@ -6665,15 +6694,25 @@ const ParticipantDashboard = () => {
                     </p>
                   )}
                   
-                  {currentLocationStatus.currentTimeOutside > 0 && (
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
-                      Time outside: <span className={`font-medium ${
-                        currentLocationStatus.status === 'exceeded_limit' ? 'text-red-600 dark:text-red-400' : ''
-                      }`}>
-                        {Math.floor(currentLocationStatus.currentTimeOutside / 60)}m {currentLocationStatus.currentTimeOutside % 60}s
-                      </span>
-                    </p>
-                  )}
+                  {currentLocationStatus.currentTimeOutside > 0 && (() => {
+                    // Calculate real-time elapsed time
+                    const lastUpdate = new Date(currentLocationStatus.lastLocationUpdate);
+                    const now = currentTime; // Use the state that updates every second
+                    const elapsedSinceUpdate = Math.floor((now.getTime() - lastUpdate.getTime()) / 1000);
+
+                    // Add elapsed time to base time outside for real-time display
+                    const realTimeOutside = currentLocationStatus.currentTimeOutside + elapsedSinceUpdate;
+
+                    return (
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Time outside: <span className={`font-medium ${
+                          currentLocationStatus.status === 'exceeded_limit' ? 'text-red-600 dark:text-red-400' : ''
+                        }`}>
+                          {Math.floor(realTimeOutside / 60)}m {realTimeOutside % 60}s
+                        </span>
+                      </p>
+                    );
+                  })()}
                   
                   {currentLocationStatus.lastLocationUpdate && (
                     <p className="text-xs text-gray-500 dark:text-gray-500">

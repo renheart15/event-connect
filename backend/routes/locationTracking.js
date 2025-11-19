@@ -198,7 +198,8 @@ router.get('/participant/:participantId/event/:eventId/status',
         isActive: true
       })
       .populate('participant', 'name email')
-      .populate('event', 'title maxTimeOutside geofenceRadius');
+      .populate('event', 'title maxTimeOutside geofenceRadius')
+      .populate('attendanceLog', 'registrationName registrationEmail'); // Populate attendance log for registration data
 
       if (!locationStatus) {
         return res.status(404).json({
@@ -214,6 +215,21 @@ router.get('/participant/:participantId/event/:eventId/status',
       } else {
         statusObj.currentTimeOutside = locationStatus.outsideTimer.totalTimeOutside;
       }
+
+      // PRIORITIZATION: Use registration data from attendance log if available, otherwise use user account data
+      if (statusObj.attendanceLog) {
+        // Priority 1: Registration response data from attendance log
+        if (statusObj.attendanceLog.registrationName && statusObj.attendanceLog.registrationName.trim() !== '') {
+          statusObj.participant.name = statusObj.attendanceLog.registrationName;
+          console.log(`📝 [LOCATION-STATUS-SINGLE] Using registration name for participant ${statusObj.participant._id}: "${statusObj.participant.name}"`);
+        }
+
+        if (statusObj.attendanceLog.registrationEmail && statusObj.attendanceLog.registrationEmail.trim() !== '') {
+          statusObj.participant.email = statusObj.attendanceLog.registrationEmail;
+          console.log(`📝 [LOCATION-STATUS-SINGLE] Using registration email for participant ${statusObj.participant._id}: "${statusObj.participant.email}"`);
+        }
+      }
+      // Priority 2: User account data (already populated by default)
 
       res.json({
         success: true,
@@ -451,7 +467,7 @@ router.get('/debug/event/:eventId',
         event: eventId
       })
       .populate('participant', 'name email phone')
-      .populate('attendanceLog', 'checkInTime checkOutTime status')
+      .populate('attendanceLog', 'checkInTime checkOutTime status registrationName registrationEmail')
       .sort({ 'participant.name': 1 });
 
       // Get active tracking info from service
@@ -481,10 +497,25 @@ router.get('/debug/event/:eventId',
           ? ((currentTimeOutside / maxTimeOutsideSeconds) * 100).toFixed(1)
           : 0;
 
+        // PRIORITIZATION: Use registration data from attendance log if available
+        let displayName = status.participant.name;
+        let displayEmail = status.participant.email;
+
+        if (status.attendanceLog) {
+          // Priority 1: Registration response data from attendance log
+          if (status.attendanceLog.registrationName && status.attendanceLog.registrationName.trim() !== '') {
+            displayName = status.attendanceLog.registrationName;
+          }
+          if (status.attendanceLog.registrationEmail && status.attendanceLog.registrationEmail.trim() !== '') {
+            displayEmail = status.attendanceLog.registrationEmail;
+          }
+        }
+        // Priority 2: User account data (already set as default)
+
         return {
           participantId: status.participant._id,
-          participantName: status.participant.name,
-          participantEmail: status.participant.email,
+          participantName: displayName,
+          participantEmail: displayEmail,
           participantPhone: status.participant.phone,
 
           // Location data
