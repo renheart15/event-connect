@@ -3174,12 +3174,23 @@ const ParticipantDashboard = () => {
 
     // If we have location status, show real-time countdown
     if (currentLocationStatus) {
+      // DEBUG LOGGING
+      console.log('🔍 [MOBILE-TIMER] currentLocationStatus:', {
+        isWithinGeofence: currentLocationStatus.isWithinGeofence,
+        currentTimeOutside: currentLocationStatus.currentTimeOutside,
+        outsideTimerActive: currentLocationStatus.outsideTimer?.isActive,
+        outsideTimerReason: currentLocationStatus.outsideTimer?.reason,
+        lastLocationUpdate: currentLocationStatus.lastLocationUpdate
+      });
+
       // Check if participant is outside or stale
       const isOutsideOrStale = !currentLocationStatus.isWithinGeofence ||
                                currentLocationStatus.outsideTimer?.reason === 'stale';
 
       // Calculate time remaining outside premises with real-time elapsed time
       const baseTimeOutside = currentLocationStatus.currentTimeOutside || 0;
+
+      console.log(`🔍 [MOBILE-TIMER] baseTimeOutside: ${baseTimeOutside}s`);
 
       // Add elapsed time since last update to get real-time value
       const lastUpdate = new Date(currentLocationStatus.lastLocationUpdate);

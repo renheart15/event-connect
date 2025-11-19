@@ -242,6 +242,9 @@ router.get('/participant/:participantId/event/:eventId/status',
       }
       // Priority 2: User account data (already populated by default)
 
+      // FINAL DEBUG: Log what we're about to send
+      console.log(`📤 [API-SINGLE] SENDING RESPONSE with currentTimeOutside: ${statusObj.currentTimeOutside}s`);
+
       res.json({
         success: true,
         data: statusObj
