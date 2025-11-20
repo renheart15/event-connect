@@ -2570,10 +2570,16 @@ const ParticipantDashboard = () => {
 
               if (!joinResult.success) {
                 if (joinResult.requiresRegistration && joinResult.registrationForm) {
+                  // Show registration form modal
+                  console.log('🚀 [MANUAL JOIN] Registration form required, showing modal');
+                  setRegistrationFormData(joinResult.registrationForm);
+                  setPendingEventCode(eventCode);
+                  setPendingEventTitle(event.title);
+                  setPendingEventId(event._id);
+                  setShowRegistrationForm(true);
                   toast({
                     title: "Registration Required",
-                    description: "This event requires a registration form to be completed first.",
-                    variant: "destructive",
+                    description: "Please complete the registration form to join this event.",
                   });
                   return;
                 }
@@ -3212,6 +3218,12 @@ const ParticipantDashboard = () => {
 
     // If no maxTimeOutside is set, don't show time display
     if (maxTimeOutside === 0) return null;
+
+    console.log('🔍 [MOBILE-TIMER] getTimeRemaining called:', {
+      eventId: event._id,
+      hasCurrentLocationStatus: !!currentLocationStatus,
+      currentLocationStatus: currentLocationStatus
+    });
 
     // If we have location status, use LiveCountdownTimer (same as web monitor)
     if (currentLocationStatus) {

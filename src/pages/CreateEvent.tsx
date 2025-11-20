@@ -32,7 +32,66 @@ const CreateEvent = () => {
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+
+      // If date is changed, validate the times
+      if (field === 'date') {
+        const today = new Date().toISOString().split('T')[0];
+        const isToday = value === today;
+
+        // If the new date is today and the start time is in the past, clear it
+        if (isToday && prev.startTime) {
+          const now = new Date();
+          const [hours, minutes] = prev.startTime.split(':').map(Number);
+          const selectedTime = new Date();
+          selectedTime.setHours(hours, minutes, 0, 0);
+
+          if (selectedTime <= now) {
+            newData.startTime = '';
+            newData.endTime = '';
+          }
+        }
+      }
+
+      return newData;
+    });
+  };
+
+  // Helper function to get minimum time for today
+  const getMinTime = () => {
+    const selectedDate = formData.date;
+    if (!selectedDate) return undefined;
+
+    const today = new Date().toISOString().split('T')[0];
+    if (selectedDate === today) {
+      // Add a small buffer (e.g., 5 minutes) to account for form submission time
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 5);
+
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+    return undefined;
+  };
+
+  // Helper function to validate if selected time is in the past
+  const isTimeInPast = (time: string) => {
+    if (!formData.date || !time) return false;
+
+    const selectedDate = formData.date;
+    const today = new Date().toISOString().split('T')[0];
+
+    if (selectedDate === today) {
+      const now = new Date();
+      const [hours, minutes] = time.split(':').map(Number);
+      const selectedTime = new Date();
+      selectedTime.setHours(hours, minutes, 0, 0);
+
+      return selectedTime <= now;
+    }
+    return false;
   };
 
 
@@ -277,8 +336,15 @@ const CreateEvent = () => {
                       type="time"
                       value={formData.startTime}
                       onChange={(e) => handleInputChange('startTime', e.target.value)}
+                      min={getMinTime()}
+                      className={isTimeInPast(formData.startTime) ? 'border-red-500' : ''}
                       required
                     />
+                    {isTimeInPast(formData.startTime) && (
+                      <p className="text-xs text-red-500">
+                        Start time cannot be in the past
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="endTime">End Time</Label>
@@ -287,6 +353,7 @@ const CreateEvent = () => {
                       type="time"
                       value={formData.endTime}
                       onChange={(e) => handleInputChange('endTime', e.target.value)}
+                      min={formData.startTime || getMinTime()}
                     />
                   </div>
                 </div>
@@ -326,8 +393,15 @@ const CreateEvent = () => {
                         type="time"
                         value={formData.startTime}
                         onChange={(e) => handleInputChange('startTime', e.target.value)}
+                        min={getMinTime()}
+                        className={isTimeInPast(formData.startTime) ? 'border-red-500' : ''}
                         required
                       />
+                      {isTimeInPast(formData.startTime) && (
+                        <p className="text-xs text-red-500">
+                          Start time cannot be in the past
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="endTime">Daily End Time</Label>
@@ -336,6 +410,7 @@ const CreateEvent = () => {
                         type="time"
                         value={formData.endTime}
                         onChange={(e) => handleInputChange('endTime', e.target.value)}
+                        min={formData.startTime || getMinTime()}
                       />
                     </div>
                   </div>

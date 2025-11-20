@@ -17,6 +17,7 @@ interface RegistrationField {
   placeholder?: string;
   required: boolean;
   options?: string[];
+  isPermanent?: boolean;  // Flag to mark non-deletable fields
 }
 
 interface RegistrationFormEditorProps {
@@ -47,21 +48,23 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
     if (mode === 'edit') {
       loadExistingForm();
     } else {
-      // Create mode - set default fields
+      // Create mode - set default fields with permanent flag for name and email
       setFields([
         {
           id: '1',
           type: 'text',
           label: 'Full Name',
           placeholder: 'Enter your full name',
-          required: true
+          required: true,
+          isPermanent: true  // Cannot be deleted
         },
         {
           id: '2',
           type: 'email',
           label: 'Email Address',
           placeholder: 'Enter your email',
-          required: true
+          required: true,
+          isPermanent: true  // Cannot be deleted
         },
         {
           id: '3',
@@ -87,7 +90,19 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
       
       if (result.success) {
         const form = result.data.registrationForm;
-        setFields(form.fields);
+        // Mark full name and email fields as permanent
+        const fieldsWithPermanent = form.fields.map((field: RegistrationField) => {
+          // Check if this is the full name or email field
+          const isNameField = field.type === 'text' &&
+            (field.label.toLowerCase().includes('name') || field.label.toLowerCase().includes('full'));
+          const isEmailField = field.type === 'email';
+
+          return {
+            ...field,
+            isPermanent: isNameField || isEmailField
+          };
+        });
+        setFields(fieldsWithPermanent);
         setCurrentEventTitle(form.event.title);
       } else {
         toast({
@@ -155,6 +170,17 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
   };
 
   const removeField = (fieldId: string) => {
+    // Check if the field is permanent
+    const field = fields.find(f => f.id === fieldId);
+    if (field?.isPermanent) {
+      toast({
+        title: "Cannot remove field",
+        description: "Full Name and Email fields are required and cannot be removed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setFields(prev => prev.filter(field => field.id !== fieldId));
     toast({
       title: "Field removed",
@@ -163,8 +189,19 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
   };
 
   const toggleRequired = (fieldId: string) => {
-    setFields(prev => prev.map(field => 
-      field.id === fieldId 
+    // Check if the field is permanent - permanent fields must stay required
+    const field = fields.find(f => f.id === fieldId);
+    if (field?.isPermanent) {
+      toast({
+        title: "Cannot modify requirement",
+        description: "Full Name and Email fields must remain required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setFields(prev => prev.map(field =>
+      field.id === fieldId
         ? { ...field, required: !field.required }
         : field
     ));

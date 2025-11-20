@@ -16,6 +16,7 @@ interface RegistrationField {
   placeholder?: string;
   required: boolean;
   options?: string[];
+  isPermanent?: boolean;
 }
 
 interface FormPreviewSectionProps {
@@ -80,15 +81,22 @@ const FormPreviewSection = ({
                       {field.required && (
                         <span className="text-red-500 text-sm font-bold">*</span>
                       )}
+                      {field.isPermanent && (
+                        <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-medium">
+                          Required
+                        </span>
+                      )}
                     </Label>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onRemoveField(field.id)}
-                      className="h-9 w-9 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all duration-200"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {!field.isPermanent && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onRemoveField(field.id)}
+                        className="h-9 w-9 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                   
                   {/* Field Input */}
@@ -123,16 +131,23 @@ const FormPreviewSection = ({
 
                     {/* Field Settings */}
                     <div className="flex items-center gap-4 pt-2 pb-1 border-t border-gray-100 dark:border-gray-700">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          checked={field.required}
-                          onCheckedChange={() => onToggleRequired(field.id)}
-                          className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                        />
-                        <Label className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer font-medium">
-                          Required field
-                        </Label>
-                      </div>
+                      {!field.isPermanent && (
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            checked={field.required}
+                            onCheckedChange={() => onToggleRequired(field.id)}
+                            className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                          />
+                          <Label className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer font-medium">
+                            Required field
+                          </Label>
+                        </div>
+                      )}
+                      {field.isPermanent && (
+                        <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400 italic">
+                          <span>✓ This field is always required</span>
+                        </div>
+                      )}
                       <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md font-mono">
                         {field.type}
                       </div>

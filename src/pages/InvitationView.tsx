@@ -18,6 +18,7 @@ import {
 import { Capacitor } from '@capacitor/core';
 import { useToast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
+import RegistrationFormModal from '@/components/RegistrationFormModal';
 
 interface Event {
   id: string;
@@ -58,6 +59,10 @@ const InvitationView = () => {
   const [responding, setResponding] = useState(false);
   const [requiresSignup, setRequiresSignup] = useState(false);
   const [showMobileBanner, setShowMobileBanner] = useState(false);
+
+  // Registration form state
+  const [showRegistrationForm, setShowRegistrationForm] = useState(false);
+  const [registrationFormData, setRegistrationFormData] = useState<any>(null);
 
   useEffect(() => {
     console.log('=== InvitationView MOUNTED ===');
@@ -157,10 +162,16 @@ const InvitationView = () => {
 
       if (data.success) {
         setInvitation({ ...invitation, status: response });
-        toast({
-          title: `Invitation ${response}`,
-          description: `You have ${response} the invitation to ${invitation.event.title}.`,
-        });
+
+        // If accepted, check if event has a registration form
+        if (response === 'accepted') {
+          await checkForRegistrationForm(invitation.event.id);
+        } else {
+          toast({
+            title: `Invitation ${response}`,
+            description: `You have ${response} the invitation to ${invitation.event.title}.`,
+          });
+        }
       } else {
         toast({
           title: "Error",
@@ -178,6 +189,67 @@ const InvitationView = () => {
     } finally {
       setResponding(false);
     }
+  };
+
+  const checkForRegistrationForm = async (eventId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+
+      // Check if event has a registration form
+      const formResponse = await fetch(`${API_CONFIG.API_BASE}/registration-forms/event/${eventId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const formData = await formResponse.json();
+
+      if (formData.success && formData.data.registrationForm) {
+        // Check if user has already submitted a response
+        const responseCheckResponse = await fetch(
+          `${API_CONFIG.API_BASE}/registration-responses/check?eventId=${eventId}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        const responseCheck = await responseCheckResponse.json();
+
+        if (!responseCheck.hasSubmitted) {
+          // Show registration form modal
+          setRegistrationFormData(formData.data.registrationForm);
+          setShowRegistrationForm(true);
+        } else {
+          toast({
+            title: "Invitation accepted",
+            description: `You have accepted the invitation to ${invitation?.event.title}.`,
+          });
+        }
+      } else {
+        toast({
+          title: "Invitation accepted",
+          description: `You have accepted the invitation to ${invitation?.event.title}.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error checking for registration form:', error);
+      toast({
+        title: "Invitation accepted",
+        description: `You have accepted the invitation to ${invitation?.event.title}.`,
+      });
+    }
+  };
+
+  const handleRegistrationSuccess = () => {
+    setShowRegistrationForm(false);
+    toast({
+      title: "Success",
+      description: "Registration completed! You're all set for the event.",
+    });
   };
 
   const formatDate = (dateString: string) => {
@@ -470,6 +542,19 @@ const InvitationView = () => {
           </div>
         </div>
       </div>
+
+      {/* Registration Form Modal */}
+      {showRegistrationForm && registrationFormData && invitation && (
+        <RegistrationFormModal
+          isOpen={showRegistrationForm}
+          onClose={() => setShowRegistrationForm(false)}
+          eventId={invitation.event.id}
+          eventTitle={invitation.event.title}
+          registrationForm={registrationFormData}
+          onSubmitSuccess={handleRegistrationSuccess}
+          token={localStorage.getItem('token') || ''}
+        />
+      )}
     </div>
   );
 };
