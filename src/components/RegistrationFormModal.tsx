@@ -116,7 +116,17 @@ export default function RegistrationFormModal({
         });
         onSubmitSuccess();
       } else {
-        throw new Error(result.message || 'Registration submission failed');
+        // Show detailed validation errors if available
+        let errorMessage = result.message || 'Registration submission failed';
+        if (result.errors && Array.isArray(result.errors)) {
+          const errorDetails = result.errors.map((e: any) => e.msg).join(', ');
+          errorMessage = `${result.message}: ${errorDetails}`;
+        }
+        console.error('❌ [REGISTRATION MODAL] Submission failed:', {
+          message: result.message,
+          errors: result.errors
+        });
+        throw new Error(errorMessage);
       }
     } catch (error: any) {
       toast({

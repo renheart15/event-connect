@@ -17,6 +17,10 @@ router.post('/', auth, [
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.error('❌ [REGISTRATION RESPONSE] Validation failed:', {
+        errors: errors.array(),
+        body: req.body
+      });
       return res.status(400).json({
         success: false,
         message: 'Validation failed',

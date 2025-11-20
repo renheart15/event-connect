@@ -5746,19 +5746,26 @@ const ParticipantDashboard = () => {
             const eventTitle = typeof invitation.event === 'string' ? 'Event' : (invitation.event.title || 'Event');
             const eventCode = typeof invitation.event === 'string' ? '' : (invitation.event.eventCode || '');
 
+            // Use event ID from registrationForm if available, otherwise use the extracted one
+            const finalEventId = checkData.data.registrationForm.event || eventId;
+
             // Show registration form modal before reload
             setRegistrationFormData(checkData.data.registrationForm);
             setPendingEventCode(eventCode);
             setPendingEventTitle(eventTitle);
-            setPendingEventId(eventId);
+            setPendingEventId(finalEventId);
             setIsRegistrationRequired(true);
             setShowRegistrationForm(true);
             console.log('🎬 [INVITATION RESPONSE] Modal state set:', {
               showRegistrationForm: true,
               isRequired: true,
-              eventId: eventId,
+              extractedEventId: eventId,
+              finalEventId: finalEventId,
+              eventIdType: typeof finalEventId,
+              eventIdLength: finalEventId?.length,
               eventTitle: eventTitle,
-              registrationFormId: checkData.data.registrationForm._id
+              registrationFormId: checkData.data.registrationForm._id,
+              registrationFormEventId: checkData.data.registrationForm.event
             });
             return; // Don't reload yet, wait for form submission
           } else {
