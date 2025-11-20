@@ -63,6 +63,7 @@ const InvitationView = () => {
   // Registration form state
   const [showRegistrationForm, setShowRegistrationForm] = useState(false);
   const [registrationFormData, setRegistrationFormData] = useState<any>(null);
+  const [isRegistrationRequired, setIsRegistrationRequired] = useState(false); // Flag to prevent closing modal
 
   useEffect(() => {
     console.log('=== InvitationView MOUNTED ===');
@@ -220,8 +221,9 @@ const InvitationView = () => {
         const responseCheck = await responseCheckResponse.json();
 
         if (!responseCheck.hasSubmitted) {
-          // Show registration form modal
+          // Show registration form modal - mark as required to prevent dismissal
           setRegistrationFormData(formData.data.registrationForm);
+          setIsRegistrationRequired(true); // Form must be completed
           setShowRegistrationForm(true);
         } else {
           toast({
@@ -246,10 +248,19 @@ const InvitationView = () => {
 
   const handleRegistrationSuccess = () => {
     setShowRegistrationForm(false);
+    setIsRegistrationRequired(false);
     toast({
       title: "Success",
       description: "Registration completed! You're all set for the event.",
     });
+  };
+
+  const handleRegistrationClose = () => {
+    // Only allow closing if form is not required
+    if (!isRegistrationRequired) {
+      setShowRegistrationForm(false);
+      setRegistrationFormData(null);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -547,12 +558,13 @@ const InvitationView = () => {
       {showRegistrationForm && registrationFormData && invitation && (
         <RegistrationFormModal
           isOpen={showRegistrationForm}
-          onClose={() => setShowRegistrationForm(false)}
+          onClose={handleRegistrationClose}
           eventId={invitation.event.id}
           eventTitle={invitation.event.title}
           registrationForm={registrationFormData}
           onSubmitSuccess={handleRegistrationSuccess}
           token={localStorage.getItem('token') || ''}
+          isRequired={isRegistrationRequired}
         />
       )}
     </div>

@@ -322,23 +322,23 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      {/* Header */}
+      {/* Header - scaled to 75% */}
       <header className="border-b border-border/60 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm shadow-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <div className="space-y-1">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+        <div className="max-w-6xl mx-auto px-4 lg:px-6">
+          <div className="flex justify-between items-center h-14">
+            <div className="space-y-0.5">
+              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                 {mode === 'edit' ? 'Edit Registration Form' : 'Create Registration Form'}
               </h1>
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
                 Event: <span className="font-semibold text-foreground">{currentEventTitle}</span>
               </p>
             </div>
             <Button
               variant="outline"
               onClick={cancelEdit}
-              className="h-11 px-6 border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+              className="h-8 px-4 text-sm border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
               disabled={saving}
             >
               {mode === 'edit' ? 'Cancel Changes' : 'Skip for Now'}
@@ -347,33 +347,32 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-6 lg:px-8 py-12">
-        <div className="space-y-10">
-          {/* Add Field Section */}
-          <div className="text-center space-y-4">
-            <div className="inline-flex items-center gap-3 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm px-6 py-3 rounded-full border border-gray-200/60 dark:border-gray-700/60">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
-                <Plus className="h-4 w-4 text-white" />
+      {/* Main Content - scaled to 75% */}
+      <div className="max-w-6xl mx-auto px-4 lg:px-6 py-6">
+        <div className="space-y-6">
+          {/* Add Field Section - scaled to 75% */}
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center gap-2 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm px-4 py-2 rounded-full border border-gray-200/60 dark:border-gray-700/60">
+              <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
+                <Plus className="h-3 w-3 text-white" />
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Build Your Registration Form</span>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Build Your Registration Form</span>
             </div>
 
             <Dialog open={isAddFieldModalOpen} onOpenChange={setIsAddFieldModalOpen}>
               <DialogTrigger asChild>
                 <Button
-                  size="lg"
-                  className="h-14 px-10 text-base font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
+                  className="h-10 px-6 text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
                   disabled={saving}
                 >
-                  <Plus className="h-5 w-5 mr-3" />
+                  <Plus className="h-4 w-4 mr-2" />
                   Add New Field
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle className="text-xl font-semibold">Add New Field</DialogTitle>
-                  <DialogDescription className="text-sm text-muted-foreground">
+                  <DialogTitle className="text-base font-semibold">Add New Field</DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
                     Create a custom registration field for your form
                   </DialogDescription>
                 </DialogHeader>
@@ -401,12 +400,11 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 max-w-xl mx-auto pt-6">
+          {/* Action Buttons - scaled to 75% */}
+          <div className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto pt-4">
             <Button
               onClick={saveForm}
-              className="flex-1 h-14 text-base font-semibold bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-200"
-              size="lg"
+              className="flex-1 h-10 text-sm font-semibold bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-200"
               disabled={saving}
             >
               {saving
@@ -419,8 +417,7 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
             <Button
               variant="outline"
               onClick={cancelEdit}
-              className="flex-1 h-14 text-base border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
-              size="lg"
+              className="flex-1 h-10 text-sm border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
               disabled={saving}
             >
               Cancel

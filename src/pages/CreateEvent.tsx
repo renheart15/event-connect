@@ -54,6 +54,20 @@ const CreateEvent = () => {
         }
       }
 
+      // If start time is changed, validate end time
+      if (field === 'startTime' && prev.endTime) {
+        const [startHours, startMinutes] = value.split(':').map(Number);
+        const [endHours, endMinutes] = prev.endTime.split(':').map(Number);
+
+        const startTimeInMinutes = startHours * 60 + startMinutes;
+        const endTimeInMinutes = endHours * 60 + endMinutes;
+
+        // If end time is now invalid (less than or equal to new start time), clear it
+        if (endTimeInMinutes <= startTimeInMinutes) {
+          newData.endTime = '';
+        }
+      }
+
       return newData;
     });
   };
@@ -92,6 +106,36 @@ const CreateEvent = () => {
       return selectedTime <= now;
     }
     return false;
+  };
+
+  // Helper function to validate if end time is valid (must be after start time)
+  const isEndTimeInvalid = () => {
+    if (!formData.startTime || !formData.endTime) return false;
+
+    const [startHours, startMinutes] = formData.startTime.split(':').map(Number);
+    const [endHours, endMinutes] = formData.endTime.split(':').map(Number);
+
+    const startTimeInMinutes = startHours * 60 + startMinutes;
+    const endTimeInMinutes = endHours * 60 + endMinutes;
+
+    // End time must be greater than start time (not equal)
+    return endTimeInMinutes <= startTimeInMinutes;
+  };
+
+  // Helper function to get minimum end time (start time + 1 minute)
+  const getMinEndTime = () => {
+    if (!formData.startTime) return getMinTime();
+
+    const [hours, minutes] = formData.startTime.split(':').map(Number);
+    const startDate = new Date();
+    startDate.setHours(hours, minutes, 0, 0);
+
+    // Add 1 minute to start time
+    startDate.setMinutes(startDate.getMinutes() + 1);
+
+    const newHours = String(startDate.getHours()).padStart(2, '0');
+    const newMinutes = String(startDate.getMinutes()).padStart(2, '0');
+    return `${newHours}:${newMinutes}`;
   };
 
 
@@ -353,8 +397,14 @@ const CreateEvent = () => {
                       type="time"
                       value={formData.endTime}
                       onChange={(e) => handleInputChange('endTime', e.target.value)}
-                      min={formData.startTime || getMinTime()}
+                      min={getMinEndTime()}
+                      className={isEndTimeInvalid() ? 'border-red-500' : ''}
                     />
+                    {isEndTimeInvalid() && (
+                      <p className="text-xs text-red-500">
+                        End time must be after start time
+                      </p>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -410,8 +460,14 @@ const CreateEvent = () => {
                         type="time"
                         value={formData.endTime}
                         onChange={(e) => handleInputChange('endTime', e.target.value)}
-                        min={formData.startTime || getMinTime()}
+                        min={getMinEndTime()}
+                        className={isEndTimeInvalid() ? 'border-red-500' : ''}
                       />
+                      {isEndTimeInvalid() && (
+                        <p className="text-xs text-red-500">
+                          End time must be after start time
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

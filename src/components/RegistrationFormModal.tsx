@@ -33,6 +33,7 @@ interface RegistrationFormModalProps {
   registrationForm: RegistrationForm;
   onSubmitSuccess: () => void;
   token: string;
+  isRequired?: boolean; // If true, modal cannot be dismissed until form is submitted
 }
 
 export default function RegistrationFormModal({
@@ -42,7 +43,8 @@ export default function RegistrationFormModal({
   eventTitle,
   registrationForm,
   onSubmitSuccess,
-  token
+  token,
+  isRequired = false
 }: RegistrationFormModalProps) {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -193,12 +195,32 @@ export default function RegistrationFormModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={isRequired ? undefined : onClose}>
+      <DialogContent
+        className="max-w-2xl max-h-[80vh] overflow-y-auto"
+        onInteractOutside={(e) => {
+          // Prevent closing when clicking outside if form is required
+          if (isRequired) {
+            e.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          // Prevent closing with ESC key if form is required
+          if (isRequired) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{registrationForm.title}</DialogTitle>
           <DialogDescription>
-            Please complete this registration form to join "{eventTitle}"
+            {isRequired ? (
+              <span className="text-amber-600 dark:text-amber-400 font-medium">
+                This registration form is required to complete your registration for "{eventTitle}"
+              </span>
+            ) : (
+              `Please complete this registration form to join "${eventTitle}"`
+            )}
             {registrationForm.description && (
               <div className="mt-2 text-sm text-muted-foreground">
                 {registrationForm.description}
@@ -211,17 +233,20 @@ export default function RegistrationFormModal({
           {registrationForm.fields.map(field => renderField(field))}
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
+            {!isRequired && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+            )}
             <Button
               type="submit"
               disabled={isSubmitting}
+              className={isRequired ? 'w-full' : ''}
             >
               {isSubmitting ? 'Submitting...' : 'Submit Registration'}
             </Button>
