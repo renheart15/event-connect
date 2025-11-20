@@ -195,6 +195,7 @@ const InvitationView = () => {
   const checkForRegistrationForm = async (eventId: string) => {
     try {
       const token = localStorage.getItem('token');
+      console.log('🔍 [INVITATION] Checking for registration form for event:', eventId);
 
       // Check if event has a registration form
       const formResponse = await fetch(`${API_CONFIG.API_BASE}/registration-forms/event/${eventId}`, {
@@ -205,11 +206,13 @@ const InvitationView = () => {
       });
 
       const formData = await formResponse.json();
+      console.log('🔍 [INVITATION] Registration form response:', formData);
 
-      if (formData.success && formData.data.registrationForm) {
+      if (formData.success && formData.data && formData.data.registrationForm) {
+        console.log('✅ [INVITATION] Registration form found');
         // Check if user has already submitted a response
         const responseCheckResponse = await fetch(
-          `${API_CONFIG.API_BASE}/registration-responses/check?eventId=${eventId}`,
+          `${API_CONFIG.API_BASE}/registration-responses/check/${eventId}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -219,26 +222,30 @@ const InvitationView = () => {
         );
 
         const responseCheck = await responseCheckResponse.json();
+        console.log('🔍 [INVITATION] Response check result:', responseCheck);
 
-        if (!responseCheck.hasSubmitted) {
+        if (responseCheck.success && responseCheck.data && !responseCheck.data.hasSubmitted) {
+          console.log('✅ [INVITATION] User has not submitted, showing form modal');
           // Show registration form modal - mark as required to prevent dismissal
           setRegistrationFormData(formData.data.registrationForm);
           setIsRegistrationRequired(true); // Form must be completed
           setShowRegistrationForm(true);
         } else {
+          console.log('ℹ️ [INVITATION] User already submitted form or form not required');
           toast({
             title: "Invitation accepted",
             description: `You have accepted the invitation to ${invitation?.event.title}.`,
           });
         }
       } else {
+        console.log('ℹ️ [INVITATION] No registration form found for event');
         toast({
           title: "Invitation accepted",
           description: `You have accepted the invitation to ${invitation?.event.title}.`,
         });
       }
     } catch (error) {
-      console.error('Error checking for registration form:', error);
+      console.error('❌ [INVITATION] Error checking for registration form:', error);
       toast({
         title: "Invitation accepted",
         description: `You have accepted the invitation to ${invitation?.event.title}.`,
