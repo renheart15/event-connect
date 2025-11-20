@@ -27,18 +27,58 @@ router.post('/', auth, [
     const { eventId, responses } = req.body;
     const participantId = req.user._id;
 
-    // Check if event exists and is published
-    const event = await Event.findOne({
-      _id: eventId,
-      published: true,
-      isActive: true
+    console.log('📝 [REGISTRATION RESPONSE] Received submission:', {
+      eventId,
+      participantId,
+      responseKeys: Object.keys(responses)
+    });
+
+    // Check if event exists
+    // We DON'T check published or isActive here because:
+    // 1. Invited participants should be able to register even if event is not public
+    // 2. If participant has the event code or invitation, they have permission
+    const event = await Event.findById(eventId);
+
+    console.log('🔍 [REGISTRATION RESPONSE] Event lookup result:', {
+      eventId,
+      found: !!event,
+      eventTitle: event?.title,
+      published: event?.published,
+      isActive: event?.isActive
     });
 
     if (!event) {
       return res.status(404).json({
         success: false,
-        message: 'Event not found or not available for registration'
+        message: 'Event not found'
       });
+    }
+
+    // Check if participant has access to this event
+    // They have access if:
+    // 1. Event is published (public event), OR
+    // 2. They have an invitation (accepted or pending)
+    if (!event.published) {
+      const Invitation = require('../models/Invitation');
+      const invitation = await Invitation.findOne({
+        event: eventId,
+        participant: participantId
+      });
+
+      console.log('🔍 [REGISTRATION RESPONSE] Event not published, checking invitation:', {
+        hasInvitation: !!invitation,
+        invitationStatus: invitation?.status
+      });
+
+      if (!invitation) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have access to register for this private event'
+        });
+      }
+
+      // Allow registration if they have an invitation (any status)
+      // Even pending invitations can register first, then decide to accept/decline
     }
 
     // Get the registration form for this event

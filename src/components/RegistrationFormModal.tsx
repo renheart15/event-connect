@@ -86,6 +86,13 @@ export default function RegistrationFormModal({
       }
 
       // Submit registration form
+      console.log('📤 [REGISTRATION MODAL] Submitting registration:', {
+        eventId,
+        eventTitle,
+        responses: formData,
+        apiUrl: `${API_CONFIG.API_BASE}/registration-responses`
+      });
+
       const response = await fetch(`${API_CONFIG.API_BASE}/registration-responses`, {
         method: 'POST',
         headers: {
@@ -99,6 +106,7 @@ export default function RegistrationFormModal({
       });
 
       const result = await response.json();
+      console.log('📥 [REGISTRATION MODAL] Registration response:', result);
 
       if (result.success) {
         toast({

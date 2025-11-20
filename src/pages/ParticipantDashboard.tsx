@@ -65,6 +65,7 @@ const ParticipantDashboard = () => {
   const [pendingEventTitle, setPendingEventTitle] = useState('');
   const [pendingEventId, setPendingEventId] = useState('');
   const [registrationFormData, setRegistrationFormData] = useState<any>(null);
+  const [isRegistrationRequired, setIsRegistrationRequired] = useState(false); // Track if form is required
   const [activeOrganization, setActiveOrganization] = useState<any>(null);
   
   // Event record modal state
@@ -2576,6 +2577,7 @@ const ParticipantDashboard = () => {
                   setPendingEventCode(eventCode);
                   setPendingEventTitle(event.title);
                   setPendingEventId(event._id);
+                  setIsRegistrationRequired(true); // Form is required
                   setShowRegistrationForm(true);
                   toast({
                     title: "Registration Required",
@@ -2903,6 +2905,7 @@ const ParticipantDashboard = () => {
                 setPendingEventTitle(event.title || 'Event');
                 setPendingEventId(event._id || '');
                 setRegistrationFormData(joinResult.registrationForm);
+                setIsRegistrationRequired(true); // Form is required
                 setShowRegistrationForm(true);
                 return;
               }
@@ -3573,6 +3576,7 @@ const ParticipantDashboard = () => {
         setPendingEventTitle(eventTitle || 'Event');
         setPendingEventId(eventId || '');
         setRegistrationFormData(result.registrationForm);
+        setIsRegistrationRequired(true); // Form is required
         setShowRegistrationForm(true);
       } else {
         console.log('🔥 [JOIN EVENT] ❌ Join failed:', result.message);
@@ -3597,6 +3601,7 @@ const ParticipantDashboard = () => {
   // Handle successful registration form submission
   const handleRegistrationSuccess = async () => {
     setShowRegistrationForm(false);
+    setIsRegistrationRequired(false); // Reset required flag
 
     // Now try to join the event again
     try {
@@ -5674,7 +5679,8 @@ const ParticipantDashboard = () => {
     try {
       // Find the invitation to check if it's expired
       const invitation = myInvitations.find(inv => inv._id === invitationId);
-      
+      console.log('🎯 [INVITATION RESPONSE] Responding to invitation:', { invitationId, response, invitation });
+
       if (invitation && isInvitationExpired(invitation)) {
         toast({
           title: "Invitation Expired",
@@ -5694,19 +5700,80 @@ const ParticipantDashboard = () => {
       });
 
       const data = await apiResponse.json();
+      console.log('📝 [INVITATION RESPONSE] Response from server:', data);
 
       if (data.success) {
         toast({
           title: `Invitation ${response}`,
           description: `You have ${response} the invitation successfully`,
         });
-        
-        // Refresh data
+
+        // If invitation was accepted, check if registration form is required
+        if (response === 'accepted' && invitation) {
+          // Extract eventId - invitation.event could be a populated object or a string ID
+          let eventId: string;
+          if (typeof invitation.event === 'string') {
+            eventId = invitation.event;
+          } else if (invitation.event && invitation.event._id) {
+            eventId = invitation.event._id;
+          } else {
+            console.error('❌ [INVITATION RESPONSE] Cannot determine eventId from:', invitation.event);
+            window.location.reload();
+            return;
+          }
+          console.log('🔄 [INVITATION RESPONSE] Accepted - checking registration for event:', {
+            eventId,
+            eventStructure: typeof invitation.event === 'string' ? 'string' : 'object',
+            eventObject: invitation.event
+          });
+
+          // Check if event requires registration and if user has already submitted
+          const checkResponse = await fetch(`${API_CONFIG.API_BASE}/registration-responses/check/${eventId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          const checkData = await checkResponse.json();
+          console.log('🔍 [INVITATION RESPONSE] Registration check result:', checkData);
+
+          // If registration is required and user hasn't submitted yet, show the form
+          if (checkData.success && checkData.data.requiresRegistration && !checkData.data.hasSubmitted) {
+            console.log('✅ [INVITATION RESPONSE] Showing registration form modal');
+
+            // Extract event details safely
+            const eventTitle = typeof invitation.event === 'string' ? 'Event' : (invitation.event.title || 'Event');
+            const eventCode = typeof invitation.event === 'string' ? '' : (invitation.event.eventCode || '');
+
+            // Show registration form modal before reload
+            setRegistrationFormData(checkData.data.registrationForm);
+            setPendingEventCode(eventCode);
+            setPendingEventTitle(eventTitle);
+            setPendingEventId(eventId);
+            setIsRegistrationRequired(true);
+            setShowRegistrationForm(true);
+            console.log('🎬 [INVITATION RESPONSE] Modal state set:', {
+              showRegistrationForm: true,
+              isRequired: true,
+              eventId: eventId,
+              eventTitle: eventTitle,
+              registrationFormId: checkData.data.registrationForm._id
+            });
+            return; // Don't reload yet, wait for form submission
+          } else {
+            console.log('ℹ️ [INVITATION RESPONSE] No registration needed or already submitted');
+          }
+        }
+
+        // Refresh data only if no registration form needs to be shown
+        console.log('🔄 [INVITATION RESPONSE] Reloading page...');
         window.location.reload();
       } else {
         throw new Error(data.message);
       }
     } catch (error) {
+      console.error('❌ [INVITATION RESPONSE] Error:', error);
       toast({
         title: "Failed to respond to invitation",
         description: error.message,
@@ -7036,17 +7103,21 @@ const ParticipantDashboard = () => {
         <RegistrationFormModal
           isOpen={showRegistrationForm}
           onClose={() => {
-            setShowRegistrationForm(false);
-            setPendingEventCode('');
-            setPendingEventTitle('');
-            setPendingEventId('');
-            setRegistrationFormData(null);
+            // Only allow closing if form is not required
+            if (!isRegistrationRequired) {
+              setShowRegistrationForm(false);
+              setPendingEventCode('');
+              setPendingEventTitle('');
+              setPendingEventId('');
+              setRegistrationFormData(null);
+            }
           }}
           eventId={pendingEventId}
           eventTitle={pendingEventTitle}
           registrationForm={registrationFormData}
           onSubmitSuccess={handleRegistrationSuccess}
           token={token}
+          isRequired={isRegistrationRequired}
         />
       )}
     </div>
