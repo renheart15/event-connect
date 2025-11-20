@@ -145,8 +145,12 @@ const InvitationView = () => {
   };
 
   const respondToInvitation = async (response: 'accepted' | 'declined') => {
-    if (!invitation) return;
+    if (!invitation) {
+      console.log('❌ [INVITATION] No invitation object found');
+      return;
+    }
 
+    console.log('🎯 [INVITATION] Responding to invitation:', response, 'for event:', invitation.event.id);
     setResponding(true);
     try {
       const token = localStorage.getItem('token');
@@ -160,12 +164,15 @@ const InvitationView = () => {
       });
 
       const data = await apiResponse.json();
+      console.log('📝 [INVITATION] Response from server:', data);
 
       if (data.success) {
+        console.log('✅ [INVITATION] Successfully responded:', response);
         setInvitation({ ...invitation, status: response });
 
         // If accepted, check if event has a registration form
         if (response === 'accepted') {
+          console.log('🔄 [INVITATION] Invitation accepted, checking for registration form...');
           await checkForRegistrationForm(invitation.event.id);
         } else {
           toast({
@@ -174,6 +181,7 @@ const InvitationView = () => {
           });
         }
       } else {
+        console.error('❌ [INVITATION] Failed to respond:', data.message);
         toast({
           title: "Error",
           description: data.message || `Failed to ${response} invitation.`,
@@ -181,7 +189,7 @@ const InvitationView = () => {
         });
       }
     } catch (error) {
-      console.error('Error responding to invitation:', error);
+      console.error('❌ [INVITATION] Error responding to invitation:', error);
       toast({
         title: "Error",
         description: "Failed to respond to invitation. Please try again.",
@@ -226,10 +234,12 @@ const InvitationView = () => {
 
         if (responseCheck.success && responseCheck.data && !responseCheck.data.hasSubmitted) {
           console.log('✅ [INVITATION] User has not submitted, showing form modal');
+          console.log('📋 [INVITATION] Form data:', formData.data.registrationForm);
           // Show registration form modal - mark as required to prevent dismissal
           setRegistrationFormData(formData.data.registrationForm);
           setIsRegistrationRequired(true); // Form must be completed
           setShowRegistrationForm(true);
+          console.log('🎬 [INVITATION] Modal state set - showRegistrationForm: true, isRequired: true');
         } else {
           console.log('ℹ️ [INVITATION] User already submitted form or form not required');
           toast({
@@ -562,18 +572,28 @@ const InvitationView = () => {
       </div>
 
       {/* Registration Form Modal */}
-      {showRegistrationForm && registrationFormData && invitation && (
-        <RegistrationFormModal
-          isOpen={showRegistrationForm}
-          onClose={handleRegistrationClose}
-          eventId={invitation.event.id}
-          eventTitle={invitation.event.title}
-          registrationForm={registrationFormData}
-          onSubmitSuccess={handleRegistrationSuccess}
-          token={localStorage.getItem('token') || ''}
-          isRequired={isRegistrationRequired}
-        />
-      )}
+      {(() => {
+        const shouldShow = showRegistrationForm && registrationFormData && invitation;
+        console.log('🎭 [INVITATION] Modal render check:', {
+          showRegistrationForm,
+          hasRegistrationFormData: !!registrationFormData,
+          hasInvitation: !!invitation,
+          shouldShow,
+          isRequired: isRegistrationRequired
+        });
+        return shouldShow ? (
+          <RegistrationFormModal
+            isOpen={showRegistrationForm}
+            onClose={handleRegistrationClose}
+            eventId={invitation.event.id}
+            eventTitle={invitation.event.title}
+            registrationForm={registrationFormData}
+            onSubmitSuccess={handleRegistrationSuccess}
+            token={localStorage.getItem('token') || ''}
+            isRequired={isRegistrationRequired}
+          />
+        ) : null;
+      })()}
     </div>
   );
 };

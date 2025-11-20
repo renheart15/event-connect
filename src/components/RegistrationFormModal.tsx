@@ -50,6 +50,16 @@ export default function RegistrationFormModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
+  // Debug logging
+  console.log('🎨 [REGISTRATION MODAL] Component rendered with props:', {
+    isOpen,
+    eventId,
+    eventTitle,
+    isRequired,
+    hasRegistrationForm: !!registrationForm,
+    fields: registrationForm?.fields?.length
+  });
+
   const handleInputChange = (fieldId: string, value: any) => {
     setFormData(prev => ({
       ...prev,
