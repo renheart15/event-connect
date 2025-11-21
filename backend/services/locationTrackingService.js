@@ -67,15 +67,25 @@ class LocationTrackingService {
 
         await locationStatus.save();
       } else {
-        // Reset timer for existing location status (new check-in session)
-        locationStatus.outsideTimer = {
-          isActive: false,
-          startTime: null,
-          totalTimeOutside: 0,
-          currentSessionStart: null
-        };
-        locationStatus.status = 'inside';
-        locationStatus.isWithinGeofence = true;
+        // Only reset timer if this is a NEW check-in session (different attendance log)
+        // If same attendance log, participant just reopened the app - preserve timer data
+        const isSameSession = locationStatus.attendanceLog?.toString() === attendanceLogId;
+
+        if (!isSameSession) {
+          // New check-in session - reset timer
+          console.log('🔄 [LOCATION-INIT] New check-in session detected, resetting timer');
+          locationStatus.outsideTimer = {
+            isActive: false,
+            startTime: null,
+            totalTimeOutside: 0,
+            currentSessionStart: null
+          };
+          locationStatus.status = 'inside';
+          locationStatus.isWithinGeofence = true;
+        } else {
+          console.log('🔄 [LOCATION-INIT] Same session (app reopened), preserving timer data');
+        }
+
         locationStatus.isActive = true;
         locationStatus.attendanceLog = attendanceLogId;
         await locationStatus.save();
