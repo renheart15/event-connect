@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +37,12 @@ const EventMonitor = () => {
   const [availableEvents, setAvailableEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [removingParticipant, setRemovingParticipant] = useState<string | null>(null);
+  const eventStatusRef = useRef<string | null>(null);
+
+  // Update ref when eventData changes
+  useEffect(() => {
+    eventStatusRef.current = eventData?.status || null;
+  }, [eventData?.status]);
 
   // Fetch real-time attendance data
   const fetchAttendanceData = useCallback(async () => {
@@ -393,16 +399,37 @@ const EventMonitor = () => {
       setCurrentTime(new Date());
     }, 1000);
 
-    // Refresh attendance data every 45 seconds for rate limit friendliness
+    // Refresh attendance data every 45 seconds for rate limit friendliness (skip if event completed)
     const dataRefreshInterval = setInterval(() => {
-      fetchAttendanceData();
+      if (eventStatusRef.current !== 'completed') {
+        fetchAttendanceData();
+      }
     }, 45000);
+
+    // Also refresh event data every 30 seconds to check if event ended (skip if completed)
+    const eventRefreshInterval = setInterval(() => {
+      if (eventStatusRef.current !== 'completed') {
+        fetchEventData();
+      }
+    }, 30000);
 
     return () => {
       clearInterval(timer);
       clearInterval(dataRefreshInterval);
+      clearInterval(eventRefreshInterval);
     };
   }, [eventId, navigate, fetchEventData, fetchAttendanceData, fetchAvailableEvents]);
+
+  // Stop monitoring when event is completed
+  useEffect(() => {
+    if (eventData?.status === 'completed') {
+      toast({
+        title: "Event Ended",
+        description: "This event has ended. Live monitoring has stopped.",
+        variant: "default"
+      });
+    }
+  }, [eventData?.status]);
 
 
   const getStatusColor = (status: string) => {
@@ -518,6 +545,16 @@ const EventMonitor = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
 
+      {/* Event Completed Banner */}
+      {eventData?.status === 'completed' && (
+        <div className="bg-gray-700 text-white py-3 px-4 text-center">
+          <div className="flex items-center justify-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            <span className="font-semibold">Event Ended - Live monitoring has stopped</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -554,10 +591,10 @@ const EventMonitor = () => {
                 onClick={() => fetchAttendanceData()}
                 variant="outline"
                 size="sm"
-                disabled={refreshing}
+                disabled={refreshing || eventData?.status === 'completed'}
               >
                 <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Refreshing...' : 'Refresh Data'}
+                {eventData?.status === 'completed' ? 'Event Ended' : refreshing ? 'Refreshing...' : 'Refresh Data'}
               </Button>
               <Link to="/event-monitor">
                 <Button variant="outline">Back to Event Monitor</Button>

@@ -221,7 +221,9 @@ class LocationTrackingService {
     // Pause outside timer (preserves accumulated time)
     locationStatus.pauseOutsideTimer();
     locationStatus.status = 'inside';
-    locationStatus.outsideTimer.reason = null;
+    if (locationStatus.outsideTimer) {
+      locationStatus.outsideTimer.reason = null;
+    }
 
     // Add return alert
     locationStatus.addAlert('returned');
@@ -266,13 +268,17 @@ class LocationTrackingService {
       } else {
         console.log(`✅ [TIMER CLEARED] Participant inside geofence. Timer cleared.`);
         locationStatus.status = 'inside';
-        locationStatus.outsideTimer.reason = null;
+        if (locationStatus.outsideTimer) {
+          locationStatus.outsideTimer.reason = null;
+        }
       }
 
-      console.log(`⏱️ [TIMER PRESERVED] Total time preserved: ${locationStatus.outsideTimer.totalTimeOutside}s (${Math.floor(locationStatus.outsideTimer.totalTimeOutside / 60)} min)`);
+      if (locationStatus.outsideTimer) {
+        console.log(`⏱️ [TIMER PRESERVED] Total time preserved: ${locationStatus.outsideTimer.totalTimeOutside}s (${Math.floor(locationStatus.outsideTimer.totalTimeOutside / 60)} min)`);
+      }
     }
 
-    if (locationStatus.outsideTimer.isActive) {
+    if (locationStatus.outsideTimer?.isActive) {
       totalTime = locationStatus.calculateTotalTimeOutside();
       console.log(`⏱️ [TIMER] Active outside timer: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
     } else if (isStale) {
@@ -357,7 +363,9 @@ class LocationTrackingService {
       locationStatus.status = 'outside';
     } else {
       locationStatus.status = 'inside';
-      locationStatus.outsideTimer.reason = null;
+      if (locationStatus.outsideTimer) {
+        locationStatus.outsideTimer.reason = null;
+      }
     }
   }
 

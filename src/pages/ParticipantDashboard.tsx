@@ -6631,13 +6631,11 @@ const ParticipantDashboard = () => {
         </div>
       )}
 
-      {/* Participant Notifications */}
-      <div className="mx-4 mb-2">
-        <ParticipantNotifications 
-          currentLocationStatus={currentLocationStatus}
-          isTracking={isTracking}
-        />
-      </div>
+      {/* Participant Notifications - Fixed top banners */}
+      <ParticipantNotifications
+        currentLocationStatus={currentLocationStatus}
+        isTracking={isTracking}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 relative bg-gray-100 dark:bg-gray-800 overflow-y-auto pb-28" style={{ height: 'calc(100vh - 240px)' }}>

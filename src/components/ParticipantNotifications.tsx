@@ -441,103 +441,45 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
     return null;
   }
 
+  // Get background color based on notification type/severity
+  const getBannerColor = (notification: Notification) => {
+    if (notification.type === 'network') return 'bg-red-600';
+    if (notification.type === 'battery') {
+      return notification.severity === 'error' ? 'bg-red-600' : 'bg-yellow-600';
+    }
+    if (notification.severity === 'error') return 'bg-red-600';
+    if (notification.severity === 'warning') return 'bg-yellow-600';
+    return 'bg-blue-600';
+  };
+
   return (
-    <div className={`space-y-3 ${className}`}>
-      {notifications.map((notification) => (
-        <Card key={notification.id} className={`border ${getNotificationStyle(notification.severity)}`}>
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 min-w-0 flex-1">
-                {getNotificationIcon(notification.type, notification.severity)}
-                <div className="min-w-0 flex-1">
-                  <h4 className={`font-semibold text-sm ${
-                    notification.severity === 'error' ? 'text-red-800 dark:text-red-200' :
-                    notification.severity === 'warning' ? 'text-yellow-800 dark:text-yellow-200' :
-                    'text-blue-800 dark:text-blue-200'
-                  }`}>
-                    {notification.title}
-                  </h4>
-                  <p className={`text-sm mt-1 ${
-                    notification.severity === 'error' ? 'text-red-700 dark:text-red-300' :
-                    notification.severity === 'warning' ? 'text-yellow-700 dark:text-yellow-300' :
-                    'text-blue-700 dark:text-blue-300'
-                  }`}>
-                    {notification.message}
-                  </p>
-                  
-                  {/* Real-time counter for location notifications */}
-                  {notification.type === 'location' && !currentLocationStatus?.isWithinGeofence && (
-                    <div className={`flex items-center gap-2 mt-2 text-xs ${
-                      notification.severity === 'error' ? 'text-red-600 dark:text-red-400' :
-                      'text-yellow-600 dark:text-yellow-400'
-                    }`}>
-                      <Clock className="w-3 h-3" />
-                      <span className="font-mono">
-                        Live: {formatTime(timeOutsideSeconds)}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Battery percentage for battery notifications */}
-                  {notification.type === 'battery' && batteryLevel !== null && (
-                    <div className={`flex items-center gap-2 mt-2 text-xs ${
-                      notification.severity === 'error' ? 'text-red-600 dark:text-red-400' :
-                      'text-yellow-600 dark:text-yellow-400'
-                    }`}>
-                      <Battery className="w-3 h-3" />
-                      <span className="font-mono">
-                        {batteryLevel}% {isCharging && '⚡ Charging'}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Network status for network notifications */}
-                  {notification.type === 'network' && (
-                    <div className="flex items-center gap-2 mt-2 text-xs text-red-600 dark:text-red-400">
-                      <WifiOff className="w-3 h-3" />
-                      <span>Check your internet connection</span>
-                    </div>
-                  )}
-                </div>
+    <div className={`fixed top-0 left-0 right-0 z-40 ${className}`}>
+      {notifications.map((notification, index) => (
+        <div
+          key={notification.id}
+          className={`${getBannerColor(notification)} text-white py-2 px-4 border-b border-black/10`}
+          style={{ marginTop: index > 0 ? '0' : undefined }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {getNotificationIcon(notification.type, notification.severity)}
+              <div className="flex-1 min-w-0">
+                <span className="font-semibold text-sm">{notification.title}</span>
+                {notification.type === 'battery' && batteryLevel !== null && (
+                  <span className="ml-2 text-sm opacity-90">({batteryLevel}%)</span>
+                )}
               </div>
-              
-              {!notification.persistent && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => dismissNotification(notification.id)}
-                  className="h-6 w-6 p-0 opacity-70 hover:opacity-100"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              )}
             </div>
-
-            {/* Action buttons for actionable notifications */}
-            {notification.actionRequired && (
-              <div className="mt-3 flex gap-2">
-                {notification.type === 'location' && (
-                  <Button size="sm" variant="outline" className="text-xs">
-                    <MapPin className="w-3 h-3 mr-1" />
-                    Show Direction
-                  </Button>
-                )}
-                {notification.type === 'battery' && (
-                  <Button size="sm" variant="outline" className="text-xs">
-                    <Battery className="w-3 h-3 mr-1" />
-                    Battery Settings
-                  </Button>
-                )}
-                {notification.type === 'network' && (
-                  <Button size="sm" variant="outline" className="text-xs">
-                    <Wifi className="w-3 h-3 mr-1" />
-                    Network Settings
-                  </Button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => dismissNotification(notification.id)}
+              className="h-6 w-6 p-0 text-white hover:bg-white/20"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
       ))}
     </div>
   );
