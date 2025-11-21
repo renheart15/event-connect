@@ -249,18 +249,8 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
             persistent: true,
             actionRequired: true
           });
-        } else {
-          newNotifications.push({
-            id: 'location-outside',
-            type: 'location',
-            severity: 'info',
-            title: 'You are outside the event premises',
-            message: `Time outside: ${minutes}m ${seconds}s. Please return when ready.`,
-            timestamp: new Date(),
-            persistent: true,
-            actionRequired: false
-          });
         }
+        // Removed "info" level notification for being outside - already shown in Location Tracking section
       }
     }
 

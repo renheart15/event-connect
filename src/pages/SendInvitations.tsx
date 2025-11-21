@@ -586,10 +586,9 @@ const SendInvitations = () => {
                 </div>
 
                 <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                  <span className="w-4 h-4 mr-2 flex-shrink-0 font-mono text-xs bg-gray-200 rounded px-1 py-0.5">
-                    CODE
-                  </span>
-                  <span className="font-mono font-medium">{event.eventCode}</span>
+                  <Badge variant="secondary" className="font-mono text-xs">
+                    {event.eventCode}
+                  </Badge>
                 </div>
               </div>
             </CardContent>

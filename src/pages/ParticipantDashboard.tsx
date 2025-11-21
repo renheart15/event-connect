@@ -1,5 +1,5 @@
 import React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -67,6 +67,7 @@ const ParticipantDashboard = () => {
   const [registrationFormData, setRegistrationFormData] = useState<any>(null);
   const [isRegistrationRequired, setIsRegistrationRequired] = useState(false); // Track if form is required
   const [registrationContext, setRegistrationContext] = useState<'invitation' | 'public' | null>(null); // Track context: invitation acceptance or public event join
+  const registrationContextRef = useRef<'invitation' | 'public' | null>(null); // Ref to avoid stale closure issues
   const [activeOrganization, setActiveOrganization] = useState<any>(null);
   
   // Event record modal state
@@ -824,7 +825,6 @@ const ParticipantDashboard = () => {
           }
         }
 
-        console.log(`Scheduled notifications for ${upcomingEvents.length} upcoming events`);
       } catch (error) {
         console.error('Error scheduling event notifications:', error);
       }
@@ -906,11 +906,9 @@ const ParticipantDashboard = () => {
           const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
           if (videoDevices.length === 0) {
-            console.warn('No camera devices found on this device');
           }
         }
       } catch (error) {
-        console.warn('Camera cleanup on mount failed:', error);
       }
     };
 
@@ -934,14 +932,7 @@ const ParticipantDashboard = () => {
   }, [locationWatchId]);
 
   // Monitor currently attending events and fetch location status
-  useEffect(() => {
-    const currentlyAttending = getCurrentlyAttending();
-    if (currentlyAttending.length > 0 && !currentLocationStatus) {
-      // Fetch location status for the first currently attending event
-      const event = currentlyAttending[0];
-      fetchLocationStatus(event.event._id || event.event);
-    }
-  }, [myAttendance]);
+  // Note: Location status fetching is handled by the periodic refresh useEffect below
 
   // Auto-checkout system - periodically check for ended events and auto-checkout participants
   useEffect(() => {
@@ -1219,8 +1210,6 @@ const ParticipantDashboard = () => {
 
       if (isUninvited) {
         // Uninvited participant (joined via code) - use direct check-in endpoint
-        console.log(`[AUTO CHECK-IN] Uninvited participant checking in to ${event.title}`);
-
         response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
           method: 'POST',
           headers: {
@@ -1241,7 +1230,6 @@ const ParticipantDashboard = () => {
         const invitation = myInvitations.find(inv => inv.event._id === event._id);
 
         if (!invitation) {
-          console.warn(`[AUTO CHECK-IN] No invitation found for event ${event._id}`);
           return;
         }
 
@@ -1252,8 +1240,6 @@ const ParticipantDashboard = () => {
           participantId: user._id,
           code: invitation.invitationCode
         });
-
-        console.log(`[AUTO CHECK-IN] Invited participant checking in to ${event.title}`);
 
         response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin`, {
           method: 'POST',
@@ -1296,9 +1282,7 @@ const ParticipantDashboard = () => {
           setMyAttendance(attendanceData.data.attendanceLogs);
         }
 
-        console.log(`[AUTO CHECK-IN] ✅ Successfully checked in to ${event.title}`);
       } else {
-        console.warn(`[AUTO CHECK-IN] Failed: ${result.message}`);
       }
     } catch (error) {
       console.error(`[AUTO CHECK-IN] Error:`, error);
@@ -1378,20 +1362,24 @@ const ParticipantDashboard = () => {
     return () => clearInterval(autoCheckOutInterval);
   }, [myAttendance, token, user._id]);
 
-  // Periodically refresh location status when tracking
+  // Periodically refresh location status when attending an event
+  // This ensures the timer updates even if initial fetch failed
   useEffect(() => {
-    if (isTracking || currentLocationStatus) {
-      const currentlyAttending = getCurrentlyAttending();
-      if (currentlyAttending.length > 0) {
-        const interval = setInterval(() => {
-          const event = currentlyAttending[0];
-          fetchLocationStatus(event.event._id || event.event);
-        }, 15000); // Refresh every 15 seconds
+    const currentlyAttending = getCurrentlyAttending();
+    if (currentlyAttending.length > 0) {
+      // Fetch immediately on mount/change
+      const event = currentlyAttending[0];
+      const eventId = event.event._id || event.event;
+      fetchLocationStatus(eventId);
 
-        return () => clearInterval(interval);
-      }
+      // Then refresh every 5 seconds for accurate timer
+      const interval = setInterval(() => {
+        fetchLocationStatus(eventId);
+      }, 5000); // Refresh every 5 seconds for smoother timer
+
+      return () => clearInterval(interval);
     }
-  }, [isTracking, currentLocationStatus, myAttendance]);
+  }, [myAttendance, token, user._id]);
 
   // Monitor for stale location data and send notification
   useEffect(() => {
@@ -1411,7 +1399,6 @@ const ParticipantDashboard = () => {
             // Send stale data notification - "Countdown Has Begun"
             await notificationService.sendStaleDataNotification(eventName);
             lastStaleNotificationRef.current = now;
-            console.log('⏱️ Stale location countdown notification sent');
           }
         }
       } else {
@@ -1461,7 +1448,6 @@ const ParticipantDashboard = () => {
               formatTimeRemaining(timeRemaining)
             );
             lastOutsideNotificationRef.current = now;
-            console.log('⏱️ Countdown began notification sent');
           }
         }
 
@@ -1469,7 +1455,6 @@ const ParticipantDashboard = () => {
         if (currentStatus === 'inside' && previousStatus === 'outside') {
           await notificationService.sendReturnedToGeofenceNotification(eventName);
           lastInsideNotificationRef.current = now;
-          console.log('✅ Returned to geofence notification sent');
         }
 
         // Detect warning status
@@ -1481,7 +1466,6 @@ const ParticipantDashboard = () => {
               formatTimeRemaining(timeRemaining)
             );
             lastWarningNotificationRef.current = now;
-            console.log('⏰ Warning notification sent');
           }
         }
 
@@ -1489,7 +1473,6 @@ const ParticipantDashboard = () => {
         if (currentStatus === 'exceeded_limit' && previousStatus !== 'exceeded_limit') {
           await notificationService.sendExceededLimitNotification(eventName);
           lastExceededNotificationRef.current = now;
-          console.log('🚫 Exceeded limit notification sent');
         }
       }
 
@@ -1507,7 +1490,6 @@ const ParticipantDashboard = () => {
           if (!lastOneMinuteNotif || lastOneMinuteNotif < fiveMinutesAgo) {
             await notificationService.sendOneMinuteLeftNotification(eventName);
             lastOneMinuteLeftNotificationRef.current = now;
-            console.log('🚨 1 minute left notification sent');
           }
         }
       }
@@ -1538,10 +1520,8 @@ const ParticipantDashboard = () => {
         // If participant is already checked-in, they've proven they're inside premises
         // No need to re-validate geofence - just start tracking
         if (attendance.status === 'checked-in' && event.status === 'active') {
-          console.log('✅ Auto-starting location tracking - Participant already checked in');
           await startLocationWatching(event._id, attendance._id);
         } else {
-          console.log('⏸️ Not starting tracking - Participant not checked-in or event not active');
         }
       } catch (error) {
         console.error('Error in automatic tracking check:', error);
@@ -1565,7 +1545,6 @@ const ParticipantDashboard = () => {
         if (response.ok) {
           const data = await response.json();
           setMyAttendance(data.data.attendanceLogs);
-          console.log('🔄 Refreshed event data - participants will see latest changes');
         }
       } catch (error) {
         console.error('Error refreshing event data:', error);
@@ -1609,7 +1588,6 @@ const ParticipantDashboard = () => {
               throw new Error('Camera permission denied. Please enable camera access in browser settings.');
             }
           } catch (permError) {
-            console.warn('Could not check camera permissions:', permError);
           }
         }
 
@@ -1756,12 +1734,9 @@ const ParticipantDashboard = () => {
   };
 
   const startWebCamera = async () => {
-    console.log('startWebCamera called');
     try {
       // Check if we're on mobile for better constraints
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      console.log('Device type:', isMobile ? 'Mobile' : 'Desktop');
-
       let stream: MediaStream;
 
       // Mobile-optimized constraints
@@ -1788,7 +1763,6 @@ const ParticipantDashboard = () => {
       try {
         // Try exact facing mode first (works better on mobile)
         const constraints = isMobile ? mobileConstraints : desktopConstraints;
-        console.log('Requesting camera with constraints:', constraints);
         setScanningStatus('Requesting camera permissions...');
 
         // Add timeout to prevent hanging
@@ -1798,8 +1772,6 @@ const ParticipantDashboard = () => {
         );
 
         stream = await Promise.race([cameraPromise, timeoutPromise]) as MediaStream;
-        console.log('Camera stream obtained:', stream);
-
         // Check if flash/torch is supported
         const track = stream.getVideoTracks()[0];
         const capabilities = track.getCapabilities();
@@ -1807,7 +1779,6 @@ const ParticipantDashboard = () => {
           setFlashSupported(true);
         }
       } catch (error) {
-        console.warn('Exact facing mode failed, trying fallback:', error);
         try {
           // Fallback: Try without exact facing mode
           stream = await navigator.mediaDevices.getUserMedia({
@@ -1818,7 +1789,6 @@ const ParticipantDashboard = () => {
             }
           });
         } catch (fallbackError) {
-          console.warn('Fallback with facing mode failed, trying any camera:', fallbackError);
           // Final fallback: Any available camera
           stream = await navigator.mediaDevices.getUserMedia({
             video: isMobile ? {
@@ -1836,21 +1806,15 @@ const ParticipantDashboard = () => {
       streamRef.current = stream;
       setIsCameraActive(true);
       setScanningStatus('Camera starting...');
-      console.log('Camera set to active, waiting for video element to mount');
-
       // Check flash support for the camera
       try {
         const track = stream.getVideoTracks()[0];
         const capabilities = track.getCapabilities();
-        console.log('Camera capabilities:', capabilities);
-        console.log('Torch support:', (capabilities as any).torch);
-
+        
         if ((capabilities as any).torch) {
           setFlashSupported(true);
-          console.log('Flash/torch is supported on this camera');
         } else {
           setFlashSupported(false);
-          console.log('Flash/torch is NOT supported on this camera');
         }
       } catch (capError) {
         console.error('Error checking camera capabilities:', capError);
@@ -1860,17 +1824,11 @@ const ParticipantDashboard = () => {
       // Use useEffect-like approach to wait for video element
       const setupVideo = () => {
         if (videoRef.current) {
-          console.log('Video element found, assigning stream');
           const video = videoRef.current;
           video.srcObject = stream;
-          console.log('Stream assigned to video element');
-
           // Wait for video metadata to load
           video.onloadedmetadata = () => {
-            console.log('Video metadata loaded, dimensions:', video.videoWidth, 'x', video.videoHeight);
-
             video.play().then(() => {
-              console.log('Video playing successfully');
               setScanningStatus('Position QR code within frame');
               setIsScanning(true);
               startScanningInterval();
@@ -1880,13 +1838,10 @@ const ParticipantDashboard = () => {
             });
           };
 
-          video.onloadstart = () => console.log('Video load started');
-          video.oncanplay = () => {
-            console.log('Video can play');
+          video.onloadstart = () => video.oncanplay = () => {
             setScanningStatus('Camera ready - Position QR code within frame');
           };
           video.onplay = () => {
-            console.log('Video play event');
             setScanningStatus('Position QR code within frame');
             setIsScanning(true);
             startScanningInterval();
@@ -1900,12 +1855,10 @@ const ParticipantDashboard = () => {
           // Force immediate play attempt
           setTimeout(() => {
             if (video.readyState >= 3) {
-              console.log('Video ready, attempting immediate play');
               video.play().catch(console.error);
             }
           }, 100);
         } else {
-          console.log('Video element not ready yet, retrying in 100ms');
           setTimeout(setupVideo, 100);
         }
       };
@@ -2055,15 +2008,11 @@ const ParticipantDashboard = () => {
       const track = streamRef.current.getVideoTracks()[0];
       const newFlashState = !isFlashOn;
 
-      console.log(`Attempting to turn flash ${newFlashState ? 'ON' : 'OFF'}`);
-
       await track.applyConstraints({
         advanced: [{ torch: newFlashState } as any]
       } as any);
 
       setIsFlashOn(newFlashState);
-      console.log(`Flash successfully turned ${newFlashState ? 'ON' : 'OFF'}`);
-
       // Haptic feedback
       await triggerHapticFeedback('light');
 
@@ -2421,12 +2370,7 @@ const ParticipantDashboard = () => {
   };
 
   const handleJoinEvent = async () => {
-    console.log('🚀 [MANUAL JOIN] Starting handleJoinEvent (manual event code input)');
-    console.log('🚀 [MANUAL JOIN] Event code:', eventCode);
-    console.log('🚀 [MANUAL JOIN] Token exists:', !!token);
-
-    if (!eventCode) {
-      console.log('🚀 [MANUAL JOIN] No event code provided');
+        if (!eventCode) {
       toast({
         title: "Event code required",
         description: "Please enter a valid event code",
@@ -2435,14 +2379,10 @@ const ParticipantDashboard = () => {
       return;
     }
 
-    console.log('🚀 [MANUAL JOIN] Setting isJoining to true');
     setIsJoining(true);
 
     try {
       // First, find the event by code
-      console.log('🚀 [MANUAL JOIN] Fetching event by code...');
-      console.log('🚀 [MANUAL JOIN] API call:', `${API_CONFIG.API_BASE}/events/code/${eventCode}`);
-
       const eventResponse = await fetch(`${API_CONFIG.API_BASE}/events/code/${eventCode}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -2450,26 +2390,12 @@ const ParticipantDashboard = () => {
         }
       });
 
-      console.log('🚀 [MANUAL JOIN] Event fetch response:', {
-        status: eventResponse.status,
-        ok: eventResponse.ok
-      });
-
       if (!eventResponse.ok) {
-        console.log('🚀 [MANUAL JOIN] Event not found with code:', eventCode);
         throw new Error('Event not found with that code');
       }
 
       const eventData = await eventResponse.json();
-      console.log('🚀 [MANUAL JOIN] Event data received:', eventData);
       const event = eventData.data.event;
-      console.log('🚀 [MANUAL JOIN] Event details:', {
-        id: event._id,
-        title: event.title,
-        published: event.published,
-        isActive: event.isActive
-      });
-
       // Check if attendance is available
       const availability = getAttendanceAvailability(event);
       
@@ -2514,45 +2440,21 @@ const ParticipantDashboard = () => {
           // Check if user has an attendance record for this event (for public events joined via code)
           const attendanceRecord = myAttendance.find(att => att.event._id === event._id);
 
-          console.log('=== DEBUG CHECK-IN FLOW ===');
-          console.log('Event ID:', event._id);
-          console.log('Found invitation:', !!invitation);
-          console.log('Found attendance record:', !!attendanceRecord);
-          console.log('My invitations count:', myInvitations.length);
-          console.log('My attendance count:', myAttendance.length);
-
           // Debug attendance records
-          console.log('=== ATTENDANCE RECORDS DEBUG ===');
           myAttendance.forEach((att, index) => {
-            console.log(`Attendance ${index + 1}:`, {
-              id: att._id,
-              eventId: att.event?._id,
-              eventTitle: att.event?.title,
-              status: att.status,
-              checkInTime: att.checkInTime,
-              checkOutTime: att.checkOutTime
-            });
           });
 
           // Try different matching approaches
           const attendanceByEventId = myAttendance.find(att => att.event?._id === event._id);
           const attendanceByEventIdString = myAttendance.find(att => att.event?._id?.toString() === event._id?.toString());
 
-          console.log('Attendance by event._id match:', !!attendanceByEventId);
-          console.log('Attendance by event._id string match:', !!attendanceByEventIdString);
-
           // Use the most reliable match
           const finalAttendanceRecord = attendanceByEventId || attendanceByEventIdString;
 
           if (!invitation && !finalAttendanceRecord) {
-            console.log('🚀 [MANUAL JOIN] No invitation or attendance record found for event');
-            console.log('🚀 [MANUAL JOIN] Automatically joining event first. Event ID:', event._id);
-
             // Automatically join the event first
             try {
-              console.log('🚀 [MANUAL JOIN] Making auto-join API call...');
-              console.log('🚀 [MANUAL JOIN] Join request body:', { eventCode: eventCode.toUpperCase() });
-
+              
               const joinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
                 method: 'POST',
                 headers: {
@@ -2562,24 +2464,17 @@ const ParticipantDashboard = () => {
                 body: JSON.stringify({ eventCode: eventCode.toUpperCase() })
               });
 
-              console.log('🚀 [MANUAL JOIN] Auto-join response:', {
-                status: joinResponse.status,
-                ok: joinResponse.ok
-              });
-
               const joinResult = await joinResponse.json();
-              console.log('🚀 [MANUAL JOIN] Auto-join result:', joinResult);
-
               if (!joinResult.success) {
                 if (joinResult.requiresRegistration && joinResult.registrationForm) {
                   // Show registration form modal
-                  console.log('🚀 [MANUAL JOIN] Registration form required, showing modal');
                   setRegistrationFormData(joinResult.registrationForm);
                   setPendingEventCode(eventCode);
                   setPendingEventTitle(event.title);
                   setPendingEventId(event._id);
                   setIsRegistrationRequired(true); // Form is required
                   setRegistrationContext('public'); // Mark as public event context
+                  registrationContextRef.current = 'public';
                   setShowRegistrationForm(true);
                   toast({
                     title: "Registration Required",
@@ -2594,15 +2489,13 @@ const ParticipantDashboard = () => {
               const wasAutoCheckedIn = joinResult.data?.attendanceRecord?.status === 'checked-in';
 
               if (wasAutoCheckedIn) {
-                console.log('🚀 [MANUAL JOIN] ✅ Auto-checked in during join (active event)');
-
+                
                 toast({
                   title: "Success!",
                   description: `Joined and checked in to "${event.title}"!`,
                 });
 
                 // Refresh data
-                console.log('🚀 [MANUAL JOIN] Reloading page to refresh data...');
                 window.location.reload();
                 return;
               }
@@ -2614,15 +2507,7 @@ const ParticipantDashboard = () => {
               });
 
               // Continue with check-in after successful join
-              console.log('🚀 [MANUAL JOIN] ✅ Successfully auto-joined, proceeding with direct check-in');
-
               // Now perform the direct check-in since we just joined
-              console.log('🚀 [MANUAL JOIN] Making direct check-in API call...');
-              console.log('🚀 [MANUAL JOIN] Check-in request:', {
-                eventId: event._id,
-                locationExists: !!location
-              });
-
               const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
                 method: 'POST',
                 headers: {
@@ -2635,27 +2520,17 @@ const ParticipantDashboard = () => {
                 })
               });
 
-              console.log('🚀 [MANUAL JOIN] Direct check-in response:', {
-                status: checkinResponse.status,
-                ok: checkinResponse.ok
-              });
-
               const checkinData = await checkinResponse.json();
-              console.log('🚀 [MANUAL JOIN] Direct check-in response body:', checkinData);
-
               if (checkinData.success) {
-                console.log('🚀 [MANUAL JOIN] ✅ Check-in successful! Process complete.');
                 toast({
                   title: "Success!",
                   description: `Joined and checked in to "${event.title}"!`,
                 });
 
                 // Refresh data
-                console.log('🚀 [MANUAL JOIN] Reloading page to refresh data...');
                 window.location.reload();
                 return;
               } else {
-                console.log('🚀 [MANUAL JOIN] ❌ Check-in failed:', checkinData.message);
                 throw new Error(checkinData.message || 'Failed to check in after joining');
               }
 
@@ -2672,8 +2547,6 @@ const ParticipantDashboard = () => {
 
           // For public events with attendance records (no invitation needed) OR after auto-joining
           if (finalAttendanceRecord && !invitation) {
-            console.log('Using attendance record for public event check-in');
-            console.log('Attendance record details:', finalAttendanceRecord);
             // Check if already checked in
             if (finalAttendanceRecord.status === 'checked-in' || finalAttendanceRecord.checkInTime) {
               toast({
@@ -2698,8 +2571,6 @@ const ParticipantDashboard = () => {
             });
 
             const checkinData = await checkinResponse.json();
-            console.log('Direct check-in response:', checkinData);
-
             if (checkinData.success) {
               // Send native notification
               await notificationService.sendCheckInNotification(event.title);
@@ -2781,12 +2652,7 @@ const ParticipantDashboard = () => {
   };
 
   const handleJoinWithCode = async (code: string) => {
-    console.log('🚀 [QR JOIN] Starting handleJoinWithCode from QR scan');
-    console.log('🚀 [QR JOIN] Event code:', code);
-    console.log('🚀 [QR JOIN] Token exists:', !!token);
-
     if (!code) {
-      console.log('🚀 [QR JOIN] No event code provided');
       toast({
         title: "Event code required",
         description: "Invalid QR code - no event code found",
@@ -2795,14 +2661,10 @@ const ParticipantDashboard = () => {
       return;
     }
 
-    console.log('🚀 [QR JOIN] Setting isJoining to true');
     setIsJoining(true);
 
     try {
       // First, find the event by code
-      console.log('🚀 [QR JOIN] Fetching event by code...');
-      console.log('🚀 [QR JOIN] API call:', `${API_CONFIG.API_BASE}/events/code/${code}`);
-
       const eventResponse = await fetch(`${API_CONFIG.API_BASE}/events/code/${code}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -2810,26 +2672,12 @@ const ParticipantDashboard = () => {
         }
       });
 
-      console.log('🚀 [QR JOIN] Event fetch response:', {
-        status: eventResponse.status,
-        ok: eventResponse.ok
-      });
-
       if (!eventResponse.ok) {
-        console.log('🚀 [QR JOIN] Event not found with code:', code);
         throw new Error('Event not found with that code');
       }
 
       const eventData = await eventResponse.json();
-      console.log('🚀 [QR JOIN] Event data received:', eventData);
       const event = eventData.data.event;
-      console.log('🚀 [QR JOIN] Event details:', {
-        id: event._id,
-        title: event.title,
-        published: event.published,
-        isActive: event.isActive
-      });
-
       // Check if attendance is available
       const availability = getAttendanceAvailability(event);
 
@@ -2871,17 +2719,9 @@ const ParticipantDashboard = () => {
         // Check if user has an attendance record for this event
         const attendanceRecord = myAttendance.find(att => att.event?._id === event._id || att.event?._id?.toString() === event._id?.toString());
 
-        console.log('🚀 [QR JOIN] Attendance record check:', {
-          found: !!attendanceRecord,
-          myAttendanceCount: myAttendance.length
-        });
-
         if (!attendanceRecord) {
-          console.log('🚀 [QR JOIN] No attendance record found, joining event first');
-
           // Automatically join the event first
           try {
-            console.log('🚀 [QR JOIN] Making auto-join API call...');
             const joinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
               method: 'POST',
               headers: {
@@ -2891,17 +2731,9 @@ const ParticipantDashboard = () => {
               body: JSON.stringify({ eventCode: code.toUpperCase() })
             });
 
-            console.log('🚀 [QR JOIN] Auto-join response:', {
-              status: joinResponse.status,
-              ok: joinResponse.ok
-            });
-
             const joinResult = await joinResponse.json();
-            console.log('🚀 [QR JOIN] Auto-join result:', joinResult);
-
             if (!joinResult.success) {
               if (joinResult.requiresRegistration && joinResult.registrationForm) {
-                console.log('🚀 [QR JOIN] Registration required, opening form modal');
                 // Show registration form modal
                 setPendingEventCode(code.toUpperCase());
                 setPendingEventTitle(event.title || 'Event');
@@ -2909,6 +2741,7 @@ const ParticipantDashboard = () => {
                 setRegistrationFormData(joinResult.registrationForm);
                 setIsRegistrationRequired(true); // Form is required
                 setRegistrationContext('public'); // Mark as public event context
+                registrationContextRef.current = 'public';
                 setShowRegistrationForm(true);
                 return;
               }
@@ -2919,8 +2752,7 @@ const ParticipantDashboard = () => {
             const wasAutoCheckedIn = joinResult.data?.attendanceRecord?.status === 'checked-in';
 
             if (wasAutoCheckedIn) {
-              console.log('🚀 [QR JOIN] ✅ Auto-checked in during join (active event)');
-
+              
               // Send native notification
               await notificationService.sendCheckInNotification(event.title);
 
@@ -2930,7 +2762,6 @@ const ParticipantDashboard = () => {
               });
 
               // Refresh data
-              console.log('🚀 [QR JOIN] Reloading page to refresh data...');
               window.location.reload();
               return;
             }
@@ -2942,7 +2773,6 @@ const ParticipantDashboard = () => {
             });
 
             // Now perform the direct check-in
-            console.log('🚀 [QR JOIN] Making direct check-in API call...');
             const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
               method: 'POST',
               headers: {
@@ -2955,17 +2785,8 @@ const ParticipantDashboard = () => {
               })
             });
 
-            console.log('🚀 [QR JOIN] Direct check-in response:', {
-              status: checkinResponse.status,
-              ok: checkinResponse.ok
-            });
-
             const checkinData = await checkinResponse.json();
-            console.log('🚀 [QR JOIN] Direct check-in response body:', checkinData);
-
             if (checkinData.success) {
-              console.log('🚀 [QR JOIN] ✅ Check-in successful!');
-
               // Send native notification
               await notificationService.sendCheckInNotification(event.title);
 
@@ -2975,11 +2796,9 @@ const ParticipantDashboard = () => {
               });
 
               // Refresh data
-              console.log('🚀 [QR JOIN] Reloading page to refresh data...');
               window.location.reload();
               return;
             } else {
-              console.log('🚀 [QR JOIN] ❌ Check-in failed:', checkinData.message);
               throw new Error(checkinData.message || 'Failed to check in after joining');
             }
 
@@ -2994,8 +2813,6 @@ const ParticipantDashboard = () => {
           }
         } else {
           // User already has attendance record
-          console.log('🚀 [QR JOIN] User already joined, checking in directly');
-
           // Check if already checked in
           if (attendanceRecord.status === 'checked-in' || attendanceRecord.checkInTime) {
             toast({
@@ -3020,8 +2837,6 @@ const ParticipantDashboard = () => {
           });
 
           const checkinData = await checkinResponse.json();
-          console.log('🚀 [QR JOIN] Direct check-in response:', checkinData);
-
           if (checkinData.success) {
             // Send native notification
             await notificationService.sendCheckInNotification(event.title);
@@ -3177,28 +2992,42 @@ const ParticipantDashboard = () => {
   }, [currentLocationStatus?.isWithinGeofence]);
 
   // Live Countdown Timer Component (same as web monitor)
+  // Server provides real-time currentTimeOutside, we just display remaining and count down
   const LiveCountdownTimer: React.FC<{
-    dataFetchTime: Date;
     baseSeconds: number;
     maxTimeSeconds: number;
-  }> = ({ dataFetchTime, baseSeconds, maxTimeSeconds }) => {
-    const [remainingSeconds, setRemainingSeconds] = useState(maxTimeSeconds - baseSeconds);
+  }> = ({ baseSeconds, maxTimeSeconds }) => {
+    // Track when we received this baseSeconds value and what it was
+    const lastUpdateRef = useRef({ time: Date.now(), base: baseSeconds });
+    const [displaySeconds, setDisplaySeconds] = useState(Math.max(0, maxTimeSeconds - baseSeconds));
 
+    // When baseSeconds changes from server, smoothly update the timer
     useEffect(() => {
-      // Calculate initial remaining time
-      const now = new Date();
-      const elapsedSinceDataFetch = Math.floor((now.getTime() - dataFetchTime.getTime()) / 1000);
-      const totalElapsed = baseSeconds + elapsedSinceDataFetch;
-      const remaining = Math.max(0, maxTimeSeconds - totalElapsed);
-      setRemainingSeconds(remaining);
+      const now = Date.now();
+      const timeSinceLastUpdate = Math.floor((now - lastUpdateRef.current.time) / 1000);
 
-      // Update every second
+      // Calculate what our local timer would show vs what server says
+      const expectedBase = lastUpdateRef.current.base + timeSinceLastUpdate;
+      const serverBase = baseSeconds;
+
+      // Only update if server value differs significantly (more than 2 seconds)
+      // This prevents small timing differences from causing jumps
+      if (Math.abs(serverBase - expectedBase) > 2) {
+        setDisplaySeconds(Math.max(0, maxTimeSeconds - serverBase));
+      }
+
+      // Update our reference point
+      lastUpdateRef.current = { time: now, base: serverBase };
+    }, [baseSeconds, maxTimeSeconds]);
+
+    // Count down every second
+    useEffect(() => {
       const interval = setInterval(() => {
-        setRemainingSeconds(prev => Math.max(0, prev - 1));
+        setDisplaySeconds(prev => Math.max(0, prev - 1));
       }, 1000);
 
       return () => clearInterval(interval);
-    }, [dataFetchTime, baseSeconds, maxTimeSeconds]);
+    }, []);
 
     const formatTime = (seconds: number): string => {
       const hours = Math.floor(seconds / 3600);
@@ -3214,7 +3043,47 @@ const ParticipantDashboard = () => {
       }
     };
 
-    return <span>{formatTime(remainingSeconds)} available</span>;
+    return <span>{formatTime(displaySeconds)} available</span>;
+  };
+
+  // Live Time Outside Counter - counts UP smoothly for "Time outside" display
+  const LiveTimeOutsideCounter: React.FC<{
+    baseSeconds: number;
+  }> = ({ baseSeconds }) => {
+    const lastUpdateRef = useRef({ time: Date.now(), base: baseSeconds });
+    const [displaySeconds, setDisplaySeconds] = useState(baseSeconds);
+
+    // When baseSeconds changes from server, smoothly update only if significant difference
+    useEffect(() => {
+      const now = Date.now();
+      const timeSinceLastUpdate = Math.floor((now - lastUpdateRef.current.time) / 1000);
+
+      // Calculate what our local counter would show vs what server says
+      const expectedBase = lastUpdateRef.current.base + timeSinceLastUpdate;
+      const serverBase = baseSeconds;
+
+      // Only update if server value differs significantly (more than 2 seconds)
+      if (Math.abs(serverBase - expectedBase) > 2) {
+        setDisplaySeconds(serverBase);
+      }
+
+      // Update our reference point
+      lastUpdateRef.current = { time: now, base: serverBase };
+    }, [baseSeconds]);
+
+    // Count UP every second (time outside increases)
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setDisplaySeconds(prev => prev + 1);
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }, []);
+
+    const minutes = Math.floor(displaySeconds / 60);
+    const seconds = displaySeconds % 60;
+
+    return <span>{minutes}m {seconds}s</span>;
   };
 
   // Helper function to show outside premises countdown timer
@@ -3225,27 +3094,39 @@ const ParticipantDashboard = () => {
     // If no maxTimeOutside is set, don't show time display
     if (maxTimeOutside === 0) return null;
 
-    console.log('🔍 [MOBILE-TIMER] getTimeRemaining called:', {
-      eventId: event._id,
-      hasCurrentLocationStatus: !!currentLocationStatus,
-      currentLocationStatus: currentLocationStatus
-    });
+    const maxTimeOutsideSeconds = maxTimeOutside * 60;
 
-    // If we have location status, use LiveCountdownTimer (same as web monitor)
+    // If we have location status, check if inside or outside geofence
     if (currentLocationStatus) {
       const baseTimeOutside = currentLocationStatus.currentTimeOutside || 0;
-      const maxTimeOutsideSeconds = maxTimeOutside * 60;
-      const dataFetchTime = new Date(currentLocationStatus.lastLocationUpdate);
+      const isInside = currentLocationStatus.isWithinGeofence;
 
-      console.log('🔍 [MOBILE-TIMER] Using LiveCountdownTimer:', {
-        baseTimeOutside,
-        maxTimeOutsideSeconds,
-        dataFetchTime: dataFetchTime.toISOString()
-      });
+      // If INSIDE geofence, show static remaining time (no countdown)
+      if (isInside) {
+        const remainingSeconds = Math.max(0, maxTimeOutsideSeconds - baseTimeOutside);
+        const hours = Math.floor(remainingSeconds / 3600);
+        const minutes = Math.floor((remainingSeconds % 3600) / 60);
+        const seconds = remainingSeconds % 60;
 
+        let timeText = '';
+        if (hours > 0) {
+          timeText = `${hours}h ${minutes}m ${seconds}s available`;
+        } else if (minutes > 0) {
+          timeText = `${minutes}m ${seconds}s available`;
+        } else {
+          timeText = `${seconds}s available`;
+        }
+
+        return {
+          text: timeText,
+          expired: baseTimeOutside >= maxTimeOutsideSeconds,
+          showCountdown: false
+        };
+      }
+
+      // If OUTSIDE geofence, use live countdown timer
       return {
         text: <LiveCountdownTimer
-          dataFetchTime={dataFetchTime}
           baseSeconds={baseTimeOutside}
           maxTimeSeconds={maxTimeOutsideSeconds}
         />,
@@ -3255,7 +3136,6 @@ const ParticipantDashboard = () => {
     }
 
     // If no location status yet, show full time available
-    const maxTimeOutsideSeconds = maxTimeOutside * 60;
     const hours = Math.floor(maxTimeOutsideSeconds / 3600);
     const minutes = Math.floor((maxTimeOutsideSeconds % 3600) / 60);
     const seconds = maxTimeOutsideSeconds % 60;
@@ -3324,17 +3204,7 @@ const ParticipantDashboard = () => {
 
     // Debug logging
     const isExpired = now > eventEndTime;
-    console.log('🔍 [EXPIRY CHECK] Invitation:', invitation._id);
-    console.log('  Event:', event.title);
-    console.log('  Status:', invitation.status);
-    console.log('  Event Date:', eventDateStr);
-    console.log('  Event End Time (input):', event.endTime);
-    console.log('  Event End DateTime (calculated):', eventEndTime.toISOString(), '/', eventEndTime.toString());
-    console.log('  Current Time:', now.toISOString(), '/', now.toString());
-    console.log('  Time Difference (minutes):', ((now.getTime() - eventEndTime.getTime()) / 1000 / 60).toFixed(2));
-    console.log('  Is Expired?', isExpired);
-
-    // Invitation expires immediately after event ends
+                    // Invitation expires immediately after event ends
     return isExpired;
   };
 
@@ -3466,14 +3336,9 @@ const ParticipantDashboard = () => {
 
   // Handle joining public event
   const handleJoinPublicEvent = async (eventCode: string, eventTitle?: string, eventId?: string) => {
-    console.log('🔥 [JOIN EVENT] Starting handleJoinPublicEvent');
-    console.log('🔥 [JOIN EVENT] Parameters:', { eventCode, eventTitle, eventId });
-    console.log('🔥 [JOIN EVENT] Token exists:', !!token);
-
     try {
 
       if (!token) {
-        console.log('🔥 [JOIN EVENT] No token - authentication required');
         toast({
           title: "Authentication required",
           description: "Please log in to join events",
@@ -3482,12 +3347,7 @@ const ParticipantDashboard = () => {
         return;
       }
 
-      console.log('🔥 [JOIN EVENT] Setting isJoining to true');
       setIsJoining(true);
-
-      console.log('🔥 [JOIN EVENT] Making API call to /attendance/join');
-      console.log('🔥 [JOIN EVENT] API Base URL:', API_CONFIG.API_BASE);
-      console.log('🔥 [JOIN EVENT] Request body:', { eventCode });
 
       const response = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
         method: 'POST',
@@ -3498,33 +3358,12 @@ const ParticipantDashboard = () => {
         body: JSON.stringify({ eventCode })
       });
 
-      console.log('🔥 [JOIN EVENT] Response status:', response.status);
-      console.log('🔥 [JOIN EVENT] Response ok:', response.ok);
-
       const result = await response.json();
-      console.log('🔥 [JOIN EVENT] Response body:', result);
-
       if (result.success) {
-        console.log('=== JOIN BUTTON: Successfully joined event ===');
-        console.log('Event ID:', eventId);
-        console.log('Join result:', result);
-
         // Now automatically check in the user (same as QR scan functionality)
         try {
-          console.log('🔥 [JOIN EVENT] Starting auto check-in process');
-
           // Get user location for check-in
-          console.log('🔥 [JOIN EVENT] Getting user location...');
           const location = await getCurrentLocationSafely();
-          console.log('🔥 [JOIN EVENT] Location obtained:', location);
-
-          console.log('🔥 [JOIN EVENT] Making direct check-in API call');
-          console.log('🔥 [JOIN EVENT] Check-in request:', {
-            eventId,
-            locationExists: !!location,
-            apiUrl: `${API_CONFIG.API_BASE}/attendance/checkin-direct`
-          });
-
           // Perform direct check-in
           const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
             method: 'POST',
@@ -3538,21 +3377,13 @@ const ParticipantDashboard = () => {
             })
           });
 
-          console.log('🔥 [JOIN EVENT] Check-in response status:', checkinResponse.status);
-          console.log('🔥 [JOIN EVENT] Check-in response ok:', checkinResponse.ok);
-
           const checkinData = await checkinResponse.json();
-          console.log('🔥 [JOIN EVENT] Check-in response body:', checkinData);
-
           if (checkinData.success) {
-            console.log('🔥 [JOIN EVENT] ✅ Check-in successful!');
             toast({
               title: "Joined and Checked In!",
               description: `Successfully joined and checked in to "${eventTitle || eventCode}"`,
             });
           } else {
-            console.log('🔥 [JOIN EVENT] ❌ Check-in failed but join succeeded');
-            console.log('🔥 [JOIN EVENT] Check-in failure reason:', checkinData.message);
             // Just joined successfully, but check-in failed
             toast({
               title: "Joined Successfully",
@@ -3581,11 +3412,10 @@ const ParticipantDashboard = () => {
         setRegistrationFormData(result.registrationForm);
         setIsRegistrationRequired(true); // Form is required
         setRegistrationContext('public'); // Mark as public event context
+        registrationContextRef.current = 'public';
         setShowRegistrationForm(true);
       } else {
-        console.log('🔥 [JOIN EVENT] ❌ Join failed:', result.message);
         if (result.requiresRegistration && result.registrationForm) {
-          console.log('🔥 [JOIN EVENT] Registration required, showing form');
         }
         throw new Error(result.message || 'Failed to join event');
       }
@@ -3597,8 +3427,7 @@ const ParticipantDashboard = () => {
         variant: "destructive",
       });
     } finally {
-      console.log('🔥 [JOIN EVENT] Setting isJoining to false (cleanup)');
-      setIsJoining(false);
+            setIsJoining(false);
     }
   };
 
@@ -3607,11 +3436,11 @@ const ParticipantDashboard = () => {
     setShowRegistrationForm(false);
     setIsRegistrationRequired(false); // Reset required flag
 
-    console.log('✅ [REGISTRATION SUCCESS] Context:', registrationContext);
-
+    // Use ref to get the current context (avoids stale closure issues)
+    const currentContext = registrationContextRef.current;
+    
     // If this was from invitation acceptance, just reload the page
-    if (registrationContext === 'invitation') {
-      console.log('✅ [REGISTRATION SUCCESS] Invitation context - reloading page');
+    if (currentContext === 'invitation') {
       toast({
         title: "Registration Complete",
         description: `You have successfully registered for "${pendingEventTitle}". The page will refresh.`,
@@ -3623,6 +3452,7 @@ const ParticipantDashboard = () => {
       setPendingEventId('');
       setRegistrationFormData(null);
       setRegistrationContext(null);
+      registrationContextRef.current = null;
 
       // Reload the page to show updated invitation status
       window.location.reload();
@@ -3630,7 +3460,12 @@ const ParticipantDashboard = () => {
     }
 
     // For public event context, try to join the event
-    console.log('✅ [REGISTRATION SUCCESS] Public event context - attempting to join');
+    // Safety check: if no event code, just reload (shouldn't happen but prevents validation errors)
+    if (!pendingEventCode) {
+      window.location.reload();
+      return;
+    }
+
     try {
       setIsJoining(true);
       const response = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
@@ -3645,16 +3480,10 @@ const ParticipantDashboard = () => {
       const result = await response.json();
 
       if (result.success) {
-        console.log('=== REGISTRATION SUCCESS: Successfully joined event ===');
-        console.log('Event ID:', pendingEventId);
-        console.log('Join result:', result);
-
         // Now automatically check in the user (same as QR scan functionality)
         try {
           // Get user location for check-in
           const location = await getCurrentLocationSafely();
-
-          console.log('=== REGISTRATION SUCCESS: Attempting auto check-in ===');
 
           // Perform direct check-in
           const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
@@ -3670,8 +3499,6 @@ const ParticipantDashboard = () => {
           });
 
           const checkinData = await checkinResponse.json();
-          console.log('=== REGISTRATION SUCCESS: Check-in response ===', checkinData);
-
           if (checkinData.success) {
             toast({
               title: "Joined and Checked In!",
@@ -3699,6 +3526,7 @@ const ParticipantDashboard = () => {
         setPendingEventId('');
         setRegistrationFormData(null);
         setRegistrationContext(null);
+        registrationContextRef.current = null;
 
         // Refresh data by reloading the page or triggering a reload
         window.location.reload();
@@ -5707,8 +5535,6 @@ const ParticipantDashboard = () => {
     try {
       // Find the invitation to check if it's expired
       const invitation = myInvitations.find(inv => inv._id === invitationId);
-      console.log('🎯 [INVITATION RESPONSE] Responding to invitation:', { invitationId, response, invitation });
-
       if (invitation && isInvitationExpired(invitation)) {
         toast({
           title: "Invitation Expired",
@@ -5728,8 +5554,6 @@ const ParticipantDashboard = () => {
       });
 
       const data = await apiResponse.json();
-      console.log('📝 [INVITATION RESPONSE] Response from server:', data);
-
       if (data.success) {
         toast({
           title: `Invitation ${response}`,
@@ -5749,12 +5573,6 @@ const ParticipantDashboard = () => {
             window.location.reload();
             return;
           }
-          console.log('🔄 [INVITATION RESPONSE] Accepted - checking registration for event:', {
-            eventId,
-            eventStructure: typeof invitation.event === 'string' ? 'string' : 'object',
-            eventObject: invitation.event
-          });
-
           // Check if event requires registration and if user has already submitted
           const checkResponse = await fetch(`${API_CONFIG.API_BASE}/registration-responses/check/${eventId}`, {
             headers: {
@@ -5764,12 +5582,8 @@ const ParticipantDashboard = () => {
           });
 
           const checkData = await checkResponse.json();
-          console.log('🔍 [INVITATION RESPONSE] Registration check result:', checkData);
-
           // If registration is required and user hasn't submitted yet, show the form
           if (checkData.success && checkData.data.requiresRegistration && !checkData.data.hasSubmitted) {
-            console.log('✅ [INVITATION RESPONSE] Showing registration form modal');
-
             // Extract event details safely
             const eventTitle = typeof invitation.event === 'string' ? 'Event' : (invitation.event.title || 'Event');
             const eventCode = typeof invitation.event === 'string' ? '' : (invitation.event.eventCode || '');
@@ -5784,26 +5598,14 @@ const ParticipantDashboard = () => {
             setPendingEventId(finalEventId);
             setIsRegistrationRequired(true);
             setRegistrationContext('invitation'); // Mark as invitation context
+            registrationContextRef.current = 'invitation';
             setShowRegistrationForm(true);
-            console.log('🎬 [INVITATION RESPONSE] Modal state set:', {
-              showRegistrationForm: true,
-              isRequired: true,
-              extractedEventId: eventId,
-              finalEventId: finalEventId,
-              eventIdType: typeof finalEventId,
-              eventIdLength: finalEventId?.length,
-              eventTitle: eventTitle,
-              registrationFormId: checkData.data.registrationForm._id,
-              registrationFormEventId: checkData.data.registrationForm.event
-            });
             return; // Don't reload yet, wait for form submission
           } else {
-            console.log('ℹ️ [INVITATION RESPONSE] No registration needed or already submitted');
           }
         }
 
         // Refresh data only if no registration form needs to be shown
-        console.log('🔄 [INVITATION RESPONSE] Reloading page...');
         window.location.reload();
       } else {
         throw new Error(data.message);
@@ -6150,10 +5952,7 @@ const ParticipantDashboard = () => {
     if (!token || !user._id) return;
 
     try {
-      console.log(`🔄 [FETCH] Fetching location status for event ${eventId}, participant ${user._id}`);
-      const url = `${API_CONFIG.API_BASE}/events/location-tracking/participant/${user._id}/event/${eventId}/status`;
-      console.log(`🔄 [FETCH] URL: ${url}`);
-
+      const url = `${API_CONFIG.API_BASE}/location-tracking/participant/${user._id}/event/${eventId}/status`;
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -6161,11 +5960,8 @@ const ParticipantDashboard = () => {
         }
       });
 
-      console.log(`🔄 [FETCH] Response status: ${response.status}`);
-
       if (response.ok) {
         const data = await response.json();
-        console.log(`✅ [FETCH] Received location status:`, data.data);
         setCurrentLocationStatus(data.data);
       } else {
         console.error(`❌ [FETCH] Failed to fetch location status: ${response.status}`);
@@ -6805,25 +6601,15 @@ const ParticipantDashboard = () => {
                     </p>
                   )}
                   
-                  {currentLocationStatus.currentTimeOutside > 0 && (() => {
-                    // Calculate real-time elapsed time
-                    const lastUpdate = new Date(currentLocationStatus.lastLocationUpdate);
-                    const now = currentTime; // Use the state that updates every second
-                    const elapsedSinceUpdate = Math.floor((now.getTime() - lastUpdate.getTime()) / 1000);
-
-                    // Add elapsed time to base time outside for real-time display
-                    const realTimeOutside = currentLocationStatus.currentTimeOutside + elapsedSinceUpdate;
-
-                    return (
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        Time outside: <span className={`font-medium ${
-                          currentLocationStatus.status === 'exceeded_limit' ? 'text-red-600 dark:text-red-400' : ''
-                        }`}>
-                          {Math.floor(realTimeOutside / 60)}m {realTimeOutside % 60}s
-                        </span>
-                      </p>
-                    );
-                  })()}
+                  {currentLocationStatus.currentTimeOutside > 0 && (
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Time outside: <span className={`font-medium ${
+                        currentLocationStatus.status === 'exceeded_limit' ? 'text-red-600 dark:text-red-400' : ''
+                      }`}>
+                        <LiveTimeOutsideCounter baseSeconds={currentLocationStatus.currentTimeOutside} />
+                      </span>
+                    </p>
+                  )}
                   
                   {currentLocationStatus.lastLocationUpdate && (
                     <p className="text-xs text-gray-500 dark:text-gray-500">
@@ -6859,9 +6645,9 @@ const ParticipantDashboard = () => {
               playsInline
               muted
               autoPlay
-              onLoadedData={() => console.log('Video loaded data')}
-              onPlay={() => console.log('Video started playing')}
-              onError={(e) => console.error('Video error:', e)}
+              
+              
+              
             />
             <canvas ref={canvasRef} className="hidden" />
             
