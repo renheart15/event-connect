@@ -3047,9 +3047,11 @@ const ParticipantDashboard = () => {
   };
 
   // Live Time Outside Counter - counts UP smoothly for "Time outside" display
+  // Only counts when isOutside is true
   const LiveTimeOutsideCounter: React.FC<{
     baseSeconds: number;
-  }> = ({ baseSeconds }) => {
+    isOutside: boolean;
+  }> = ({ baseSeconds, isOutside }) => {
     const lastUpdateRef = useRef({ time: Date.now(), base: baseSeconds });
     const [displaySeconds, setDisplaySeconds] = useState(baseSeconds);
 
@@ -3059,7 +3061,7 @@ const ParticipantDashboard = () => {
       const timeSinceLastUpdate = Math.floor((now - lastUpdateRef.current.time) / 1000);
 
       // Calculate what our local counter would show vs what server says
-      const expectedBase = lastUpdateRef.current.base + timeSinceLastUpdate;
+      const expectedBase = lastUpdateRef.current.base + (isOutside ? timeSinceLastUpdate : 0);
       const serverBase = baseSeconds;
 
       // Only update if server value differs significantly (more than 2 seconds)
@@ -3069,16 +3071,18 @@ const ParticipantDashboard = () => {
 
       // Update our reference point
       lastUpdateRef.current = { time: now, base: serverBase };
-    }, [baseSeconds]);
+    }, [baseSeconds, isOutside]);
 
-    // Count UP every second (time outside increases)
+    // Count UP every second ONLY when outside
     useEffect(() => {
+      if (!isOutside) return; // Don't count when inside
+
       const interval = setInterval(() => {
         setDisplaySeconds(prev => prev + 1);
       }, 1000);
 
       return () => clearInterval(interval);
-    }, []);
+    }, [isOutside]);
 
     const minutes = Math.floor(displaySeconds / 60);
     const seconds = displaySeconds % 60;
@@ -6606,7 +6610,7 @@ const ParticipantDashboard = () => {
                       Time outside: <span className={`font-medium ${
                         currentLocationStatus.status === 'exceeded_limit' ? 'text-red-600 dark:text-red-400' : ''
                       }`}>
-                        <LiveTimeOutsideCounter baseSeconds={currentLocationStatus.currentTimeOutside} />
+                        <LiveTimeOutsideCounter baseSeconds={currentLocationStatus.currentTimeOutside} isOutside={!currentLocationStatus.isWithinGeofence} />
                       </span>
                     </p>
                   )}
