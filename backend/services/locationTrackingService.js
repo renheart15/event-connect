@@ -207,7 +207,9 @@ class LocationTrackingService {
 
     // Start outside timer with reason 'outside'
     locationStatus.startOutsideTimer();
-    locationStatus.outsideTimer.reason = 'outside';
+    if (locationStatus.outsideTimer) {
+      locationStatus.outsideTimer.reason = 'outside';
+    }
     locationStatus.status = 'outside';
 
     // Set up monitoring timer for this participant
@@ -247,7 +249,7 @@ class LocationTrackingService {
     let totalTime = 0;
 
     // Check if participant was stale and is now back
-    const wasStale = locationStatus.outsideTimer.isActive && locationStatus.outsideTimer.reason === 'stale';
+    const wasStale = locationStatus.outsideTimer?.isActive && locationStatus.outsideTimer?.reason === 'stale';
 
     if (wasStale && !isStale) {
       // Participant returned from being stale - preserve accumulated time
@@ -260,7 +262,9 @@ class LocationTrackingService {
       if (!locationStatus.isWithinGeofence) {
         console.log(`🔄 [TIMER RESTARTED] Participant still outside geofence. Restarting timer with reason 'outside'.`);
         locationStatus.startOutsideTimer();
-        locationStatus.outsideTimer.reason = 'outside';
+        if (locationStatus.outsideTimer) {
+          locationStatus.outsideTimer.reason = 'outside';
+        }
         locationStatus.status = 'outside';
 
         // CRITICAL FIX: Restart monitoring timer (previously stopped when pauseOutsideTimer was called)
@@ -281,7 +285,7 @@ class LocationTrackingService {
     if (locationStatus.outsideTimer?.isActive) {
       totalTime = locationStatus.calculateTotalTimeOutside();
       console.log(`⏱️ [TIMER] Active outside timer: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
-    } else if (isStale) {
+    } else if (isStale && locationStatus.outsideTimer) {
       // If stale, activate timer and count time AFTER the 3-minute stale threshold
       console.log(`⚠️ [STALE DATA] Participant data is stale (${Math.round(minutesSinceUpdate)} min). Activating timer.`);
 
@@ -414,7 +418,7 @@ class LocationTrackingService {
           .populate('event')
           .populate('participant', 'name email');
 
-        if (!locationStatus || !locationStatus.outsideTimer.isActive) {
+        if (!locationStatus || !locationStatus.outsideTimer?.isActive) {
           this.clearMonitoringTimer(statusId);
           return;
         }
@@ -493,7 +497,7 @@ class LocationTrackingService {
         const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3
 
         // Check if should be marked absent (this will activate timer if stale)
-        if (isStale || status.outsideTimer.isActive) {
+        if (isStale || status.outsideTimer?.isActive) {
           await this.updateParticipantStatus(status, status.event);
           await status.save();
           statusObj.outsideTimer = status.outsideTimer;
@@ -501,10 +505,10 @@ class LocationTrackingService {
         }
 
         // Calculate current time outside
-        if (status.outsideTimer.isActive) {
+        if (status.outsideTimer?.isActive) {
           statusObj.currentTimeOutside = status.calculateTotalTimeOutside();
         } else {
-          statusObj.currentTimeOutside = status.outsideTimer.totalTimeOutside;
+          statusObj.currentTimeOutside = status.outsideTimer?.totalTimeOutside || 0;
         }
 
         // PRIORITIZATION: Use registration data from attendance log if available, otherwise use user account data
@@ -577,7 +581,7 @@ class LocationTrackingService {
         const minutesSinceUpdate = (now - new Date(status.lastLocationUpdate)) / (1000 * 60);
         const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3
 
-        if (isStale || status.outsideTimer.isActive) {
+        if (isStale || status.outsideTimer?.isActive) {
           console.log(`⚠️ [STALE CHECK] Checking ${status.participant.name}: ${Math.round(minutesSinceUpdate)} min since last update`);
           await this.updateParticipantStatus(status, status.event);
           await status.save();
