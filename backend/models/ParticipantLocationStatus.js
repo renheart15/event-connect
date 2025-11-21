@@ -54,8 +54,8 @@ const participantLocationStatusSchema = new mongoose.Schema({
     },
     reason: {
       type: String,
-      enum: ['outside', 'stale'],
-      default: 'outside'
+      enum: ['outside', 'stale', null],
+      default: null
     },
     startTime: {
       type: Date
