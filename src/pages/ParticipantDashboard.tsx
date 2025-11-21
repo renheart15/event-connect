@@ -66,6 +66,7 @@ const ParticipantDashboard = () => {
   const [pendingEventId, setPendingEventId] = useState('');
   const [registrationFormData, setRegistrationFormData] = useState<any>(null);
   const [isRegistrationRequired, setIsRegistrationRequired] = useState(false); // Track if form is required
+  const [registrationContext, setRegistrationContext] = useState<'invitation' | 'public' | null>(null); // Track context: invitation acceptance or public event join
   const [activeOrganization, setActiveOrganization] = useState<any>(null);
   
   // Event record modal state
@@ -2578,6 +2579,7 @@ const ParticipantDashboard = () => {
                   setPendingEventTitle(event.title);
                   setPendingEventId(event._id);
                   setIsRegistrationRequired(true); // Form is required
+                  setRegistrationContext('public'); // Mark as public event context
                   setShowRegistrationForm(true);
                   toast({
                     title: "Registration Required",
@@ -2906,6 +2908,7 @@ const ParticipantDashboard = () => {
                 setPendingEventId(event._id || '');
                 setRegistrationFormData(joinResult.registrationForm);
                 setIsRegistrationRequired(true); // Form is required
+                setRegistrationContext('public'); // Mark as public event context
                 setShowRegistrationForm(true);
                 return;
               }
@@ -3577,6 +3580,7 @@ const ParticipantDashboard = () => {
         setPendingEventId(eventId || '');
         setRegistrationFormData(result.registrationForm);
         setIsRegistrationRequired(true); // Form is required
+        setRegistrationContext('public'); // Mark as public event context
         setShowRegistrationForm(true);
       } else {
         console.log('🔥 [JOIN EVENT] ❌ Join failed:', result.message);
@@ -3603,7 +3607,30 @@ const ParticipantDashboard = () => {
     setShowRegistrationForm(false);
     setIsRegistrationRequired(false); // Reset required flag
 
-    // Now try to join the event again
+    console.log('✅ [REGISTRATION SUCCESS] Context:', registrationContext);
+
+    // If this was from invitation acceptance, just reload the page
+    if (registrationContext === 'invitation') {
+      console.log('✅ [REGISTRATION SUCCESS] Invitation context - reloading page');
+      toast({
+        title: "Registration Complete",
+        description: `You have successfully registered for "${pendingEventTitle}". The page will refresh.`,
+      });
+
+      // Clear pending data
+      setPendingEventCode('');
+      setPendingEventTitle('');
+      setPendingEventId('');
+      setRegistrationFormData(null);
+      setRegistrationContext(null);
+
+      // Reload the page to show updated invitation status
+      window.location.reload();
+      return;
+    }
+
+    // For public event context, try to join the event
+    console.log('✅ [REGISTRATION SUCCESS] Public event context - attempting to join');
     try {
       setIsJoining(true);
       const response = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
@@ -3671,6 +3698,7 @@ const ParticipantDashboard = () => {
         setPendingEventTitle('');
         setPendingEventId('');
         setRegistrationFormData(null);
+        setRegistrationContext(null);
 
         // Refresh data by reloading the page or triggering a reload
         window.location.reload();
@@ -5755,6 +5783,7 @@ const ParticipantDashboard = () => {
             setPendingEventTitle(eventTitle);
             setPendingEventId(finalEventId);
             setIsRegistrationRequired(true);
+            setRegistrationContext('invitation'); // Mark as invitation context
             setShowRegistrationForm(true);
             console.log('🎬 [INVITATION RESPONSE] Modal state set:', {
               showRegistrationForm: true,
