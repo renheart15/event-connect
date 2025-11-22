@@ -183,6 +183,9 @@ router.get('/', auth, async (req, res) => {
               totalAttendees: { $sum: 1 },
               currentlyPresent: {
                 $sum: { $cond: [{ $eq: ['$status', 'checked-in'] }, 1, 0] }
+              },
+              totalAbsent: {
+                $sum: { $cond: [{ $eq: ['$status', 'absent'] }, 1, 0] }
               }
             }
           }
@@ -190,7 +193,8 @@ router.get('/', auth, async (req, res) => {
         attendanceCounts.forEach(stat => {
           attendanceStats.set(stat._id.toString(), {
             totalAttendees: stat.totalAttendees,
-            currentlyPresent: stat.currentlyPresent
+            currentlyPresent: stat.currentlyPresent,
+            totalAbsent: stat.totalAbsent
           });
         });
       } catch (aggregateError) {
@@ -218,13 +222,14 @@ router.get('/', auth, async (req, res) => {
       let eventData = event.toObject();
       if (req.user.role === 'organizer') {
         const eventIdStr = event._id.toString();
-        const attendance = attendanceStats.get(eventIdStr) || { totalAttendees: 0, currentlyPresent: 0 };
+        const attendance = attendanceStats.get(eventIdStr) || { totalAttendees: 0, currentlyPresent: 0, totalAbsent: 0 };
 
         // Use total attendees (checked-in participants) as total, not just invited participants
         // This includes both invited participants and walk-ins (uninvited who scanned QR)
         eventData.totalParticipants = attendance.totalAttendees;
         eventData.checkedIn = attendance.totalAttendees;
-        eventData.currentlyPresent = attendance.currentlyPresent;
+        // For completed events, show absent count; for active/upcoming, show currently present
+        eventData.currentlyPresent = event.status === 'completed' ? attendance.totalAbsent : attendance.currentlyPresent;
       }
 
       eventsWithStats.push(eventData);
