@@ -152,7 +152,7 @@ router.get('/', auth, async (req, res) => {
 
     const events = await Event.find(query)
       .populate('organizer', 'name email')
-      .sort({ date: -1 })
+      .sort({ createdAt: -1 }) // Sort by creation date, newest first
       .skip(skip)
       .limit(limit);
 

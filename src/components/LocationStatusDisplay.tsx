@@ -270,9 +270,21 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           <h3 className="font-semibold text-lg">{status.participant.name}</h3>
                           <p className="text-sm text-gray-600">{status.participant.email}</p>
                         </div>
-                        <Badge variant={getStatusColor(status.status)} className="flex items-center gap-1">
-                          {getStatusIcon(status.status)}
-                          {getStatusText(status.status)}
+                        <Badge
+                          variant={isStale && !isAbsent ? 'secondary' : getStatusColor(status.status)}
+                          className="flex items-center gap-1"
+                        >
+                          {isStale && !isAbsent ? (
+                            <>
+                              <AlertTriangle className="w-4 h-4" />
+                              Stale
+                            </>
+                          ) : (
+                            <>
+                              {getStatusIcon(status.status)}
+                              {getStatusText(status.status)}
+                            </>
+                          )}
                         </Badge>
                       </div>
                     </AccordionTrigger>
