@@ -49,6 +49,10 @@ const ParticipantDashboard = () => {
   const [selectedFeedbackEvent, setSelectedFeedbackEvent] = useState<any>(null);
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [feedbackFormsStatus, setFeedbackFormsStatus] = useState<Record<string, { exists: boolean; isPublished: boolean }>>({});
+  const [submittedFeedbackEvents, setSubmittedFeedbackEvents] = useState<Set<string>>(() => {
+    const stored = localStorage.getItem('submittedFeedbackEvents');
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  });
   const [userOrganization, setUserOrganization] = useState<any>(null);
   const [loadingOrganization, setLoadingOrganization] = useState(false);
   const [leavingOrganization, setLeavingOrganization] = useState(false);
@@ -1008,11 +1012,16 @@ const ParticipantDashboard = () => {
     const eventIds = [...new Set([
       ...myAttendance.map(a => a.event._id || a.event),
     ])].filter(Boolean);
-    
+
     if (eventIds.length > 0) {
       checkFeedbackFormsStatus(eventIds);
     }
   }, [myAttendance]);
+
+  // Persist submitted feedback events to localStorage
+  useEffect(() => {
+    localStorage.setItem('submittedFeedbackEvents', JSON.stringify([...submittedFeedbackEvents]));
+  }, [submittedFeedbackEvents]);
 
   // Automatic location monitoring for ALL participants (invited and uninvited) in active events
   useEffect(() => {
@@ -5519,6 +5528,13 @@ const ParticipantDashboard = () => {
 
   // Handle feedback form submission
   const handleFeedbackSubmit = (_responses: Record<string, any>) => {
+    if (selectedFeedbackEvent?.id) {
+      setSubmittedFeedbackEvents(prev => {
+        const newSet = new Set(prev);
+        newSet.add(selectedFeedbackEvent.id);
+        return newSet;
+      });
+    }
     toast({
       title: "Feedback Submitted",
       description: "Thank you for your feedback!",
@@ -5529,11 +5545,15 @@ const ParticipantDashboard = () => {
   // Check if feedback button should be disabled
   const isFeedbackButtonDisabled = (eventId: string) => {
     const formStatus = feedbackFormsStatus[eventId];
-    return !formStatus?.exists || !formStatus?.isPublished;
+    // Disable if already submitted, or if form doesn't exist or isn't published
+    return submittedFeedbackEvents.has(eventId) || !formStatus?.exists || !formStatus?.isPublished;
   };
 
   // Get feedback button tooltip/title text
   const getFeedbackButtonTooltip = (eventId: string) => {
+    if (submittedFeedbackEvents.has(eventId)) {
+      return "Feedback already submitted";
+    }
     const formStatus = feedbackFormsStatus[eventId];
     if (!formStatus?.exists) {
       return "No feedback form available";

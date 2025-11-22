@@ -74,7 +74,7 @@ const processEventData = (rawEvent: any): Event => {
 };
 
 // Deduplicated fetch function
-const fetchEventsData = async (): Promise<Event[]> => {
+const fetchEventsData = async (): Promise<{ events: Event[], error: string | null }> => {
   const cacheKey = 'events';
 
   // Check if there's already an active request
@@ -85,7 +85,7 @@ const fetchEventsData = async (): Promise<Event[]> => {
   const token = localStorage.getItem('token');
   if (!token) {
     console.warn('No authentication token found for events fetch');
-    return [];
+    return { events: [], error: 'No authentication token' };
   }
 
   const requestPromise = fetch(`${API_CONFIG.API_BASE}/events`, {
@@ -98,14 +98,14 @@ const fetchEventsData = async (): Promise<Event[]> => {
       if (!response.ok) {
         if (response.status === 401) {
           console.warn('Authentication failed, user may need to log in again');
-          return [];
+          return { events: [], error: 'Authentication failed' };
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const result = await response.json();
       if (!result.success) {
         console.error('Events API error:', result.message);
-        return [];
+        return { events: [], error: result.message };
       }
 
       // Process and cache the data
@@ -121,12 +121,16 @@ const fetchEventsData = async (): Promise<Event[]> => {
       // Notify all subscribers
       cacheSubscribers.forEach(callback => callback());
 
-      return processedEvents;
+      return { events: processedEvents, error: null };
     })
     .catch((error) => {
       console.error('Error fetching events:', error);
-      // Return empty array instead of throwing to prevent app crashes
-      return [];
+      // Check if it's a network error
+      const isNetworkError = error.message?.includes('fetch') ||
+                            error.message?.includes('NetworkError') ||
+                            error.name === 'TypeError';
+      const errorMessage = isNetworkError ? 'No internet connection' : error.message;
+      return { events: [], error: errorMessage };
     })
     .finally(() => {
       activeRequests.delete(cacheKey);
@@ -191,15 +195,16 @@ export const useEvents = (options: UseEventsOptions = {}) => {
       setLoading(true);
       setError(null);
 
-      const fetchedEvents = await fetchEventsData();
+      const result = await fetchEventsData();
 
       if (mountedRef.current) {
-        setEvents(fetchedEvents);
+        setEvents(result.events);
+        setError(result.error);
         setLoading(false);
         setLastRefresh(Date.now());
       }
 
-      return fetchedEvents;
+      return result.events;
     } catch (err: any) {
       console.error('Error fetching events:', err);
       if (mountedRef.current) {

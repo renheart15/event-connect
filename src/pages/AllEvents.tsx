@@ -113,9 +113,9 @@ const AllEvents = () => {
 
   // Filter events based on showAllEvents state and hidden events
   const visibleEvents = events.filter(e => !hiddenEventIds.includes(e.id));
-  const sortedEvents = [...visibleEvents].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const displayedEvents = showAllEvents 
-    ? sortedEvents 
+  const sortedEvents = [...visibleEvents].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort by newest first
+  const displayedEvents = showAllEvents
+    ? sortedEvents
     : sortedEvents.filter(event => event.status === 'active' || event.status === 'upcoming');
 
   // Modal dialog handlers
@@ -450,8 +450,8 @@ const AllEvents = () => {
                 {showAllEvents ? 'All Events' : 'Active & Upcoming Events'}
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                {showAllEvents 
-                  ? `Showing ${displayedEvents.length} of ${events.length} events (sorted by date)` 
+                {showAllEvents
+                  ? `Showing ${displayedEvents.length} of ${events.length} events (newest first)`
                   : `${displayedEvents.length} active and upcoming events`
                 }
               </p>

@@ -225,9 +225,9 @@ const OrganizerDashboard = () => {
   // Sort events by date and filter based on showAllEvents state and hidden events
   const sortedEvents = [...events]
     .filter(e => !hiddenEventIds.includes(e.id))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const displayedEvents = showAllEvents 
-    ? sortedEvents 
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort by newest first
+  const displayedEvents = showAllEvents
+    ? sortedEvents
     : sortedEvents.filter(event => event.status === 'active' || event.status === 'upcoming');
 
   const stats = {
@@ -665,8 +665,8 @@ const OrganizerDashboard = () => {
                 {showAllEvents ? 'All Events' : 'Active & Upcoming Events'}
               </h2>
               <p className="text-muted-foreground text-sm">
-                {showAllEvents 
-                  ? 'Manage and monitor all your events (sorted by date)' 
+                {showAllEvents
+                  ? 'Manage and monitor all your events (newest first)'
                   : 'Currently active and upcoming events'
                 }
               </p>
