@@ -390,23 +390,27 @@ class LocationTrackingService {
         return;
       }
 
-      // Only mark as absent if currently checked in
-      if (attendanceLog.status === 'checked-in') {
-        attendanceLog.status = 'absent';
+      // Mark as absent regardless of current status (even if already checked-out)
+      // This ensures participants who exceeded time limits are properly marked as absent
+      const previousStatus = attendanceLog.status;
+      attendanceLog.status = 'absent';
+
+      // Set checkout time if not already set
+      if (!attendanceLog.checkOutTime) {
         attendanceLog.checkOutTime = new Date();
-
-        const reason = isStale
-          ? 'Automatically marked absent - location data became stale and exceeded time limit'
-          : 'Automatically marked absent - exceeded maximum time outside premises';
-
-        attendanceLog.notes = attendanceLog.notes
-          ? `${attendanceLog.notes}\n\n${reason}`
-          : reason;
-
-        await attendanceLog.save();
-
-        console.log(`✅ Marked attendance as absent for participant ${locationStatus.participant} - ${reason}`);
       }
+
+      const reason = isStale
+        ? 'Automatically marked absent - location data became stale and exceeded time limit'
+        : 'Automatically marked absent - exceeded maximum time outside premises';
+
+      attendanceLog.notes = attendanceLog.notes
+        ? `${attendanceLog.notes}\n\n${reason}`
+        : reason;
+
+      await attendanceLog.save();
+
+      console.log(`✅ Marked attendance as absent for participant ${locationStatus.participant} (was: ${previousStatus}, now: absent) - ${reason}`);
     } catch (error) {
       console.error('Error marking attendance as absent:', error);
     }
