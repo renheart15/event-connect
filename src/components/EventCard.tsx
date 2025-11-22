@@ -293,9 +293,11 @@ const EventCard = ({
             <div className="text-2xl font-bold text-green-600">{event.checkedIn}</div>
             <div className="text-xs text-muted-foreground">Checked In</div>
           </div>
-          <div className={`text-center p-3 rounded-lg ${isCompleted ? 'bg-red-50 dark:bg-red-950/30' : 'bg-blue-50 dark:bg-blue-950/30'}`}>
-            <div className={`text-2xl font-bold ${isCompleted ? 'text-red-600' : 'text-blue-600'}`}>{event.currentlyPresent}</div>
-            <div className="text-xs text-muted-foreground">{isCompleted ? 'Absent' : 'Present'}</div>
+          <div className="text-center p-3 rounded-lg bg-red-50 dark:bg-red-950/30">
+            <div className="text-2xl font-bold text-red-600">
+              {isCompleted ? event.currentlyPresent : (event.checkedIn - event.currentlyPresent)}
+            </div>
+            <div className="text-xs text-muted-foreground">Absent</div>
           </div>
         </div>
 
