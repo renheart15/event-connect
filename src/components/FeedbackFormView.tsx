@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Star, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { API_CONFIG } from '@/config';
 
 interface Question {
   id: string;
@@ -57,7 +58,20 @@ const FeedbackFormView = ({ eventId, isOpen, onClose, onSubmit }: FeedbackFormVi
   const loadFeedbackForm = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/feedback-forms/event/${eventId}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_CONFIG.API_BASE}/feedback-forms/event/${eventId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned non-JSON response');
+      }
+
       const result = await response.json();
 
       if (result.success) {
@@ -121,7 +135,7 @@ const FeedbackFormView = ({ eventId, isOpen, onClose, onSubmit }: FeedbackFormVi
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const response = await fetch(`/api/feedback-forms/${form._id}/responses`, {
+      const response = await fetch(`${API_CONFIG.API_BASE}/feedback-forms/${form._id}/responses`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -239,6 +253,9 @@ const FeedbackFormView = ({ eventId, isOpen, onClose, onSubmit }: FeedbackFormVi
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Loading Feedback Form</DialogTitle>
+          </DialogHeader>
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <span className="ml-2">Loading feedback form...</span>
@@ -256,6 +273,9 @@ const FeedbackFormView = ({ eventId, isOpen, onClose, onSubmit }: FeedbackFormVi
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Feedback Submitted</DialogTitle>
+          </DialogHeader>
           <div className="text-center py-8">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Send className="w-8 h-8 text-green-600" />

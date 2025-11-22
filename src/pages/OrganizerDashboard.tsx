@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Eye, Filter, MoreHorizontal, Edit, Mail, Calendar, MapPin, Users, Settings, FileText, MessageSquare, Trash, QrCode, Map, Send, User, LogOut, Bell, Globe, Lock } from 'lucide-react';
+import { Plus, Eye, Filter, MoreHorizontal, Edit, Mail, Calendar, MapPin, Users, Settings, FileText, MessageSquare, Trash, QrCode, Map, Send, User, LogOut, Bell, Globe, Lock, WifiOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -696,15 +696,24 @@ const OrganizerDashboard = () => {
             <Card className="border-dashed border-2 border-muted-foreground/25">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <Plus className="w-8 h-8 text-muted-foreground" />
+                  {eventsError ? (
+                    <WifiOff className="w-8 h-8 text-muted-foreground" />
+                  ) : (
+                    <Plus className="w-8 h-8 text-muted-foreground" />
+                  )}
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {showAllEvents ? 'No events yet' : 'No active or upcoming events'}
+                  {eventsError
+                    ? 'No internet connection'
+                    : (showAllEvents ? 'No events yet' : 'No active or upcoming events')
+                  }
                 </h3>
                 <p className="text-muted-foreground text-center mb-6">
-                  {showAllEvents 
-                    ? 'Get started by creating your first event'
-                    : 'All your events are completed. Create a new event or check all events.'
+                  {eventsError
+                    ? 'Please check your internet connection and try again'
+                    : (showAllEvents
+                      ? 'Get started by creating your first event'
+                      : 'All your events are completed. Create a new event or check all events.')
                   }
                 </p>
                 <div className="flex gap-3">
@@ -715,8 +724,8 @@ const OrganizerDashboard = () => {
                     </Button>
                   </Link>
                   {!showAllEvents && (
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => setShowAllEvents(true)}
                       className="rounded-xl hover:bg-accent transition-all duration-300 border-2 hover:border-primary font-semibold shadow-md hover:shadow-lg transform hover:scale-105"
                     >
