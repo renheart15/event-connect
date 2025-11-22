@@ -79,9 +79,7 @@ const CreateEvent = () => {
 
     const today = new Date().toISOString().split('T')[0];
     if (selectedDate === today) {
-      // Add a small buffer (e.g., 5 minutes) to account for form submission time
       const now = new Date();
-      now.setMinutes(now.getMinutes() + 5);
 
       const hours = String(now.getHours()).padStart(2, '0');
       const minutes = String(now.getMinutes()).padStart(2, '0');

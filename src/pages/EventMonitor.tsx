@@ -1,4 +1,4 @@
-
+ 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,7 +87,7 @@ const EventMonitor = () => {
           // For active participants, calculate real-time duration
           const checkInTime = new Date(log.checkInTime);
           const now = new Date();
-          duration = Math.round((now - checkInTime) / (1000 * 60)); // Duration in minutes
+          duration = Math.round((now.getTime() - checkInTime.getTime()) / (1000 * 60)); // Duration in minutes
         }
 
         return {
@@ -318,7 +318,7 @@ const EventMonitor = () => {
   const getTimeAgo = (timestamp) => {
     const now = new Date();
     const time = new Date(timestamp);
-    const diffInMinutes = Math.floor((now - time) / (1000 * 60));
+    const diffInMinutes = Math.floor((now.getTime() - time.getTime()) / (1000 * 60));
 
     if (diffInMinutes < 1) return 'Just now';
     if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
@@ -420,16 +420,23 @@ const EventMonitor = () => {
     };
   }, [eventId, navigate, fetchEventData, fetchAttendanceData, fetchAvailableEvents]);
 
-  // Stop monitoring when event is completed
+  // Stop monitoring when event is completed and redirect
   useEffect(() => {
     if (eventData?.status === 'completed') {
       toast({
         title: "Event Ended",
-        description: "This event has ended. Live monitoring has stopped.",
+        description: "This event has ended. Redirecting to event monitor...",
         variant: "default"
       });
+
+      // Redirect to event monitor page after 2 seconds
+      const redirectTimer = setTimeout(() => {
+        navigate('/event-monitor');
+      }, 2000);
+
+      return () => clearTimeout(redirectTimer);
     }
-  }, [eventData?.status]);
+  }, [eventData?.status, navigate]);
 
 
   const getStatusColor = (status: string) => {

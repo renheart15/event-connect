@@ -2996,10 +2996,12 @@ const ParticipantDashboard = () => {
   const LiveCountdownTimer: React.FC<{
     baseSeconds: number;
     maxTimeSeconds: number;
-  }> = ({ baseSeconds, maxTimeSeconds }) => {
+    onTimerExpired?: () => void;
+  }> = ({ baseSeconds, maxTimeSeconds, onTimerExpired }) => {
     // Track when we received this baseSeconds value and what it was
     const lastUpdateRef = useRef({ time: Date.now(), base: baseSeconds });
     const [displaySeconds, setDisplaySeconds] = useState(Math.max(0, maxTimeSeconds - baseSeconds));
+    const expiredTriggeredRef = useRef(false);
 
     // When baseSeconds changes from server, smoothly update the timer
     useEffect(() => {
@@ -3020,14 +3022,22 @@ const ParticipantDashboard = () => {
       lastUpdateRef.current = { time: now, base: serverBase };
     }, [baseSeconds, maxTimeSeconds]);
 
-    // Count down every second
+    // Count down every second and trigger callback when expired
     useEffect(() => {
       const interval = setInterval(() => {
-        setDisplaySeconds(prev => Math.max(0, prev - 1));
+        setDisplaySeconds(prev => {
+          const newVal = Math.max(0, prev - 1);
+          // Trigger callback immediately when timer hits 0
+          if (newVal === 0 && !expiredTriggeredRef.current && onTimerExpired) {
+            expiredTriggeredRef.current = true;
+            onTimerExpired();
+          }
+          return newVal;
+        });
       }, 1000);
 
       return () => clearInterval(interval);
-    }, []);
+    }, [onTimerExpired]);
 
     const formatTime = (seconds: number): string => {
       const hours = Math.floor(seconds / 3600);
