@@ -303,14 +303,20 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       <p className="font-medium text-gray-700">Within Geofence</p>
                       <p className={`${
                         (() => {
+                          // Don't show stale indicator if marked absent
+                          if (isAbsent) return 'text-gray-400';
+
                           const lastUpdate = new Date(status.lastLocationUpdate);
                           const now = new Date();
                           const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
                           return minutesSinceUpdate > 3 ? 'text-gray-400' : 'text-gray-600';
                         })()
                       }`}>
-                        {status.isWithinGeofence ? 'Yes' : 'No'}
+                        {isAbsent ? 'N/A' : (status.isWithinGeofence ? 'Yes' : 'No')}
                         {(() => {
+                          // Don't show stale indicator if marked absent
+                          if (isAbsent) return null;
+
                           const lastUpdate = new Date(status.lastLocationUpdate);
                           const now = new Date();
                           const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
@@ -362,6 +368,9 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                       <p className="font-medium text-gray-700">Last Update</p>
                       <p className={`${
                         (() => {
+                          // Don't highlight stale time if marked absent
+                          if (isAbsent) return 'text-gray-400';
+
                           const lastUpdate = new Date(status.lastLocationUpdate);
                           const now = new Date();
                           const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
