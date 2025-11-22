@@ -840,12 +840,25 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
     // Batch update all attendances for ended events
     for (const event of endedEvents) {
       try {
+        // Get participants who should be marked absent (not auto-checked-out)
+        const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
+        const locationStatuses = await ParticipantLocationStatus.find({
+          event: event._id,
+          isActive: false // Participants marked inactive (absent)
+        }).select('attendanceLog');
+
+        const absentAttendanceLogIds = locationStatuses.map(ls => ls.attendanceLog);
+
+        console.log(`[AUTO-CHECKOUT] Event "${event.title}": Found ${absentAttendanceLogIds.length} participants marked absent, excluding from auto-checkout`);
+
         // Use updateMany to batch update all checked-in participants
+        // EXCEPT those who should be marked absent
         const updateResult = await AttendanceLog.updateMany(
           {
             event: event._id,
             status: 'checked-in',
-            checkOutTime: { $exists: false }
+            checkOutTime: { $exists: false },
+            _id: { $nin: absentAttendanceLogIds } // Exclude absent participants
           },
           {
             $set: {
@@ -861,13 +874,33 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
         const eventCheckedOut = updateResult.modifiedCount;
         totalCheckedOut += eventCheckedOut;
 
-        console.log(`Event ${event.title}: ${eventCheckedOut} participants auto-checked out`);
+        console.log(`Event ${event.title}: ${eventCheckedOut} participants auto-checked out (${absentAttendanceLogIds.length} excluded as absent)`);
+
+        // Also update any participants that were already checked-out but should be absent
+        if (absentAttendanceLogIds.length > 0) {
+          const absentCorrectionResult = await AttendanceLog.updateMany(
+            {
+              _id: { $in: absentAttendanceLogIds },
+              status: { $ne: 'absent' } // Only update if not already absent
+            },
+            {
+              $set: {
+                status: 'absent'
+              }
+            }
+          );
+
+          if (absentCorrectionResult.modifiedCount > 0) {
+            console.log(`[AUTO-CHECKOUT] Corrected ${absentCorrectionResult.modifiedCount} participants to absent status for event "${event.title}"`);
+          }
+        }
 
         results.push({
           eventId: event._id,
           eventTitle: event.title,
           eventEndTime: event.endTime,
-          participantsCheckedOut: eventCheckedOut
+          participantsCheckedOut: eventCheckedOut,
+          participantsMarkedAbsent: absentAttendanceLogIds.length
         });
 
       } catch (eventError) {
