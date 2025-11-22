@@ -52,6 +52,8 @@ class LocationTrackingService {
         }
 
         // Create new location status
+        // NOTE: Start with unknown location status
+        // First location update will determine if they're inside or outside
         locationStatus = new ParticipantLocationStatus({
           event: eventId,
           participant: participantId,
@@ -61,8 +63,8 @@ class LocationTrackingService {
             longitude: 0,
             timestamp: new Date()
           },
-          isWithinGeofence: true,
-          status: 'inside'
+          isWithinGeofence: false, // Will be determined on first location update
+          status: 'outside' // Will be updated on first location update
         });
 
         await locationStatus.save();
@@ -72,7 +74,7 @@ class LocationTrackingService {
         const isSameSession = locationStatus.attendanceLog?.toString() === attendanceLogId;
 
         if (!isSameSession) {
-          // New check-in session - reset timer
+          // New check-in session - reset timer only, preserve location status
           console.log('🔄 [LOCATION-INIT] New check-in session detected, resetting timer');
           locationStatus.outsideTimer = {
             isActive: false,
@@ -80,8 +82,8 @@ class LocationTrackingService {
             totalTimeOutside: 0,
             currentSessionStart: null
           };
-          locationStatus.status = 'inside';
-          locationStatus.isWithinGeofence = true;
+          // Don't force location status - let the next location update determine this
+          console.log('🔄 [LOCATION-INIT] Preserving location status - will be updated on next location update');
         } else {
           console.log('🔄 [LOCATION-INIT] Same session (app reopened), preserving timer data');
         }
@@ -171,6 +173,23 @@ class LocationTrackingService {
       // CRITICAL FIX: Manually update lastLocationUpdate only when receiving new location data
       // This ensures stale detection works correctly (no longer updated by pre-save hook)
       locationStatus.lastLocationUpdate = new Date();
+
+      // AUTO-CHECK-IN: If participant is registered but not checked in, auto-check them in when entering geofence
+      const attendanceLog = await AttendanceLog.findById(locationStatus.attendanceLog);
+      if (attendanceLog && attendanceLog.status === 'registered' && isWithinGeofence && event.status === 'active') {
+        console.log(`🔄 [AUTO-CHECK-IN] Participant ${locationStatus.participant.name} entered geofence and event is active. Auto-checking in...`);
+
+        // Update attendance log to checked-in
+        attendanceLog.checkInTime = new Date();
+        attendanceLog.checkInLocation = {
+          latitude,
+          longitude
+        };
+        attendanceLog.status = 'checked-in';
+        await attendanceLog.save();
+
+        console.log(`✅ [AUTO-CHECK-IN] Participant ${locationStatus.participant.name} automatically checked in`);
+      }
 
       // Handle geofence status change
       if (wasWithinGeofence && !isWithinGeofence) {
@@ -281,6 +300,10 @@ class LocationTrackingService {
         if (locationStatus.outsideTimer) {
           locationStatus.outsideTimer.reason = null;
         }
+
+        // CRITICAL FIX: Clear monitoring timer when returning from stale and inside geofence
+        this.clearMonitoringTimer(locationStatus._id);
+        console.log(`✅ [MONITORING TIMER CLEARED] Stopped background monitoring timer`);
       }
 
       if (locationStatus.outsideTimer) {
@@ -375,6 +398,12 @@ class LocationTrackingService {
       locationStatus.status = 'inside';
       if (locationStatus.outsideTimer) {
         locationStatus.outsideTimer.reason = null;
+      }
+
+      // CRITICAL FIX: Clear monitoring timer when participant is inside and timer is not active
+      if (!locationStatus.outsideTimer?.isActive) {
+        this.clearMonitoringTimer(locationStatus._id);
+        console.log(`✅ [MONITORING TIMER CLEARED] Participant inside, timer cleared`);
       }
     }
   }

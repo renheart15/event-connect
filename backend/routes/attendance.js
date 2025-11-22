@@ -283,7 +283,8 @@ router.post('/checkin', [
       });
 
       if (existingLocationStatus) {
-        // Reset existing location tracking
+        // Reset existing location tracking (preserve current location status)
+        // Only reset the timer, not the geofence status
         await ParticipantLocationStatus.findOneAndUpdate(
           { event: eventId, participant: participantId },
           {
@@ -292,15 +293,14 @@ router.post('/checkin', [
               'outsideTimer.startTime': null,
               'outsideTimer.totalTimeOutside': 0,
               'outsideTimer.currentSessionStart': null,
-              status: 'inside',
-              isWithinGeofence: true,
+              // Don't force isWithinGeofence or status - let location updates determine this
               attendanceLog: attendanceLog._id,
               isActive: true
             }
           },
           { upsert: false }
         );
-        console.log('✅ Reset location timer for participant on check-in');
+        console.log('✅ Reset location timer for participant on check-in (preserved location status)');
       } else {
         // Initialize location tracking for new check-in
         const locationTrackingService = require('../services/locationTrackingService');
@@ -1077,13 +1077,26 @@ router.post('/join', auth, [
       console.log('Attendance record created successfully:', attendanceRecord._id);
       console.log('Status set to "registered" - auto check-in will verify geofence before checking in');
 
-      // Note: Location tracking will be initialized when participant auto-checks-in
-      // This ensures they are actually inside the geofence before tracking starts
+      // CRITICAL: Initialize location tracking immediately when joining event
+      // This allows tracking even when outside the geofence
+      // Auto check-in will happen when participant enters geofence AND event is active
+      const locationTrackingService = require('../services/locationTrackingService');
+      try {
+        await locationTrackingService.initializeLocationTracking(
+          event._id,
+          userId,
+          attendanceRecord._id
+        );
+        console.log('✅ Initialized location tracking immediately after joining event');
+      } catch (locationError) {
+        console.error('⚠️ Failed to initialize location tracking:', locationError);
+        // Don't fail the join if location tracking initialization fails
+      }
 
       // Return success response
       res.json({
         success: true,
-        message: 'Successfully joined the event',
+        message: 'Successfully joined the event. Location tracking started.',
         data: {
           attendanceRecord: attendanceRecord,
           event: {
