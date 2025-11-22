@@ -786,14 +786,6 @@ const EventMonitor = () => {
                               </div>
                             </div>
 
-                            {/* Show reason for marked absent */}
-                            {participant.status === 'marked-absent' && participant.notes && (
-                              <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
-                                <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">Reason for Absence:</p>
-                                <p className="text-sm text-red-700 dark:text-red-300">{participant.notes}</p>
-                              </div>
-                            )}
-
                             {/* Remove Participant Button */}
                             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                               <Button

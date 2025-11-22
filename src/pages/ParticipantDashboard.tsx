@@ -5453,7 +5453,7 @@ const ParticipantDashboard = () => {
   // Check feedback form status for multiple events
   const checkFeedbackFormsStatus = async (eventIds: string[]) => {
     if (!token || eventIds.length === 0) return;
-    
+
     try {
       const statusChecks = await Promise.all(
         eventIds.map(async (eventId) => {
@@ -5463,26 +5463,29 @@ const ParticipantDashboard = () => {
                 'Authorization': `Bearer ${token}`,
               }
             });
-            
+
             if (response.ok) {
               const result = await response.json();
               return {
                 eventId,
                 exists: true,
-                isPublished: result.data.feedbackForm?.isPublished || false
+                isPublished: result.data.feedbackForm?.isPublished || false,
+                hasSubmitted: result.data.hasSubmitted || false
               };
             } else {
               return {
                 eventId,
                 exists: false,
-                isPublished: false
+                isPublished: false,
+                hasSubmitted: false
               };
             }
           } catch (error) {
             return {
               eventId,
               exists: false,
-              isPublished: false
+              isPublished: false,
+              hasSubmitted: false
             };
           }
         })
@@ -5492,6 +5495,21 @@ const ParticipantDashboard = () => {
         acc[eventId] = { exists, isPublished };
         return acc;
       }, {} as Record<string, { exists: boolean; isPublished: boolean }>);
+
+      // Sync hasSubmitted status from backend with local state
+      const backendSubmittedEvents = statusChecks
+        .filter(check => check.hasSubmitted)
+        .map(check => check.eventId);
+
+      if (backendSubmittedEvents.length > 0) {
+        console.log('[Backend Sync] Found already-submitted feedback:', backendSubmittedEvents);
+        setSubmittedFeedbackEvents(prev => {
+          const newSet = new Set(prev);
+          backendSubmittedEvents.forEach(eventId => newSet.add(eventId));
+          console.log('[Backend Sync] Updated local submitted events:', Array.from(newSet));
+          return newSet;
+        });
+      }
 
       setFeedbackFormsStatus(prev => ({ ...prev, ...statusMap }));
     } catch (error) {
@@ -5551,6 +5569,12 @@ const ParticipantDashboard = () => {
   const isFeedbackButtonDisabled = (eventId: string) => {
     const formStatus = feedbackFormsStatus[eventId];
     const hasSubmitted = submittedFeedbackEvents.has(eventId);
+    console.log(`[Feedback Button Check] Event ${eventId}:`, {
+      hasSubmitted,
+      formExists: formStatus?.exists,
+      formPublished: formStatus?.isPublished,
+      allSubmittedEvents: Array.from(submittedFeedbackEvents)
+    });
     // Disable if already submitted, or if form doesn't exist or isn't published
     return hasSubmitted || !formStatus?.exists || !formStatus?.isPublished;
   };

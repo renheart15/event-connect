@@ -137,9 +137,9 @@ router.get('/event/:eventId/manage', auth, requireOrganizer, async (req, res) =>
 // @route   GET /api/feedback-forms/event/:eventId
 // @desc    Get feedback form for an event
 // @access  Public (for participants to view)
-router.get('/event/:eventId', async (req, res) => {
+router.get('/event/:eventId', auth, async (req, res) => {
   try {
-    const feedbackForm = await FeedbackForm.findOne({ 
+    const feedbackForm = await FeedbackForm.findOne({
       event: req.params.eventId,
       isActive: true,
       isPublished: true
@@ -152,10 +152,22 @@ router.get('/event/:eventId', async (req, res) => {
       });
     }
 
+    // Check if the authenticated user has already submitted feedback
+    let hasSubmitted = false;
+    if (req.user && req.user._id) {
+      const existingResponse = await FeedbackResponse.findOne({
+        feedbackForm: feedbackForm._id,
+        participant: req.user._id,
+        isAnonymous: false
+      });
+      hasSubmitted = !!existingResponse;
+    }
+
     res.json({
       success: true,
       data: {
-        feedbackForm
+        feedbackForm,
+        hasSubmitted // Include submission status in response
       }
     });
   } catch (error) {
