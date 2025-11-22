@@ -220,7 +220,9 @@ router.get('/', auth, async (req, res) => {
         const eventIdStr = event._id.toString();
         const attendance = attendanceStats.get(eventIdStr) || { totalAttendees: 0, currentlyPresent: 0 };
 
-        eventData.totalParticipants = invitationStats.get(eventIdStr) || 0;
+        // Use total attendees (checked-in participants) as total, not just invited participants
+        // This includes both invited participants and walk-ins (uninvited who scanned QR)
+        eventData.totalParticipants = attendance.totalAttendees;
         eventData.checkedIn = attendance.totalAttendees;
         eventData.currentlyPresent = attendance.currentlyPresent;
       }
