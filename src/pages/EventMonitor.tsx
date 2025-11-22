@@ -11,7 +11,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, Wifi, WifiOff, RefreshCw, Battery, UserX } from 'lucide-react';
+import { Users, MapPin, Clock, User, AlertTriangle, Loader2, Radar, Activity, Wifi, WifiOff, RefreshCw, Battery, UserX, XCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import LocationStatusDisplay from '@/components/LocationStatusDisplay';
@@ -90,17 +90,30 @@ const EventMonitor = () => {
           duration = Math.round((now.getTime() - checkInTime.getTime()) / (1000 * 60)); // Duration in minutes
         }
 
+        // Determine display status
+        let displayStatus;
+        if (log.status === 'checked-in') {
+          displayStatus = 'present';
+        } else if (log.status === 'absent') {
+          displayStatus = 'marked-absent';
+        } else if (log.status === 'checked-out') {
+          displayStatus = 'left-early';
+        } else {
+          displayStatus = log.status; // fallback to raw status
+        }
+
         return {
           id: log._id,
           participantId: log.participant._id, // Actual participant (user) ID for removal
           name: log.participant.name,
           email: log.participant.email,
-          status: log.status === 'checked-in' ? 'present' : 'left-early',
+          status: displayStatus,
           checkInTime: new Date(log.checkInTime).toLocaleTimeString('en-US', { hour12: true }),
           checkOutTime: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('en-US', { hour12: true }) : null,
           duration: duration, // Duration already in minutes
           lastSeen: getTimeAgo(log.lastLocationUpdate || log.checkInTime),
-          batteryLevel: log.batteryLevel || null // Use actual battery level or null if not available
+          batteryLevel: log.batteryLevel || null, // Use actual battery level or null if not available
+          notes: log.notes || null // Include notes to show reason for absent
         };
       });
 
@@ -445,6 +458,7 @@ const EventMonitor = () => {
       case 'on-break': return 'secondary';
       case 'low-battery': return 'destructive';
       case 'left-early': return 'outline';
+      case 'marked-absent': return 'destructive';
       default: return 'outline';
     }
   };
@@ -455,6 +469,7 @@ const EventMonitor = () => {
       case 'on-break': return <Clock className="w-4 h-4" />;
       case 'low-battery': return <AlertTriangle className="w-4 h-4" />;
       case 'left-early': return <MapPin className="w-4 h-4" />;
+      case 'marked-absent': return <XCircle className="w-4 h-4" />;
       default: return <User className="w-4 h-4" />;
     }
   };
@@ -770,6 +785,14 @@ const EventMonitor = () => {
                                 </p>
                               </div>
                             </div>
+
+                            {/* Show reason for marked absent */}
+                            {participant.status === 'marked-absent' && participant.notes && (
+                              <div className="mt-4 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+                                <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">Reason for Absence:</p>
+                                <p className="text-sm text-red-700 dark:text-red-300">{participant.notes}</p>
+                              </div>
+                            )}
 
                             {/* Remove Participant Button */}
                             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
