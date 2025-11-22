@@ -147,15 +147,19 @@ const FeedbackFormView = ({ eventId, isOpen, onClose, onSubmit }: FeedbackFormVi
       const result = await response.json();
 
       if (result.success) {
+        console.log('Feedback submitted successfully, calling onSubmit callback');
         toast({
           title: "Feedback Submitted",
           description: "Thank you for your feedback!",
         });
 
         setHasSubmitted(true);
-        
+
         if (onSubmit) {
+          console.log('Calling onSubmit callback with responses');
           onSubmit(responses);
+        } else {
+          console.warn('No onSubmit callback provided');
         }
         
         // Close after 2 seconds

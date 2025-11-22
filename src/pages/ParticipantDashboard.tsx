@@ -51,7 +51,9 @@ const ParticipantDashboard = () => {
   const [feedbackFormsStatus, setFeedbackFormsStatus] = useState<Record<string, { exists: boolean; isPublished: boolean }>>({});
   const [submittedFeedbackEvents, setSubmittedFeedbackEvents] = useState<Set<string>>(() => {
     const stored = localStorage.getItem('submittedFeedbackEvents');
-    return stored ? new Set(JSON.parse(stored)) : new Set();
+    const result = stored ? new Set<string>(JSON.parse(stored) as string[]) : new Set<string>();
+    console.log('Initialized submittedFeedbackEvents from localStorage:', Array.from(result));
+    return result;
   });
   const [userOrganization, setUserOrganization] = useState<any>(null);
   const [loadingOrganization, setLoadingOrganization] = useState(false);
@@ -1020,7 +1022,9 @@ const ParticipantDashboard = () => {
 
   // Persist submitted feedback events to localStorage
   useEffect(() => {
-    localStorage.setItem('submittedFeedbackEvents', JSON.stringify([...submittedFeedbackEvents]));
+    const eventsArray = [...submittedFeedbackEvents];
+    console.log('Saving submitted feedback events to localStorage:', eventsArray);
+    localStorage.setItem('submittedFeedbackEvents', JSON.stringify(eventsArray));
   }, [submittedFeedbackEvents]);
 
   // Automatic location monitoring for ALL participants (invited and uninvited) in active events
@@ -5529,24 +5533,26 @@ const ParticipantDashboard = () => {
   // Handle feedback form submission
   const handleFeedbackSubmit = (_responses: Record<string, any>) => {
     if (selectedFeedbackEvent?.id) {
+      console.log('Adding event to submitted feedback:', selectedFeedbackEvent.id);
       setSubmittedFeedbackEvents(prev => {
         const newSet = new Set(prev);
         newSet.add(selectedFeedbackEvent.id);
+        console.log('Updated submitted events:', Array.from(newSet));
         return newSet;
       });
+    } else {
+      console.warn('No selected feedback event ID found');
     }
-    toast({
-      title: "Feedback Submitted",
-      description: "Thank you for your feedback!",
-    });
+    // Don't show toast here - FeedbackFormView already shows it
     handleCloseFeedbackForm();
   };
 
   // Check if feedback button should be disabled
   const isFeedbackButtonDisabled = (eventId: string) => {
     const formStatus = feedbackFormsStatus[eventId];
+    const hasSubmitted = submittedFeedbackEvents.has(eventId);
     // Disable if already submitted, or if form doesn't exist or isn't published
-    return submittedFeedbackEvents.has(eventId) || !formStatus?.exists || !formStatus?.isPublished;
+    return hasSubmitted || !formStatus?.exists || !formStatus?.isPublished;
   };
 
   // Get feedback button tooltip/title text

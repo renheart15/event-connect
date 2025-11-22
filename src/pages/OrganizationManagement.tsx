@@ -783,10 +783,10 @@ const OrganizationManagement = () => {
                   <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Users className="w-5 h-5" />
-                      Members ({selectedOrg.memberCount})
+                      Members ({selectedOrg.members.length})
                     </div>
                     <Badge variant="secondary">
-                      {selectedOrg.memberCount} {selectedOrg.memberCount === 1 ? 'Member' : 'Members'}
+                      {selectedOrg.members.length} {selectedOrg.members.length === 1 ? 'Member' : 'Members'}
                     </Badge>
                   </CardTitle>
                   <CardDescription>
@@ -804,23 +804,6 @@ const OrganizationManagement = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {/* Owner */}
-                      <TableRow>
-                        <TableCell className="font-medium flex items-center gap-2">
-                          {getRoleIcon('owner', true)}
-                          {selectedOrg.owner.name}
-                        </TableCell>
-                        <TableCell>{selectedOrg.owner.email}</TableCell>
-                        <TableCell>
-                          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                            Owner
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(selectedOrg.createdAt).toLocaleDateString()}
-                        </TableCell>
-                      </TableRow>
-
                       {/* Members */}
                       {selectedOrg.members.map((member) => (
                         <TableRow key={member.user._id}>
@@ -843,10 +826,10 @@ const OrganizationManagement = () => {
                         </TableRow>
                       ))}
 
-                      {selectedOrg.memberCount === 1 && (
+                      {selectedOrg.members.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center py-8 text-gray-500 dark:text-gray-400">
-                            No additional members yet. Share your organization code to invite participants!
+                            No members yet. Share your organization code to invite participants!
                           </TableCell>
                         </TableRow>
                       )}

@@ -105,16 +105,26 @@ const SendInvitations = () => {
   const fetchOrganizations = async () => {
     try {
       const token = localStorage.getItem('token');
+      const savedOrgId = localStorage.getItem('selectedOrganizationId');
+
       const response = await fetch(`${API_CONFIG.API_BASE}/organizations/owned`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      
+
       const result = await response.json();
       if (result.success && result.data.length > 0) {
         setOrganizations(result.data);
-        setSelectedOrg(result.data[0]); // Select first organization by default
+
+        // Auto-select the active organization from localStorage
+        const activeOrg = savedOrgId
+          ? result.data.find((org: Organization) => org._id === savedOrgId)
+          : result.data[0];
+
+        if (activeOrg) {
+          setSelectedOrg(activeOrg);
+        }
       }
     } catch (error) {
       console.error('Error fetching organizations:', error);
@@ -818,36 +828,15 @@ const SendInvitations = () => {
                       </Card>
                     ) : (
                       <div className="space-y-4">
-                        {/* Organization Selection */}
-                        {organizations.length > 1 && (
-                          <Card className="p-4 bg-white dark:bg-gray-800">
-                            <div className="space-y-3">
-                              <Label className="text-sm font-medium">Select Organization</Label>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {organizations.map((org) => (
-                                  <div
-                                    key={org._id}
-                                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                                      selectedOrg?._id === org._id
-                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
-                                        : 'border-gray-200 hover:border-gray-300 dark:border-gray-700'
-                                    }`}
-                                    onClick={() => {
-                                      setSelectedOrg(org);
-                                    }}
-                                  >
-                                    <h4 className="font-medium text-sm">{org.name}</h4>
-                                    <p className="text-xs text-muted-foreground">
-                                      {org.memberCount} member(s)
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </Card>
+                        {/* Show active organization info */}
+                        {selectedOrg && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                            <span>Using members from <strong className="text-foreground">{selectedOrg.name}</strong></span>
+                          </div>
                         )}
 
-                        {/* Member Selection */}
+                        {/* Member Selection - Using active organization */}
                         {selectedOrg && selectableMembers.length > 0 ? (
                           <Card className="p-4 bg-white dark:bg-gray-800">
                             <div className="space-y-4">
