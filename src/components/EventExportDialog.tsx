@@ -14,6 +14,8 @@ interface Event {
   title: string;
   date: string;
   endDate?: string;
+  startTime?: string;
+  endTime?: string;
   eventType?: 'single-day' | 'multi-day';
   status: string;
   totalParticipants: number;
@@ -48,8 +50,12 @@ const EventExportDialog = ({ events, isOpen, onClose }: EventExportDialogProps) 
         day: 'numeric'
       })}`;
     } else {
-      // Single-day event: show full date
-      return event.date;
+      // Single-day event: show date only (without time)
+      return new Date(event.date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
     }
   };
   const { toast } = useToast();
@@ -86,6 +92,8 @@ const EventExportDialog = ({ events, isOpen, onClose }: EventExportDialogProps) 
       .map(event => ({
         eventTitle: event.title,
         eventDate: formatEventDate(event),
+        startTime: event.startTime,
+        endTime: event.endTime,
         totalParticipants: event.totalParticipants,
         checkedIn: event.checkedIn,
         currentlyPresent: event.currentlyPresent,
