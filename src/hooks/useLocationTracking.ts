@@ -56,6 +56,7 @@ interface UseLocationTrackingReturn {
   error: string | null;
   refreshLocationData: () => Promise<void>;
   acknowledgeAlert: (statusId: string, alertId: string) => Promise<void>;
+  lastFetchTime: Date | null;
 }
 
 export const useLocationTracking = (eventId: string): UseLocationTrackingReturn => {
@@ -63,6 +64,7 @@ export const useLocationTracking = (eventId: string): UseLocationTrackingReturn 
   const [summary, setSummary] = useState<LocationSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
 
   const API_BASE = API_CONFIG.API_BASE;
 
@@ -96,6 +98,7 @@ export const useLocationTracking = (eventId: string): UseLocationTrackingReturn 
         const participants = response.data.data.participants || [];
         setLocationStatuses(participants);
         setSummary(response.data.data.summary || null);
+        setLastFetchTime(new Date()); // Track when we fetched the data
       } else {
         setError(response.data.message || 'Failed to fetch location data');
       }
@@ -166,6 +169,7 @@ export const useLocationTracking = (eventId: string): UseLocationTrackingReturn 
     error,
     refreshLocationData,
     acknowledgeAlert,
+    lastFetchTime,
   };
 };
 

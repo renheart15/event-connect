@@ -236,6 +236,12 @@ class LocationTrackingService {
 
   // Update participant status based on timer and limits
   async updateParticipantStatus(locationStatus, event) {
+    // CRITICAL FIX: Skip status updates for inactive participants (marked absent)
+    if (!locationStatus.isActive) {
+      console.log(`⏹️ [STATUS CHECK SKIPPED] Participant ${locationStatus.participant?.name || locationStatus.participant} is inactive (marked absent)`);
+      return;
+    }
+
     // Check if data is stale (>3 minutes since last update) - Changed from 5 to 3
     const now = new Date();
     const minutesSinceUpdate = (now - new Date(locationStatus.lastLocationUpdate)) / (1000 * 60);
@@ -418,7 +424,8 @@ class LocationTrackingService {
           .populate('event')
           .populate('participant', 'name email');
 
-        if (!locationStatus || !locationStatus.outsideTimer?.isActive) {
+        // CRITICAL FIX: Stop monitoring if participant is inactive (marked absent) or timer not active
+        if (!locationStatus || !locationStatus.isActive || !locationStatus.outsideTimer?.isActive) {
           this.clearMonitoringTimer(statusId);
           return;
         }
@@ -496,8 +503,9 @@ class LocationTrackingService {
         const minutesSinceUpdate = (now - new Date(status.lastLocationUpdate)) / (1000 * 60);
         const isStale = minutesSinceUpdate > 3; // Changed from 5 to 3
 
-        // Check if should be marked absent (this will activate timer if stale)
-        if (isStale || status.outsideTimer?.isActive) {
+        // CRITICAL FIX: Only check stale data and update status for ACTIVE participants
+        // Skip this entire check for participants marked absent (isActive: false)
+        if (status.isActive && (isStale || status.outsideTimer?.isActive)) {
           await this.updateParticipantStatus(status, status.event);
           await status.save();
           statusObj.outsideTimer = status.outsideTimer;

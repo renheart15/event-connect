@@ -39,6 +39,16 @@ const LiveCountdownTimer: React.FC<{
     const remaining = Math.max(0, maxTimeSeconds - totalElapsed);
     setRemainingSeconds(remaining);
 
+    console.log('[Timer Debug]', {
+      dataFetchTime: dataFetchTime.toISOString(),
+      now: now.toISOString(),
+      elapsedSinceDataFetch,
+      baseSeconds,
+      totalElapsed,
+      maxTimeSeconds,
+      remaining
+    });
+
     // Update every second (countdown)
     const interval = setInterval(() => {
       setRemainingSeconds(prev => Math.max(0, prev - 1));
@@ -73,7 +83,8 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
     summary,
     loading,
     error,
-    refreshLocationData
+    refreshLocationData,
+    lastFetchTime
   } = useLocationTracking(eventId);
   
   // Add error boundary for debugging
@@ -330,13 +341,10 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           const remainingSeconds = Math.max(0, maxTimeSeconds - status.currentTimeOutside);
 
                           // Show live countdown timer if timer is active
-                          if (status.outsideTimer.isActive) {
-                            // Use lastLocationUpdate as the data fetch time (when backend last calculated currentTimeOutside)
-                            const dataFetchTime = new Date(status.lastLocationUpdate);
-
+                          if (status.outsideTimer.isActive && lastFetchTime) {
                             return (
                               <LiveCountdownTimer
-                                dataFetchTime={dataFetchTime}
+                                dataFetchTime={lastFetchTime}
                                 baseSeconds={status.currentTimeOutside}
                                 maxTimeSeconds={maxTimeSeconds}
                               />
@@ -408,13 +416,10 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                               Time Remaining:{' '}
                               {(() => {
                                 // Show live countdown timer if timer is active
-                                if (status.outsideTimer.isActive) {
-                                  // Use lastLocationUpdate as the data fetch time (when backend last calculated currentTimeOutside)
-                                  const dataFetchTime = new Date(status.lastLocationUpdate);
-
+                                if (status.outsideTimer.isActive && lastFetchTime) {
                                   return (
                                     <LiveCountdownTimer
-                                      dataFetchTime={dataFetchTime}
+                                      dataFetchTime={lastFetchTime}
                                       baseSeconds={status.currentTimeOutside}
                                       maxTimeSeconds={maxTimeSeconds}
                                     />
