@@ -175,16 +175,14 @@ router.get('/', auth, async (req, res) => {
         });
 
         // Aggregate attendance counts and currently present counts in one query
-        // CRITICAL FIX:
-        // - totalAttendees = ALL participants (registered + checked-in + absent)
-        // - currentlyPresent = only checked-in
-        // - totalAbsent = only absent
+        // CRITICAL FIX: totalAttendees counts ALL participants (registered + checked-in + absent)
+        // But currentlyPresent and totalAbsent only count their specific statuses
         const attendanceCounts = await AttendanceLog.aggregate([
           { $match: { event: { $in: eventIds } } },
           {
             $group: {
               _id: '$event',
-              totalAttendees: { $sum: 1 }, // Count ALL (registered, checked-in, absent, checked-out)
+              totalAttendees: { $sum: 1 }, // Count ALL participants including registered
               currentlyPresent: {
                 $sum: { $cond: [{ $eq: ['$status', 'checked-in'] }, 1, 0] }
               },
@@ -228,12 +226,13 @@ router.get('/', auth, async (req, res) => {
         const eventIdStr = event._id.toString();
         const attendance = attendanceStats.get(eventIdStr) || { totalAttendees: 0, currentlyPresent: 0, totalAbsent: 0 };
 
-        // Use total attendees (checked-in participants) as total, not just invited participants
-        // This includes both invited participants and walk-ins (uninvited who scanned QR)
-        eventData.totalParticipants = attendance.totalAttendees;
-        eventData.checkedIn = attendance.totalAttendees;
-        // For completed events, show absent count; for active/upcoming, show currently present
-        eventData.currentlyPresent = event.status === 'completed' ? attendance.totalAbsent : attendance.currentlyPresent;
+        // CRITICAL FIX: Proper count mapping
+        // totalParticipants = ALL participants (registered + checked-in + absent + checked-out)
+        // checkedIn = only checked-in status participants
+        // currentlyPresent = for display purposes, send totalAbsent for both active and completed
+        eventData.totalParticipants = attendance.totalAttendees; // All participants
+        eventData.checkedIn = attendance.currentlyPresent; // Only checked-in
+        eventData.currentlyPresent = attendance.totalAbsent; // Send absent count
       }
 
       eventsWithStats.push(eventData);

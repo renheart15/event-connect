@@ -157,17 +157,11 @@ router.get('/event/:eventId/status',
 
       const locationStatuses = await locationTrackingService.getEventLocationStatus(eventId);
 
-      // CRITICAL FIX: Get total count including registered participants for "Total Tracked"
-      // But locationStatuses array only contains checked-in/absent for display
-      const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
-      const totalCount = await ParticipantLocationStatus.countDocuments({
-        event: eventId,
-        isActive: true
-      });
-
       // Calculate summary statistics
+      // CRITICAL FIX: Only count checked-in participants (registered participants already filtered out by service)
+      // locationStatuses now only contains checked-in and absent participants
       const summary = {
-        totalParticipants: totalCount, // Total tracked (ALL: registered + checked-in + absent)
+        totalParticipants: locationStatuses.length, // Total tracked (checked-in + absent)
         insideGeofence: locationStatuses.filter(s => s.isWithinGeofence).length,
         outsideGeofence: locationStatuses.filter(s => !s.isWithinGeofence).length,
         warningStatus: locationStatuses.filter(s => s.status === 'warning').length,
