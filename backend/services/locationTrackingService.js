@@ -400,11 +400,12 @@ class LocationTrackingService {
     // }
     else if (!locationStatus.isWithinGeofence) {
       locationStatus.status = 'outside';
-    } else {
-      // Participant is inside and not stale
+    } else if (!isStale) {
+      // CRITICAL FIX: Only execute this block if participant is inside AND NOT STALE
+      // If they're stale, the timer should remain active (already set above)
       locationStatus.status = 'inside';
 
-      // CRITICAL FIX: If timer is active while inside and not stale, stop it completely
+      // If timer is active while inside and not stale, stop it completely
       if (locationStatus.outsideTimer?.isActive) {
         console.log(`⏹️ [TIMER STOPPED] Participant is inside and not stale. Stopping active timer.`);
         locationStatus.outsideTimer.isActive = false;
@@ -415,6 +416,11 @@ class LocationTrackingService {
         // Timer already inactive, just clear reason
         locationStatus.outsideTimer.reason = null;
       }
+    } else {
+      // Participant is inside but stale - timer is already active (set above)
+      // Just set the status, don't touch the timer
+      locationStatus.status = 'inside';
+      console.log(`⏱️ [STALE INSIDE] Participant inside but stale. Timer remains active.`);
     }
   }
 
