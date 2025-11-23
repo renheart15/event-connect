@@ -297,8 +297,13 @@ class LocationTrackingService {
       } else {
         console.log(`✅ [TIMER CLEARED] Participant inside geofence. Timer cleared.`);
         locationStatus.status = 'inside';
+
+        // CRITICAL FIX: Explicitly stop timer when returning from stale while inside
+        // Don't rely on pauseOutsideTimer() which may fail if currentSessionStart is null
         if (locationStatus.outsideTimer) {
+          locationStatus.outsideTimer.isActive = false;
           locationStatus.outsideTimer.reason = null;
+          locationStatus.outsideTimer.currentSessionStart = null;
         }
 
         // CRITICAL FIX: Clear monitoring timer when returning from stale and inside geofence
@@ -315,38 +320,31 @@ class LocationTrackingService {
       totalTime = locationStatus.calculateTotalTimeOutside();
       console.log(`⏱️ [TIMER] Active outside timer: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
     } else if (isStale && locationStatus.outsideTimer) {
-      // CRITICAL FIX: Only activate stale timer if participant is NOT inside the geofence
-      // If they're inside and data is stale, don't count against their time
-      if (locationStatus.isWithinGeofence) {
-        console.log(`✅ [STALE DATA - INSIDE] Participant data is stale but they are inside geofence. Not activating timer.`);
-        // Keep timer paused, don't count this time
-        totalTime = locationStatus.outsideTimer.totalTimeOutside || 0;
-      } else {
-        // If stale and NOT inside, activate timer and count time AFTER the 3-minute stale threshold
-        console.log(`⚠️ [STALE DATA] Participant data is stale (${Math.round(minutesSinceUpdate)} min) and not inside geofence. Activating timer.`);
+      // If stale, activate timer and count time AFTER the 3-minute stale threshold
+      // This applies regardless of whether they're inside or outside
+      console.log(`⚠️ [STALE DATA] Participant data is stale (${Math.round(minutesSinceUpdate)} min). Activating timer.`);
 
-        // Calculate the time when data became stale (3 minutes after last update)
-        const staleThresholdTime = new Date(new Date(locationStatus.lastLocationUpdate).getTime() + (3 * 60 * 1000));
+      // Calculate the time when data became stale (3 minutes after last update)
+      const staleThresholdTime = new Date(new Date(locationStatus.lastLocationUpdate).getTime() + (3 * 60 * 1000));
 
-        // Activate the timer starting from when data became stale (not from last update)
-        locationStatus.outsideTimer.isActive = true;
-        locationStatus.outsideTimer.reason = 'stale'; // Mark as stale timer
-        locationStatus.outsideTimer.startTime = staleThresholdTime;
-        locationStatus.outsideTimer.currentSessionStart = staleThresholdTime;
+      // Activate the timer starting from when data became stale (not from last update)
+      locationStatus.outsideTimer.isActive = true;
+      locationStatus.outsideTimer.reason = 'stale'; // Mark as stale timer
+      locationStatus.outsideTimer.startTime = staleThresholdTime;
+      locationStatus.outsideTimer.currentSessionStart = staleThresholdTime;
 
-        // Start monitoring timer for stale participants (if not already running)
-        this.startMonitoringTimer(locationStatus._id, event.maxTimeOutside);
+      // Start monitoring timer for stale participants (if not already running)
+      this.startMonitoringTimer(locationStatus._id, event.maxTimeOutside);
 
-        // CRITICAL FIX: Include previously accumulated time + new stale time
-        const timeAfterStaleThreshold = minutesSinceUpdate - 3; // Minutes after stale threshold
-        const newStaleTime = Math.floor(Math.max(0, timeAfterStaleThreshold) * 60); // Convert to seconds
-        totalTime = locationStatus.outsideTimer.totalTimeOutside + newStaleTime; // Add to accumulated time
+      // CRITICAL FIX: Include previously accumulated time + new stale time
+      const timeAfterStaleThreshold = minutesSinceUpdate - 3; // Minutes after stale threshold
+      const newStaleTime = Math.floor(Math.max(0, timeAfterStaleThreshold) * 60); // Convert to seconds
+      totalTime = locationStatus.outsideTimer.totalTimeOutside + newStaleTime; // Add to accumulated time
 
-        console.log(`⏱️ [STALE TIMER] Previously accumulated: ${locationStatus.outsideTimer.totalTimeOutside}s (${Math.floor(locationStatus.outsideTimer.totalTimeOutside / 60)} min)`);
-        console.log(`⏱️ [STALE TIMER] New stale time: ${newStaleTime}s (${Math.floor(newStaleTime / 60)} min)`);
-        console.log(`⏱️ [STALE TIMER] Total time: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
-        console.log(`⏱️ [STALE TIMER] Started monitoring timer to check every 1 second`);
-      }
+      console.log(`⏱️ [STALE TIMER] Previously accumulated: ${locationStatus.outsideTimer.totalTimeOutside}s (${Math.floor(locationStatus.outsideTimer.totalTimeOutside / 60)} min)`);
+      console.log(`⏱️ [STALE TIMER] New stale time: ${newStaleTime}s (${Math.floor(newStaleTime / 60)} min)`);
+      console.log(`⏱️ [STALE TIMER] Total time: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
+      console.log(`⏱️ [STALE TIMER] Started monitoring timer to check every 1 second`);
     }
 
     // CRITICAL FIX: Safety check BEFORE calculating maxTimeOutsideSeconds
@@ -403,15 +401,19 @@ class LocationTrackingService {
     else if (!locationStatus.isWithinGeofence) {
       locationStatus.status = 'outside';
     } else {
+      // Participant is inside and not stale
       locationStatus.status = 'inside';
-      if (locationStatus.outsideTimer) {
-        locationStatus.outsideTimer.reason = null;
-      }
 
-      // CRITICAL FIX: Clear monitoring timer when participant is inside and timer is not active
-      if (!locationStatus.outsideTimer?.isActive) {
+      // CRITICAL FIX: If timer is active while inside and not stale, stop it completely
+      if (locationStatus.outsideTimer?.isActive) {
+        console.log(`⏹️ [TIMER STOPPED] Participant is inside and not stale. Stopping active timer.`);
+        locationStatus.outsideTimer.isActive = false;
+        locationStatus.outsideTimer.reason = null;
+        locationStatus.outsideTimer.currentSessionStart = null;
         this.clearMonitoringTimer(locationStatus._id);
-        console.log(`✅ [MONITORING TIMER CLEARED] Participant inside, timer cleared`);
+      } else if (locationStatus.outsideTimer) {
+        // Timer already inactive, just clear reason
+        locationStatus.outsideTimer.reason = null;
       }
     }
   }
