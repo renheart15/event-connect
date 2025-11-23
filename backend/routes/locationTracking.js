@@ -199,12 +199,21 @@ router.get('/participant/:participantId/event/:eventId/status',
       })
       .populate('participant', 'name email')
       .populate('event', 'title maxTimeOutside geofenceRadius')
-      .populate('attendanceLog', 'registrationName registrationEmail'); // Populate attendance log for registration data
+      .populate('attendanceLog', 'registrationName registrationEmail status checkOutTime'); // Populate attendance log for registration data AND checkout status
 
       if (!locationStatus) {
         return res.status(404).json({
           success: false,
           message: 'Location status not found'
+        });
+      }
+
+      // CRITICAL FIX: Check if participant has checked out
+      if (locationStatus.attendanceLog && locationStatus.attendanceLog.status === 'checked-out') {
+        console.log(`🚫 [API-SINGLE] Participant has checked out, returning 404`);
+        return res.status(404).json({
+          success: false,
+          message: 'Location tracking stopped - participant has checked out'
         });
       }
 

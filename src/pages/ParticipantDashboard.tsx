@@ -1391,6 +1391,11 @@ const ParticipantDashboard = () => {
       }, 5000); // Refresh every 5 seconds for smoother timer
 
       return () => clearInterval(interval);
+    } else {
+      // CRITICAL FIX: Clear location status when no longer attending any event
+      // This prevents stale location warnings from showing after checkout
+      console.log(`✅ [LOCATION-STATUS] No currently attending events, clearing location status`);
+      setCurrentLocationStatus(null);
     }
   }, [myAttendance, token, user._id]);
 
@@ -6010,6 +6015,11 @@ const ParticipantDashboard = () => {
         setCurrentLocationStatus(data.data);
       } else {
         console.error(`❌ [FETCH] Failed to fetch location status: ${response.status}`);
+        // CRITICAL FIX: Clear location status if we get 404 (user checked out or tracking stopped)
+        if (response.status === 404) {
+          console.log(`✅ [FETCH] Clearing location status - participant checked out or tracking stopped`);
+          setCurrentLocationStatus(null);
+        }
       }
     } catch (error) {
       console.error(`❌ [FETCH] Error fetching location status:`, error);
