@@ -878,6 +878,105 @@ router.put('/:id/respond', optionalAuth, [
 
     await invitation.populate(['event', 'participant']);
 
+    // CRITICAL: If invitation is accepted, create attendance record and initialize location tracking
+    if (response === 'accepted') {
+      console.log(`✅ [INVITATION ACCEPTED] Creating attendance record and initializing location tracking`);
+
+      try {
+        // Check if attendance record already exists
+        let attendanceRecord = await AttendanceLog.findOne({
+          event: invitation.event._id,
+          participant: invitation.participant._id
+        });
+
+        if (!attendanceRecord) {
+          // Extract registration data if available
+          const RegistrationResponse = require('../models/RegistrationResponse');
+          let registrationName = invitation.participant.name;
+          let registrationEmail = invitation.participant.email;
+
+          try {
+            const registrationResponse = await RegistrationResponse.findOne({
+              event: invitation.event._id,
+              participant: invitation.participant._id
+            }).populate('registrationForm');
+
+            if (registrationResponse && registrationResponse.registrationForm) {
+              const fields = registrationResponse.registrationForm.fields || [];
+              const responsesObj = registrationResponse.responses instanceof Map
+                ? Object.fromEntries(registrationResponse.responses)
+                : registrationResponse.responses;
+
+              // Find name and email from registration form
+              for (const field of fields) {
+                const fieldId = field.id;
+                const fieldLabel = (field.label || '').toLowerCase();
+                const fieldType = field.type;
+                const responseValue = responsesObj[fieldId] || registrationResponse.responses.get?.(fieldId);
+
+                // Check for name field
+                if (!registrationName || registrationName === invitation.participant.name) {
+                  const namePatterns = ['name', 'fullname', 'full name', 'participant', 'student'];
+                  if (responseValue && namePatterns.some(pattern => fieldLabel.includes(pattern))) {
+                    registrationName = responseValue;
+                    console.log(`✅ [REG-DATA] Found name from registration: "${registrationName}"`);
+                  }
+                }
+
+                // Check for email field
+                if (!registrationEmail || registrationEmail === invitation.participant.email) {
+                  if (responseValue && (fieldType === 'email' || fieldLabel.includes('email'))) {
+                    registrationEmail = responseValue;
+                    console.log(`✅ [REG-DATA] Found email from registration: "${registrationEmail}"`);
+                  }
+                }
+
+                if (registrationName !== invitation.participant.name &&
+                    registrationEmail !== invitation.participant.email) {
+                  break; // Found both
+                }
+              }
+            }
+          } catch (regError) {
+            console.error('⚠️ [REG-DATA] Failed to extract registration data:', regError);
+          }
+
+          // Create attendance record with status 'registered'
+          // Auto check-in will happen when participant enters geofence AND event is active
+          attendanceRecord = new AttendanceLog({
+            event: invitation.event._id,
+            participant: invitation.participant._id,
+            invitation: invitation._id,
+            status: 'registered', // Will be auto-checked-in when inside geofence
+            registrationName: registrationName,
+            registrationEmail: registrationEmail
+          });
+
+          await attendanceRecord.save();
+          console.log(`✅ [ATTENDANCE] Created attendance record with status 'registered'`);
+
+          // Initialize location tracking immediately
+          const locationTrackingService = require('../services/locationTrackingService');
+          try {
+            await locationTrackingService.initializeLocationTracking(
+              invitation.event._id,
+              invitation.participant._id,
+              attendanceRecord._id
+            );
+            console.log(`✅ [LOCATION TRACKING] Initialized location tracking for participant`);
+          } catch (locationError) {
+            console.error('⚠️ [LOCATION TRACKING] Failed to initialize:', locationError);
+            // Don't fail the acceptance if location tracking initialization fails
+          }
+        } else {
+          console.log(`ℹ️ [ATTENDANCE] Attendance record already exists with status: ${attendanceRecord.status}`);
+        }
+      } catch (attendanceError) {
+        console.error('⚠️ [ATTENDANCE] Failed to create attendance record:', attendanceError);
+        // Don't fail the invitation acceptance if attendance creation fails
+      }
+    }
+
     res.json({
       success: true,
       message: `Invitation ${response} successfully`,
