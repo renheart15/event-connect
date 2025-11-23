@@ -108,7 +108,7 @@ const EventMonitor = () => {
           name: log.participant.name,
           email: log.participant.email,
           status: displayStatus,
-          checkInTime: new Date(log.checkInTime).toLocaleTimeString('en-US', { hour12: true }),
+          checkInTime: log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString('en-US', { hour12: true }) : 'Not checked in',
           checkOutTime: log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('en-US', { hour12: true }) : null,
           duration: duration, // Duration already in minutes
           lastSeen: getTimeAgo(log.lastLocationUpdate || log.checkInTime),

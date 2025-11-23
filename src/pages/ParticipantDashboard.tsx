@@ -1522,9 +1522,10 @@ const ParticipantDashboard = () => {
       // Don't start if already tracking
       if (isTracking) return;
 
-      // Find checked-in attendances for active events
+      // CRITICAL FIX: Find BOTH 'registered' and 'checked-in' attendances for active events
+      // 'registered' participants need location tracking to enable auto-check-in
       const activeAttendances = myAttendance.filter(attendance =>
-        attendance.status === 'checked-in' &&
+        (attendance.status === 'registered' || attendance.status === 'checked-in') &&
         attendance.event?.status === 'active'
       );
 
