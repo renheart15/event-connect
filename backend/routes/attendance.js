@@ -405,8 +405,22 @@ router.put('/:id/checkout', auth, [
     // Update attendance log
     attendanceLog.checkOutTime = new Date();
     attendanceLog.checkOutLocation = location || null;
+    attendanceLog.status = 'checked-out'; // CRITICAL FIX: Set status to checked-out
     attendanceLog.notes = notes || attendanceLog.notes;
     await attendanceLog.save();
+
+    // CRITICAL FIX: Stop location tracking when checking out
+    const locationTrackingService = require('../services/locationTrackingService');
+    try {
+      await locationTrackingService.stopLocationTracking(
+        attendanceLog.event,
+        attendanceLog.participant
+      );
+      console.log(`✅ [CHECKOUT] Stopped location tracking for participant ${attendanceLog.participant}`);
+    } catch (locationError) {
+      console.error('⚠️ [CHECKOUT] Failed to stop location tracking:', locationError);
+      // Don't fail the checkout if location tracking stop fails
+    }
 
     await attendanceLog.populate(['event', 'participant', 'invitation']);
 

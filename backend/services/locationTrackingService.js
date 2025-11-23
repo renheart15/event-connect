@@ -542,7 +542,7 @@ class LocationTrackingService {
       })
       .populate('participant', 'name email')
       .populate('event', 'title maxTimeOutside')
-      .populate('attendanceLog', 'registrationName registrationEmail') // Populate attendance log for registration data
+      .populate('attendanceLog', 'registrationName registrationEmail status checkOutTime') // Populate attendance log for registration data AND checkout status
       .sort({ 'participant.name': 1 });
 
       // Calculate real-time values and check for stale data
@@ -586,7 +586,18 @@ class LocationTrackingService {
         return statusObj;
       }));
 
-      return statusesWithRealtime;
+      // CRITICAL FIX: Filter out checked-out participants from location tracking display
+      // Only show participants who are currently attending the event
+      const activeParticipants = statusesWithRealtime.filter(status => {
+        // Exclude if attendance log shows checked-out status
+        if (status.attendanceLog && status.attendanceLog.status === 'checked-out') {
+          console.log(`🚫 [LOCATION-STATUS] Filtering out checked-out participant: ${status.participant.name}`);
+          return false;
+        }
+        return true;
+      });
+
+      return activeParticipants;
     } catch (error) {
       console.error('Error getting event location status:', error);
       throw error;
