@@ -358,8 +358,8 @@ const LocationStatusDisplay: React.FC<LocationStatusDisplayProps> = ({ eventId }
                           const maxTimeSeconds = maxTimeOutside * 60;
                           const remainingSeconds = Math.max(0, maxTimeSeconds - status.currentTimeOutside);
 
-                          // Show live countdown timer if timer is active
-                          if (status.outsideTimer.isActive && lastFetchTime) {
+                          // Show live countdown timer ONLY if timer is active AND participant is outside
+                          if (status.outsideTimer.isActive && !status.isWithinGeofence && lastFetchTime) {
                             return (
                               <LiveCountdownTimer
                                 dataFetchTime={lastFetchTime}

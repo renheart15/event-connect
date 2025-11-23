@@ -1530,11 +1530,12 @@ const ParticipantDashboard = () => {
       const event = attendance.event;
 
       try {
-        // If participant is already checked-in, they've proven they're inside premises
-        // No need to re-validate geofence - just start tracking
-        if (attendance.status === 'checked-in' && event.status === 'active') {
+        // Start location tracking for both 'registered' and 'checked-in' participants
+        // For 'registered': enables auto-check-in when entering geofence
+        // For 'checked-in': continues normal location tracking
+        if ((attendance.status === 'registered' || attendance.status === 'checked-in') && event.status === 'active') {
           await startLocationWatching(event._id, attendance._id);
-        } else {
+          console.log(`✅ Auto-started location tracking for ${attendance.status} participant`);
         }
       } catch (error) {
         console.error('Error in automatic tracking check:', error);
@@ -2411,7 +2412,7 @@ const ParticipantDashboard = () => {
       const event = eventData.data.event;
       // Check if attendance is available
       const availability = getAttendanceAvailability(event);
-      
+
       if (!availability.available) {
         if (availability.opensAt) {
           toast({
@@ -2429,229 +2430,209 @@ const ParticipantDashboard = () => {
         return;
       }
 
-      // Get user location for check-in
+      // Get user location (but don't validate geofence for joining - auto-check-in will handle that)
+      let location = null;
       try {
-        const location = await getCurrentLocationSafely();
-        if (!location) {
-          throw new Error('Location access required for event check-in');
-        }
+        location = await getCurrentLocationSafely();
+      } catch (error) {
+        console.log('Could not get location for join, will start tracking anyway');
+      }
 
-        // Validate geofence
-        const geofenceCheck = validateGeofence(event, location);
-        if (!geofenceCheck.valid) {
+      // Check if user has an invitation for this event (for invited events)
+      const invitation = myInvitations.find(inv => inv.event._id === event._id);
+
+      // Check if user has an attendance record for this event (for public events joined via code)
+      const attendanceRecord = myAttendance.find(att => att.event._id === event._id);
+
+      // Debug attendance records
+      myAttendance.forEach((att, index) => {
+      });
+
+      // Try different matching approaches
+      const attendanceByEventId = myAttendance.find(att => att.event?._id === event._id);
+      const attendanceByEventIdString = myAttendance.find(att => att.event?._id?.toString() === event._id?.toString());
+
+      // Use the most reliable match
+      const finalAttendanceRecord = attendanceByEventId || attendanceByEventIdString;
+
+      if (!invitation && !finalAttendanceRecord) {
+        // Automatically join the event first
+        try {
+          const joinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ eventCode: eventCode.toUpperCase() })
+          });
+
+          const joinResult = await joinResponse.json();
+          if (!joinResult.success) {
+            if (joinResult.requiresRegistration && joinResult.registrationForm) {
+              // Show registration form modal
+              setRegistrationFormData(joinResult.registrationForm);
+              setPendingEventCode(eventCode);
+              setPendingEventTitle(event.title);
+              setPendingEventId(event._id);
+              setIsRegistrationRequired(true); // Form is required
+              setRegistrationContext('public'); // Mark as public event context
+              registrationContextRef.current = 'public';
+              setShowRegistrationForm(true);
+              toast({
+                title: "Registration Required",
+                description: "Please complete the registration form to join this event.",
+              });
+              return;
+            }
+            throw new Error(joinResult.message || 'Failed to join event automatically');
+          }
+
+          // Successfully joined event - now start location tracking
+          const attendanceLogId = joinResult.data?.attendanceRecord?._id;
+
+          if (!attendanceLogId) {
+            throw new Error('No attendance log ID returned from join');
+          }
+
           toast({
-            title: "Outside Event Location",
-            description: geofenceCheck.reason,
+            title: "Event Joined!",
+            description: `Successfully joined "${event.title}". Location tracking started. You will be automatically checked in when you enter the event premises.`,
+          });
+
+          // Start location tracking immediately (even if outside premises)
+          // Auto-check-in will happen when participant enters geofence and event is active
+          try {
+            await startLocationWatching(event._id, attendanceLogId);
+            console.log('✅ Location tracking started after joining event');
+          } catch (trackingError) {
+            console.error('Failed to start location tracking:', trackingError);
+          }
+
+          // Refresh data to show the new event in attendance list
+          window.location.reload();
+          return;
+
+        } catch (joinError) {
+          console.error('🚀 [MANUAL JOIN] ❌ Auto-join or check-in failed:', joinError);
+          toast({
+            title: "Error",
+            description: joinError.message || "Could not complete join and check-in process.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      // For public events with attendance records (no invitation needed) OR after auto-joining
+      if (finalAttendanceRecord && !invitation) {
+        // Check if already checked in
+        if (finalAttendanceRecord.status === 'checked-in' || finalAttendanceRecord.checkInTime) {
+          toast({
+            title: "Already checked in",
+            description: "You are already checked in to this event",
             variant: "destructive",
           });
           return;
         }
 
-          // Check if user has an invitation for this event (for invited events)
-          const invitation = myInvitations.find(inv => inv.event._id === event._id);
-
-          // Check if user has an attendance record for this event (for public events joined via code)
-          const attendanceRecord = myAttendance.find(att => att.event._id === event._id);
-
-          // Debug attendance records
-          myAttendance.forEach((att, index) => {
+        // If status is 'registered', start location tracking for auto-check-in
+        if (finalAttendanceRecord.status === 'registered') {
+          toast({
+            title: "Activating Event",
+            description: `Starting location tracking for "${event.title}". You will be automatically checked in when you enter the event premises.`,
           });
 
-          // Try different matching approaches
-          const attendanceByEventId = myAttendance.find(att => att.event?._id === event._id);
-          const attendanceByEventIdString = myAttendance.find(att => att.event?._id?.toString() === event._id?.toString());
-
-          // Use the most reliable match
-          const finalAttendanceRecord = attendanceByEventId || attendanceByEventIdString;
-
-          if (!invitation && !finalAttendanceRecord) {
-            // Automatically join the event first
-            try {
-              
-              const joinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ eventCode: eventCode.toUpperCase() })
-              });
-
-              const joinResult = await joinResponse.json();
-              if (!joinResult.success) {
-                if (joinResult.requiresRegistration && joinResult.registrationForm) {
-                  // Show registration form modal
-                  setRegistrationFormData(joinResult.registrationForm);
-                  setPendingEventCode(eventCode);
-                  setPendingEventTitle(event.title);
-                  setPendingEventId(event._id);
-                  setIsRegistrationRequired(true); // Form is required
-                  setRegistrationContext('public'); // Mark as public event context
-                  registrationContextRef.current = 'public';
-                  setShowRegistrationForm(true);
-                  toast({
-                    title: "Registration Required",
-                    description: "Please complete the registration form to join this event.",
-                  });
-                  return;
-                }
-                throw new Error(joinResult.message || 'Failed to join event automatically');
-              }
-
-              // Check if the join response already checked us in (for active events)
-              const wasAutoCheckedIn = joinResult.data?.attendanceRecord?.status === 'checked-in';
-
-              if (wasAutoCheckedIn) {
-                
-                toast({
-                  title: "Success!",
-                  description: `Joined and checked in to "${event.title}"!`,
-                });
-
-                // Refresh data
-                window.location.reload();
-                return;
-              }
-
-              // Event is not active yet, perform manual check-in
-              toast({
-                title: "Joined and Checking In",
-                description: `Automatically joined "${event.title}" and checking you in...`,
-              });
-
-              // Continue with check-in after successful join
-              // Now perform the direct check-in since we just joined
-              const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                  eventId: event._id,
-                  location
-                })
-              });
-
-              const checkinData = await checkinResponse.json();
-              if (checkinData.success) {
-                toast({
-                  title: "Success!",
-                  description: `Joined and checked in to "${event.title}"!`,
-                });
-
-                // Refresh data
-                window.location.reload();
-                return;
-              } else {
-                throw new Error(checkinData.message || 'Failed to check in after joining');
-              }
-
-            } catch (joinError) {
-              console.error('🚀 [MANUAL JOIN] ❌ Auto-join or check-in failed:', joinError);
-              toast({
-                title: "Error",
-                description: joinError.message || "Could not complete join and check-in process.",
-                variant: "destructive",
-              });
-              return;
-            }
-          }
-
-          // For public events with attendance records (no invitation needed) OR after auto-joining
-          if (finalAttendanceRecord && !invitation) {
-            // Check if already checked in
-            if (finalAttendanceRecord.status === 'checked-in' || finalAttendanceRecord.checkInTime) {
-              toast({
-                title: "Already checked in",
-                description: "You are already checked in to this event",
-                variant: "destructive",
-              });
-              return;
-            }
-
-            // For public events, we don't need QR data - just mark as checked in
-            const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              body: JSON.stringify({
-                eventId: event._id,
-                location
-              })
-            });
-
-            const checkinData = await checkinResponse.json();
-            if (checkinData.success) {
-              // Send native notification
-              await notificationService.sendCheckInNotification(event.title);
-
-              // Refresh data
-              window.location.reload();
-              return;
-            } else {
-              throw new Error(checkinData.message || 'Failed to check in');
-            }
-          }
-
-          // Check if invitation has expired
-          if (isInvitationExpired(invitation)) {
+          try {
+            await startLocationWatching(event._id, finalAttendanceRecord._id);
+            console.log('✅ Location tracking started for registered participant');
+            window.location.reload();
+          } catch (trackingError) {
+            console.error('Failed to start location tracking:', trackingError);
             toast({
-              title: "Event Expired",
-              description: "This event has already ended. Check-in is no longer available.",
+              title: "Error",
+              description: "Failed to start location tracking. Please try again.",
               variant: "destructive",
             });
-            return;
           }
+          return;
+        }
 
-          // Check in using QR data
-          const qrData = JSON.stringify({
-            invitationId: invitation._id,
+        // For other statuses, attempt direct check-in
+        const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin-direct`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
             eventId: event._id,
-            participantId: user._id,
-            code: invitation.invitationCode
-          });
+            location
+          })
+        });
 
-          const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              qrData,
-              location
-            })
-          });
+        const checkinData = await checkinResponse.json();
+        if (checkinData.success) {
+          // Send native notification
+          await notificationService.sendCheckInNotification(event.title);
 
-          const checkinData = await checkinResponse.json();
+          // Refresh data
+          window.location.reload();
+          return;
+        } else {
+          throw new Error(checkinData.message || 'Failed to check in');
+        }
+      }
 
-          if (checkinData.success) {
-            // Send native notification
-            await notificationService.sendCheckInNotification(event.title);
-
-            // Start location tracking for this event
-            if (checkinData.data.attendanceLog && checkinData.data.attendanceLog._id) {
-              await startLocationWatching(event._id, checkinData.data.attendanceLog._id);
-            }
-            
-            // Refresh scan history from database
-            await refreshScanHistory();
-            setEventCode('');
-            
-            // Refresh data
-            window.location.reload();
-          } else {
-            throw new Error(checkinData.message);
-          }
-      } catch (locationError) {
+      // Check if invitation has expired
+      if (isInvitationExpired(invitation)) {
         toast({
-          title: "Location access required",
-          description: "Please enable location access to join events",
+          title: "Event Expired",
+          description: "This event has already ended. Check-in is no longer available.",
           variant: "destructive",
         });
+        return;
+      }
+
+      // Check in using QR data
+      const qrData = JSON.stringify({
+        invitationId: invitation._id,
+        eventId: event._id,
+        participantId: user._id,
+        code: invitation.invitationCode
+      });
+
+      const checkinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          qrData,
+          location
+        })
+      });
+
+      const checkinData = await checkinResponse.json();
+
+      if (checkinData.success) {
+        // Send native notification
+        await notificationService.sendCheckInNotification(event.title);
+
+        // Start location tracking for this event
+        if (checkinData.data.attendanceLog && checkinData.data.attendanceLog._id) {
+          await startLocationWatching(event._id, checkinData.data.attendanceLog._id);
+        }
+
+        // Refresh scan history from database
+        await refreshScanHistory();
+        setEventCode('');
+
+        // Refresh data
+        window.location.reload();
+      } else {
+        throw new Error(checkinData.message);
       }
     } catch (error) {
       toast({
