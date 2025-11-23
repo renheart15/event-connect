@@ -175,12 +175,27 @@ router.get('/', auth, async (req, res) => {
         });
 
         // Aggregate attendance counts and currently present counts in one query
+        // CRITICAL FIX: Only count 'checked-in' and 'absent' participants in totalAttendees
+        // Don't count 'registered' participants (they haven't checked in yet)
         const attendanceCounts = await AttendanceLog.aggregate([
           { $match: { event: { $in: eventIds } } },
           {
             $group: {
               _id: '$event',
-              totalAttendees: { $sum: 1 },
+              totalAttendees: {
+                $sum: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $eq: ['$status', 'checked-in'] },
+                        { $eq: ['$status', 'absent'] }
+                      ]
+                    },
+                    1,
+                    0
+                  ]
+                }
+              },
               currentlyPresent: {
                 $sum: { $cond: [{ $eq: ['$status', 'checked-in'] }, 1, 0] }
               },
