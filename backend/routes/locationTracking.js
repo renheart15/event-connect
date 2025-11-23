@@ -54,11 +54,12 @@ router.post('/initialize', [
         });
       }
 
-      // Check if participant is checked in
-      if (attendanceLog.status !== 'checked-in') {
+      // CRITICAL FIX: Allow location tracking for BOTH 'registered' and 'checked-in' participants
+      // 'registered' participants need tracking to enable auto-check-in when entering geofence
+      if (attendanceLog.status !== 'checked-in' && attendanceLog.status !== 'registered') {
         return res.status(400).json({
           success: false,
-          message: `Cannot start location tracking. Current status: ${attendanceLog.status}. Please check in first.`
+          message: `Cannot start location tracking. Current status: ${attendanceLog.status}. Please accept invitation or check in first.`
         });
       }
 
