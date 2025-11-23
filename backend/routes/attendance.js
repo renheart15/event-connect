@@ -602,16 +602,19 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
       }
     }
 
+    // CRITICAL FIX: Filter out registered participants - they haven't actually checked in yet
+    const checkedInLogs = enrichedLogs.filter(log => log.status !== 'registered');
+
     // Get summary statistics
     const stats = {
-      totalCheckedIn: enrichedLogs.length,
-      currentlyPresent: enrichedLogs.filter(log => log.status === 'checked-in').length,
+      totalCheckedIn: checkedInLogs.length,
+      currentlyPresent: checkedInLogs.filter(log => log.status === 'checked-in').length,
       totalCheckedOut: totalLate, // Use totalLate instead of checked-out count
-      totalAbsent: enrichedLogs.filter(log => log.status === 'absent').length,
-      averageDuration: enrichedLogs
+      totalAbsent: checkedInLogs.filter(log => log.status === 'absent').length,
+      averageDuration: checkedInLogs
         .filter(log => log.duration > 0)
         .reduce((sum, log) => sum + log.duration, 0) /
-        enrichedLogs.filter(log => log.duration > 0).length || 0
+        checkedInLogs.filter(log => log.duration > 0).length || 0
     };
 
     // Debug: Check what location data we're sending

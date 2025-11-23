@@ -158,19 +158,15 @@ router.get('/event/:eventId/status',
       const locationStatuses = await locationTrackingService.getEventLocationStatus(eventId);
 
       // Calculate summary statistics
-      // CRITICAL FIX: Only count checked-in participants in outside/inside geofence
-      // Registered participants (not yet checked in) should not appear in location tracking counts
-      const checkedInParticipants = locationStatuses.filter(s =>
-        s.attendanceLog && s.attendanceLog.status === 'checked-in'
-      );
-
+      // CRITICAL FIX: Only count checked-in participants (registered participants already filtered out by service)
+      // locationStatuses now only contains checked-in and absent participants
       const summary = {
-        totalParticipants: locationStatuses.length,
-        insideGeofence: checkedInParticipants.filter(s => s.isWithinGeofence).length,
-        outsideGeofence: checkedInParticipants.filter(s => !s.isWithinGeofence).length,
-        warningStatus: checkedInParticipants.filter(s => s.status === 'warning').length,
-        exceededLimit: checkedInParticipants.filter(s => s.status === 'exceeded_limit').length,
-        absent: checkedInParticipants.filter(s => s.status === 'absent').length
+        totalParticipants: locationStatuses.length, // Total tracked (checked-in + absent)
+        insideGeofence: locationStatuses.filter(s => s.isWithinGeofence).length,
+        outsideGeofence: locationStatuses.filter(s => !s.isWithinGeofence).length,
+        warningStatus: locationStatuses.filter(s => s.status === 'warning').length,
+        exceededLimit: locationStatuses.filter(s => s.status === 'exceeded_limit').length,
+        absent: locationStatuses.filter(s => s.status === 'absent').length
       };
 
       res.json({

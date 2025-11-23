@@ -79,8 +79,14 @@ const EventMonitor = () => {
         throw new Error(data.message);
       }
 
+      // CRITICAL FIX: Filter out registered participants - only show checked-in, absent, or checked-out
+      // Registered participants haven't actually attended yet
+      const filteredLogs = data.data.attendanceLogs.filter(log =>
+        log.status !== 'registered'
+      );
+
       // Transform attendance data for display
-      const transformedParticipants = data.data.attendanceLogs.map(log => {
+      const transformedParticipants = filteredLogs.map(log => {
         // Calculate real-time duration for checked-in participants
         let duration = log.duration || 0;
         if (log.status === 'checked-in' && log.checkInTime) {

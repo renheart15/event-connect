@@ -586,12 +586,17 @@ class LocationTrackingService {
         return statusObj;
       }));
 
-      // CRITICAL FIX: Filter out checked-out participants from location tracking display
-      // Only show participants who are currently attending the event
+      // CRITICAL FIX: Filter out checked-out and registered participants from location tracking display
+      // Only show participants who are actually checked-in or absent
       const activeParticipants = statusesWithRealtime.filter(status => {
         // Exclude if attendance log shows checked-out status
         if (status.attendanceLog && status.attendanceLog.status === 'checked-out') {
           console.log(`🚫 [LOCATION-STATUS] Filtering out checked-out participant: ${status.participant.name}`);
+          return false;
+        }
+        // CRITICAL FIX: Exclude registered participants (not yet checked in)
+        if (status.attendanceLog && status.attendanceLog.status === 'registered') {
+          console.log(`🚫 [LOCATION-STATUS] Filtering out registered participant: ${status.participant.name}`);
           return false;
         }
         return true;
