@@ -39,6 +39,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [eventData, setEventData] = useState<any>(null);
 
   // Fetch participants data when component opens
   useEffect(() => {
@@ -91,12 +92,15 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
       
       if (attendanceResult.success) {
         const attendanceLogs = attendanceResult.data.attendanceLogs || [];
+        const event = attendanceResult.data.event || null;
         console.log('Fetched attendance logs:', attendanceLogs);
         console.log('Number of attendance logs:', attendanceLogs.length);
+        console.log('Event data:', event);
         if (attendanceLogs.length > 0) {
           console.log('First attendance log structure:', JSON.stringify(attendanceLogs[0], null, 2));
         }
         setParticipants(attendanceLogs);
+        setEventData(event);
       } else {
         console.error('API returned unsuccessful response:', attendanceResult);
         throw new Error(attendanceResult.message || 'Failed to fetch participants');
@@ -114,6 +118,33 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     }
   };
 
+  // Helper function to determine if check-in was late or on time
+  const getCheckInStatus = (participant: Participant) => {
+    if (participant.status === 'absent') {
+      return 'Absent';
+    }
+
+    if (!eventData || !eventData.date || !eventData.startTime || !participant.checkInTime) {
+      return participant.status === 'checked-in' ? 'Checked In' : 'Checked Out';
+    }
+
+    try {
+      // Combine event date and start time
+      const eventStartDateTime = new Date(`${eventData.date}T${eventData.startTime}`);
+      const checkInDateTime = new Date(participant.checkInTime);
+
+      // If checked in after event start time, they're late
+      if (checkInDateTime > eventStartDateTime) {
+        return participant.status === 'checked-in' ? 'Checked In - Late' : 'Checked Out - Late';
+      } else {
+        return participant.status === 'checked-in' ? 'Checked In - On Time' : 'Checked Out - On Time';
+      }
+    } catch (error) {
+      console.error('Error calculating check-in status:', error);
+      return participant.status === 'checked-in' ? 'Checked In' : 'Checked Out';
+    }
+  };
+
   const filteredParticipants = participants.filter(participant => {
     if (!participant?.participant?.name || !participant?.participant?.email) {
       console.warn('Invalid participant data:', participant);
@@ -124,20 +155,15 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
   });
 
   const handleExportCSV = () => {
-    const csvHeaders = ['Participant Name', 'Email', 'Status', 'Check-in Time', 'Check-out Time', 'Duration (minutes)', 'Participant ID', 'Event'];
+    const csvHeaders = ['Participant Name', 'Email', 'Check-in Time', 'Check-out Time', 'Status'];
     const csvData = participants
       .filter(p => p?.participant?.name && p?.participant?.email)
       .map(p => [
         p.participant.name,
         p.participant.email,
-        p.status === 'checked-in' ? 'Currently Attending' :
-        p.status === 'absent' ? 'Absent' :
-        'Completed',
-        new Date(p.checkInTime).toLocaleString(),
+        p.checkInTime ? new Date(p.checkInTime).toLocaleString() : 'N/A',
         p.checkOutTime ? new Date(p.checkOutTime).toLocaleString() : 'N/A',
-        p.duration ? `${p.duration} minutes` : 'N/A',
-        p.participant._id,
-        eventTitle
+        getCheckInStatus(p)
       ]);
 
     const csvContent = [csvHeaders, ...csvData]
@@ -273,16 +299,15 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead>Check-in Time</TableHead>
                       <TableHead>Check-out Time</TableHead>
-                      <TableHead>Duration</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredParticipants.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center p-8 text-gray-500">
+                        <TableCell colSpan={5} className="text-center p-8 text-gray-500">
                           {participants.length === 0 ? (
                             <div>
                               <p className="mb-2">No attendance records found for this event.</p>
@@ -303,22 +328,19 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                             {participant?.participant?.email || 'Unknown'}
                           </TableCell>
                           <TableCell>
-                            <Badge variant={
-                              participant.status === 'checked-in' ? "default" :
-                              participant.status === 'absent' ? "destructive" :
-                              "secondary"
-                            }>
-                              {participant.status === 'checked-in' ? "Currently Attending" :
-                               participant.status === 'absent' ? "Absent" :
-                               "Completed"}
-                            </Badge>
+                            {participant.checkInTime ? new Date(participant.checkInTime).toLocaleString() : 'N/A'}
                           </TableCell>
-                          <TableCell>{new Date(participant.checkInTime).toLocaleString()}</TableCell>
                           <TableCell>
                             {participant.checkOutTime ? new Date(participant.checkOutTime).toLocaleString() : 'N/A'}
                           </TableCell>
                           <TableCell>
-                            {participant.duration ? `${participant.duration} min` : 'N/A'}
+                            <Badge variant={
+                              participant.status === 'absent' ? "destructive" :
+                              participant.status === 'checked-in' ? "default" :
+                              "secondary"
+                            }>
+                              {getCheckInStatus(participant)}
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       ))
