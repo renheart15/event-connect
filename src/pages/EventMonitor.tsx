@@ -24,6 +24,7 @@ const EventMonitor = () => {
   const [eventData, setEventData] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [stats, setStats] = useState({
+    total: 0,
     totalCheckedIn: 0,
     currentlyPresent: 0,
     totalCheckedOut: 0,
@@ -651,8 +652,8 @@ const EventMonitor = () => {
               <Card>
                 <CardContent className="pt-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-green-600">{stats.totalCheckedIn}</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Total Checked In</p>
+                    <p className="text-2xl font-bold text-green-600">{stats.total}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Total</p>
                   </div>
                 </CardContent>
               </Card>
@@ -660,8 +661,8 @@ const EventMonitor = () => {
               <Card>
                 <CardContent className="pt-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-600">{stats.currentlyPresent}</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Currently Present</p>
+                    <p className="text-2xl font-bold text-blue-600">{stats.totalCheckedIn}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Checked In</p>
                   </div>
                 </CardContent>
               </Card>
