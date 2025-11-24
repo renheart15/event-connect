@@ -182,7 +182,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
         <div className="space-y-4">
           {/* Stats Cards */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <Card>
               <CardContent className="pt-4">
                 <div className="text-center">
@@ -199,17 +199,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                   <p className="text-2xl font-bold text-green-600">
                     {loading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : stats.checkedIn}
                   </p>
-                  <p className="text-sm text-gray-600">Total Attended</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-orange-600">
-                    {loading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : stats.currentlyPresent}
-                  </p>
-                  <p className="text-sm text-gray-600">Currently Present</p>
+                  <p className="text-sm text-gray-600">Checked In</p>
                 </div>
               </CardContent>
             </Card>
@@ -219,7 +209,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                   <p className="text-2xl font-bold text-red-600">
                     {loading ? <Loader2 className="w-6 h-6 animate-spin inline" /> : stats.absent}
                   </p>
-                  <p className="text-sm text-gray-600">Marked Absent</p>
+                  <p className="text-sm text-gray-600">Absent</p>
                 </div>
               </CardContent>
             </Card>
