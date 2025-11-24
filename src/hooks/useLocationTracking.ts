@@ -97,7 +97,27 @@ export const useLocationTracking = (eventId: string): UseLocationTrackingReturn 
       if (response.data.success) {
         const participants = response.data.data.participants || [];
         setLocationStatuses(participants);
-        setSummary(response.data.data.summary || null);
+
+        // Recalculate summary to exclude absent participants from location counts
+        const backendSummary = response.data.data.summary || null;
+        if (backendSummary && participants.length > 0) {
+          // Filter out absent participants for location counting
+          const activeParticipants = participants.filter((p: LocationStatus) => p.status !== 'absent');
+
+          const recalculatedSummary: LocationSummary = {
+            totalParticipants: backendSummary.totalParticipants,
+            insideGeofence: activeParticipants.filter((p: LocationStatus) => p.isWithinGeofence).length,
+            outsideGeofence: activeParticipants.filter((p: LocationStatus) => !p.isWithinGeofence).length,
+            warningStatus: activeParticipants.filter((p: LocationStatus) => p.status === 'warning').length,
+            exceededLimit: activeParticipants.filter((p: LocationStatus) => p.status === 'exceeded_limit').length,
+            absent: participants.filter((p: LocationStatus) => p.status === 'absent').length,
+          };
+
+          setSummary(recalculatedSummary);
+        } else {
+          setSummary(backendSummary);
+        }
+
         setLastFetchTime(new Date()); // Track when we fetched the data
       } else {
         setError(response.data.message || 'Failed to fetch location data');
