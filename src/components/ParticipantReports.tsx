@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Search, Download, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 
 interface Participant {
   _id: string;
@@ -174,36 +175,80 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
   });
 
   const handleExportCSV = () => {
-    const csvTitle = [eventTitle]; // Event name as title
-    const emptyRow = ['']; // Blank row
-    const csvHeaders = ['Participant Name', 'Email', 'Check-in Time', 'Check-out Time', 'Status'];
-    const csvData = participants
+    // Format time only (HH:MM:SS AM/PM)
+    const formatTimeOnly = (dateString: string) => {
+      if (!dateString) return 'N/A';
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        });
+      } catch (error) {
+        return 'N/A';
+      }
+    };
+
+    // Get event date from the first participant or eventData
+    const eventDate = eventData?.date ? new Date(eventData.date).toLocaleDateString('en-US') :
+                      participants[0]?.checkInTime ? new Date(participants[0].checkInTime).toLocaleDateString('en-US') :
+                      new Date().toLocaleDateString('en-US');
+
+    // Prepare data for Excel export
+    const headers = ['Participant Name', 'Email', 'Check-in Time', 'Check-out Time', 'Status'];
+    const data = participants
       .filter(p => p?.participant?.name && p?.participant?.email)
       .map(p => [
         p.participant.name,
         p.participant.email,
-        formatDateTime(p.checkInTime),
-        p.checkOutTime ? formatDateTime(p.checkOutTime) : 'N/A',
+        formatTimeOnly(p.checkInTime),
+        p.checkOutTime ? formatTimeOnly(p.checkOutTime) : 'N/A',
         getCheckInStatus(p)
       ]);
 
-    const csvContent = [csvTitle, emptyRow, csvHeaders, ...csvData]
-      .map(row => row.map(field => `"${field}"`).join(','))
-      .join('\n');
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const wsData = [
+      ['', eventTitle], // Row 1: Event title in column B
+      [`Date: ${eventDate}`], // Row 2: Date label
+      [], // Row 3: Empty row
+      headers, // Row 4: Headers
+      ...data // Row 5+: Data
+    ];
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${eventTitle.replace(/\s+/g, '_')}_participant_report.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 20 }, // Participant Name
+      { wch: 30 }, // Email
+      { wch: 20 }, // Check-in Time
+      { wch: 20 }, // Check-out Time
+      { wch: 15 }  // Status
+    ];
+
+    // Merge cells B1:E1 for event title
+    ws['!merges'] = [{ s: { r: 0, c: 1 }, e: { r: 0, c: 4 } }];
+
+    // Apply center alignment to the event title (B1)
+    if (!ws['B1']) ws['B1'] = { v: eventTitle, t: 's' };
+    if (!ws['B1'].s) ws['B1'].s = {};
+    ws['B1'].s = {
+      alignment: { horizontal: 'center', vertical: 'center' },
+      font: { bold: true, sz: 14 }
+    };
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Participant Report');
+
+    // Generate Excel file and trigger download
+    XLSX.writeFile(wb, `${eventTitle.replace(/\s+/g, '_')}_participant_report.xlsx`);
 
     toast({
       title: "Report Exported",
-      description: "Participant report has been downloaded as CSV file.",
+      description: "Participant report has been downloaded as Excel file.",
     });
   };
 
@@ -283,13 +328,13 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
-              <Button 
-                onClick={handleExportCSV} 
+              <Button
+                onClick={handleExportCSV}
                 className="flex items-center gap-2"
                 disabled={loading || participants.length === 0}
               >
                 <Download className="w-4 h-4" />
-                Export CSV
+                Export Excel
               </Button>
             </div>
           </div>
