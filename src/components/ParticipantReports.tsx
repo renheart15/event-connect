@@ -211,7 +211,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     // Create workbook and worksheet
     const wb = XLSX.utils.book_new();
     const wsData = [
-      ['', eventTitle], // Row 1: Event title in column B
+      [eventTitle], // Row 1: Event title in column A
       [`Date: ${eventDate}`], // Row 2: Date label
       [], // Row 3: Empty row
       headers, // Row 4: Headers
@@ -229,13 +229,13 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
       { wch: 15 }  // Status
     ];
 
-    // Merge cells B1:E1 for event title
-    ws['!merges'] = [{ s: { r: 0, c: 1 }, e: { r: 0, c: 4 } }];
+    // Merge cells A1:E1 for event title
+    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
 
-    // Apply center alignment to the event title (B1)
-    if (!ws['B1']) ws['B1'] = { v: eventTitle, t: 's' };
-    if (!ws['B1'].s) ws['B1'].s = {};
-    ws['B1'].s = {
+    // Apply center alignment to the event title (A1)
+    if (!ws['A1']) ws['A1'] = { v: eventTitle, t: 's' };
+    if (!ws['A1'].s) ws['A1'].s = {};
+    ws['A1'].s = {
       alignment: { horizontal: 'center', vertical: 'center' },
       font: { bold: true, sz: 14 }
     };
