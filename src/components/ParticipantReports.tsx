@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Search, Download, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 interface Participant {
   _id: string;
@@ -174,7 +174,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
            participant.participant.email.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     // Format time only (HH:MM:SS AM/PM)
     const formatTimeOnly = (dateString: string) => {
       if (!dateString) return 'N/A';
@@ -196,55 +196,58 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                       participants[0]?.checkInTime ? new Date(participants[0].checkInTime).toLocaleDateString('en-US') :
                       new Date().toLocaleDateString('en-US');
 
-    // Prepare data for Excel export
-    const headers = ['Participant Name', 'Email', 'Check-in Time', 'Check-out Time', 'Status'];
-    const data = participants
-      .filter(p => p?.participant?.name && p?.participant?.email)
-      .map(p => [
-        p.participant.name,
-        p.participant.email,
-        formatTimeOnly(p.checkInTime),
-        p.checkOutTime ? formatTimeOnly(p.checkOutTime) : 'N/A',
-        getCheckInStatus(p)
-      ]);
-
     // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    const wsData = [
-      [eventTitle], // Row 1: Event title in column A
-      [`Date: ${eventDate}`], // Row 2: Date label
-      [], // Row 3: Empty row
-      headers, // Row 4: Headers
-      ...data // Row 5+: Data
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Participant Report');
 
     // Set column widths
-    ws['!cols'] = [
-      { wch: 20 }, // Participant Name
-      { wch: 30 }, // Email
-      { wch: 20 }, // Check-in Time
-      { wch: 20 }, // Check-out Time
-      { wch: 15 }  // Status
+    worksheet.columns = [
+      { width: 20 }, // Participant Name
+      { width: 30 }, // Email
+      { width: 20 }, // Check-in Time
+      { width: 20 }, // Check-out Time
+      { width: 15 }  // Status
     ];
 
-    // Merge cells A1:E1 for event title
-    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+    // Row 1: Event title (merged A1:E1)
+    worksheet.mergeCells('A1:E1');
+    const titleCell = worksheet.getCell('A1');
+    titleCell.value = eventTitle;
+    titleCell.font = { bold: true, size: 14 };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
-    // Apply center alignment to the event title (A1)
-    if (!ws['A1']) ws['A1'] = { v: eventTitle, t: 's' };
-    if (!ws['A1'].s) ws['A1'].s = {};
-    ws['A1'].s = {
-      alignment: { horizontal: 'center', vertical: 'center' },
-      font: { bold: true, sz: 14 }
-    };
+    // Row 2: Date
+    const dateCell = worksheet.getCell('A2');
+    dateCell.value = `Date: ${eventDate}`;
 
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Participant Report');
+    // Row 3: Empty row
+
+    // Row 4: Headers
+    const headerRow = worksheet.getRow(4);
+    headerRow.values = ['Participant Name', 'Email', 'Check-in Time', 'Check-out Time', 'Status'];
+    headerRow.font = { bold: true };
+
+    // Row 5+: Data
+    participants
+      .filter(p => p?.participant?.name && p?.participant?.email)
+      .forEach((p, index) => {
+        const row = worksheet.getRow(5 + index);
+        row.values = [
+          p.participant.name,
+          p.participant.email,
+          formatTimeOnly(p.checkInTime),
+          p.checkOutTime ? formatTimeOnly(p.checkOutTime) : 'N/A',
+          getCheckInStatus(p)
+        ];
+      });
 
     // Generate Excel file and trigger download
-    XLSX.writeFile(wb, `${eventTitle.replace(/\s+/g, '_')}_participant_report.xlsx`);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${eventTitle.replace(/\s+/g, '_')}_participant_report.xlsx`;
+    link.click();
 
     toast({
       title: "Report Exported",
