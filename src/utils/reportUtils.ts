@@ -38,7 +38,7 @@ export interface DetailedEventReportData {
 }
 
 export const exportEventSummary = (events: EventReportData[]) => {
-  const csvHeaders = ['Event Title', 'Location', 'Date', 'Start Time', 'End Time', 'Checked In', 'Absent', 'Status'];
+  const csvHeaders = ['Event Title', 'Location', 'Date', 'Total', 'Checked In', 'Absent', 'Status'];
   const csvData = events.map(event => {
     // Calculate absent count for all events
     // For active/ongoing events: absent = checkedIn - currentlyPresent
@@ -51,8 +51,7 @@ export const exportEventSummary = (events: EventReportData[]) => {
       event.eventTitle,
       event.location,
       event.eventDate,
-      convertTo12Hour(event.startTime),
-      convertTo12Hour(event.endTime),
+      event.totalParticipants.toString(),
       event.checkedIn.toString(),
       absentCount,
       event.status

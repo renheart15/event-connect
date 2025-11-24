@@ -925,7 +925,7 @@ const OrganizerDashboard = () => {
         )}
 
         <EventExportDialog
-          events={events}
+          events={events.filter(event => event.status === 'completed')}
           isOpen={isExportDialogOpen}
           onClose={() => setIsExportDialogOpen(false)}
         />

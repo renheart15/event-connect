@@ -296,8 +296,8 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
     }
 
     // Filter out dismissed notifications
-    return newNotifications.filter(n => 
-      !dismissedIds.has(n.id) || n.persistent
+    return newNotifications.filter(n =>
+      !dismissedIds.has(n.id)
     );
   }, [isTracking, currentLocationStatus, batteryLevel, isCharging, isOnline, timeOutsideSeconds, dismissedIds]);
 
@@ -398,7 +398,7 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
 
   const dismissNotification = (id: string) => {
     setDismissedIds(prev => new Set(prev).add(id));
-    setNotifications(prev => prev.filter(n => n.id !== id || n.persistent));
+    setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   const getNotificationIcon = (type: string, severity: string) => {
@@ -442,7 +442,7 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
   }
 
   // Get background color based on notification type/severity
-  const getBannerColor = (notification: Notification) => {
+  const getBannerColor = (notification: NotificationData) => {
     if (notification.type === 'network') return 'bg-red-600';
     if (notification.type === 'battery') {
       return notification.severity === 'error' ? 'bg-red-600' : 'bg-yellow-600';

@@ -602,18 +602,15 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
       }
     }
 
-    // CRITICAL FIX: Don't filter out registered participants for total count
-    // Total should include ALL participants (checked-in OR registered)
-    // But checked-in count should ONLY include actually checked-in participants
+    // CRITICAL FIX: Filter out registered participants - they haven't actually checked in yet
     const checkedInLogs = enrichedLogs.filter(log => log.status !== 'registered');
 
     // Get summary statistics
     const stats = {
-      total: enrichedLogs.length, // Total participants (checked-in OR registered)
-      totalCheckedIn: enrichedLogs.filter(log => log.status === 'checked-in').length, // Only checked-in
-      currentlyPresent: enrichedLogs.filter(log => log.status === 'checked-in').length,
+      totalCheckedIn: checkedInLogs.length,
+      currentlyPresent: checkedInLogs.filter(log => log.status === 'checked-in').length,
       totalCheckedOut: totalLate, // Use totalLate instead of checked-out count
-      totalAbsent: enrichedLogs.filter(log => log.status === 'absent').length,
+      totalAbsent: checkedInLogs.filter(log => log.status === 'absent').length,
       averageDuration: checkedInLogs
         .filter(log => log.duration > 0)
         .reduce((sum, log) => sum + log.duration, 0) /
