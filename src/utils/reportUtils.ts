@@ -40,19 +40,26 @@ export interface DetailedEventReportData {
 export const exportEventSummary = (events: EventReportData[]) => {
   const csvHeaders = ['Event Title', 'Location', 'Date', 'Total', 'Checked In', 'Absent', 'Status'];
   const csvData = events.map(event => {
-    // Calculate absent count for all events
-    // For active/ongoing events: absent = checkedIn - currentlyPresent
-    // For completed events: backend already provides absent count in currentlyPresent field
-    const absentCount = event.status === 'active'
-      ? (event.checkedIn - event.currentlyPresent).toString()
-      : event.currentlyPresent.toString();
+    // For completed events:
+    // - Checked In = those who checked out successfully (totalParticipants - absent)
+    // - Absent = currentlyPresent (backend provides absent count here)
+    // For active events:
+    // - Checked In = checkedIn (current count)
+    // - Absent = checkedIn - currentlyPresent (those checked in but not currently present)
+    const isCompleted = event.status === 'completed';
+    const checkedInCount = isCompleted
+      ? (event.totalParticipants - event.currentlyPresent).toString()
+      : event.checkedIn.toString();
+    const absentCount = isCompleted
+      ? event.currentlyPresent.toString()
+      : (event.checkedIn - event.currentlyPresent).toString();
 
     return [
       event.eventTitle,
       event.location,
       event.eventDate,
       event.totalParticipants.toString(),
-      event.checkedIn.toString(),
+      checkedInCount,
       absentCount,
       event.status
     ];
