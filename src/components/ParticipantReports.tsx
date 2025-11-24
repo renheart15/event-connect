@@ -162,7 +162,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
   const stats = {
     total: participants.length,
-    checkedIn: participants.length, // All participants in the list are checked in
+    checkedIn: participants.filter(p => p.status !== 'absent').length, // Only count non-absent participants
     currentlyPresent: participants.filter(p => p.status === 'checked-in').length,
     absent: participants.filter(p => p.status === 'absent').length
   };
