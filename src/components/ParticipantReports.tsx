@@ -125,7 +125,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     }
 
     if (!eventData || !eventData.date || !eventData.startTime || !participant.checkInTime) {
-      return participant.status === 'checked-in' ? 'Checked In' : 'Checked Out';
+      return 'On Time'; // Default to On Time if we can't determine
     }
 
     try {
@@ -135,13 +135,32 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
       // If checked in after event start time, they're late
       if (checkInDateTime > eventStartDateTime) {
-        return participant.status === 'checked-in' ? 'Checked In - Late' : 'Checked Out - Late';
+        return 'Late';
       } else {
-        return participant.status === 'checked-in' ? 'Checked In - On Time' : 'Checked Out - On Time';
+        return 'On Time';
       }
     } catch (error) {
       console.error('Error calculating check-in status:', error);
-      return participant.status === 'checked-in' ? 'Checked In' : 'Checked Out';
+      return 'On Time';
+    }
+  };
+
+  // Format date/time as: MM/DD/YYYY, HH:MM:SS AM/PM (reusable function)
+  const formatDateTime = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      return 'N/A';
     }
   };
 
@@ -155,18 +174,20 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
   });
 
   const handleExportCSV = () => {
+    const csvTitle = [eventTitle]; // Event name as title
+    const emptyRow = ['']; // Blank row
     const csvHeaders = ['Participant Name', 'Email', 'Check-in Time', 'Check-out Time', 'Status'];
     const csvData = participants
       .filter(p => p?.participant?.name && p?.participant?.email)
       .map(p => [
         p.participant.name,
         p.participant.email,
-        p.checkInTime ? new Date(p.checkInTime).toLocaleString() : 'N/A',
-        p.checkOutTime ? new Date(p.checkOutTime).toLocaleString() : 'N/A',
+        formatDateTime(p.checkInTime),
+        p.checkOutTime ? formatDateTime(p.checkOutTime) : 'N/A',
         getCheckInStatus(p)
       ]);
 
-    const csvContent = [csvHeaders, ...csvData]
+    const csvContent = [csvTitle, emptyRow, csvHeaders, ...csvData]
       .map(row => row.map(field => `"${field}"`).join(','))
       .join('\n');
 
@@ -328,10 +349,10 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                             {participant?.participant?.email || 'Unknown'}
                           </TableCell>
                           <TableCell>
-                            {participant.checkInTime ? new Date(participant.checkInTime).toLocaleString() : 'N/A'}
+                            {formatDateTime(participant.checkInTime)}
                           </TableCell>
                           <TableCell>
-                            {participant.checkOutTime ? new Date(participant.checkOutTime).toLocaleString() : 'N/A'}
+                            {participant.checkOutTime ? formatDateTime(participant.checkOutTime) : 'N/A'}
                           </TableCell>
                           <TableCell>
                             <Badge variant={
