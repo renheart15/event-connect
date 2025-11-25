@@ -84,12 +84,14 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
 
     const currentStatus = currentLocationStatus.status;
     const isWithinGeofence = currentLocationStatus.isWithinGeofence;
-    const eventName = 'Event'; // We can get the actual event name if passed as prop
+    const eventName = currentLocationStatus.event?.title || 'Event'; // Get actual event name from currentLocationStatus
 
-    // Format time remaining
-    const timeOutside = Math.floor(timeOutsideSeconds);
-    const minutes = Math.floor(timeOutside / 60);
-    const seconds = timeOutside % 60;
+    // CRITICAL FIX: Calculate time REMAINING, not time spent!
+    const maxTimeOutsideSeconds = (currentLocationStatus.event?.maxTimeOutside || 15) * 60; // Convert minutes to seconds
+    const timeSpent = Math.floor(timeOutsideSeconds);
+    const timeRemainingSeconds = Math.max(0, maxTimeOutsideSeconds - timeSpent); // Time REMAINING
+    const minutes = Math.floor(timeRemainingSeconds / 60);
+    const seconds = timeRemainingSeconds % 60;
     const timeRemainingStr = `${minutes}m ${seconds}s`;
 
     // Track status changes to avoid duplicate notifications
@@ -114,7 +116,9 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
         setSentNativeNotifications(prev => new Set(prev).add('warning'));
       }
 
-      if (currentStatus === 'exceeded_limit' && !sentNativeNotifications.has('exceeded')) {
+      // CRITICAL FIX: Handle both 'exceeded_limit' and 'absent' status
+      // Backend sets status to 'absent' when limit is exceeded, not 'exceeded_limit'
+      if ((currentStatus === 'exceeded_limit' || currentStatus === 'absent') && !sentNativeNotifications.has('exceeded')) {
         notificationService.sendExceededLimitNotification(eventName);
         setSentNativeNotifications(prev => new Set(prev).add('exceeded'));
       }
@@ -205,16 +209,39 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
   // Monitor time outside premises
   useEffect(() => {
     if (currentLocationStatus?.outsideTimer?.isActive) {
-      const interval = setInterval(() => {
-        const currentTime = currentLocationStatus.currentTimeOutside || 0;
-        setTimeOutsideSeconds(currentTime);
-      }, 1000);
+      // CRITICAL FIX: Calculate timer in REAL-TIME using session start time
+      // Don't rely on server's currentTimeOutside which only updates every 30 seconds!
+      const updateTimer = () => {
+        const totalAccumulated = currentLocationStatus.outsideTimer.totalTimeOutside || 0;
+        const sessionStart = currentLocationStatus.outsideTimer.currentSessionStart;
+
+        if (sessionStart) {
+          // Calculate time in current session
+          const sessionStartTime = new Date(sessionStart).getTime();
+          const currentSessionTime = Math.floor((Date.now() - sessionStartTime) / 1000);
+          // Total = accumulated from previous sessions + current session time
+          setTimeOutsideSeconds(totalAccumulated + currentSessionTime);
+        } else {
+          // Fallback if no session start time
+          setTimeOutsideSeconds(totalAccumulated);
+        }
+      };
+
+      // Update immediately, then every second for smooth countdown
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
 
       return () => clearInterval(interval);
     } else {
-      setTimeOutsideSeconds(0);
+      // Timer is paused - preserve the accumulated time!
+      const accumulatedTime = currentLocationStatus?.outsideTimer?.totalTimeOutside || 0;
+      setTimeOutsideSeconds(accumulatedTime);
     }
-  }, [currentLocationStatus?.outsideTimer?.isActive, currentLocationStatus?.currentTimeOutside]);
+  }, [
+    currentLocationStatus?.outsideTimer?.isActive,
+    currentLocationStatus?.outsideTimer?.totalTimeOutside,
+    currentLocationStatus?.outsideTimer?.currentSessionStart
+  ]);
 
   // Memoize notifications to prevent unnecessary recalculations
   const currentNotifications = useMemo(() => {
@@ -223,17 +250,25 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
     // Location notifications
     if (isTracking && currentLocationStatus) {
       if (!currentLocationStatus.isWithinGeofence) {
-        const timeOutside = Math.floor(timeOutsideSeconds);
-        const minutes = Math.floor(timeOutside / 60);
-        const seconds = timeOutside % 60;
-        
-        if (currentLocationStatus.status === 'exceeded_limit') {
+        // CRITICAL FIX: Calculate BOTH time spent AND time remaining correctly
+        const timeSpent = Math.floor(timeOutsideSeconds);
+        const spentMinutes = Math.floor(timeSpent / 60);
+        const spentSeconds = timeSpent % 60;
+
+        const maxTimeOutsideSeconds = (currentLocationStatus.event?.maxTimeOutside || 15) * 60;
+        const timeRemainingSeconds = Math.max(0, maxTimeOutsideSeconds - timeSpent);
+        const remainingMinutes = Math.floor(timeRemainingSeconds / 60);
+        const remainingSeconds = timeRemainingSeconds % 60;
+
+        // CRITICAL FIX: Check for both 'exceeded_limit' AND 'absent' status
+        // Backend sets status to 'absent' when limit is exceeded
+        if (currentLocationStatus.status === 'exceeded_limit' || currentLocationStatus.status === 'absent') {
           newNotifications.push({
             id: 'location-exceeded',
             type: 'location',
             severity: 'error',
             title: 'Time Limit Exceeded!',
-            message: `You have been outside the event premises for ${minutes}m ${seconds}s. Please return immediately.`,
+            message: `You have been outside the event premises for ${spentMinutes}m ${spentSeconds}s. Please return immediately.`,
             timestamp: new Date(),
             persistent: true,
             actionRequired: true
@@ -244,7 +279,7 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
             type: 'location',
             severity: 'warning',
             title: 'Please Return to Premises',
-            message: `You are outside the event area. Time outside: ${minutes}m ${seconds}s. Please return soon.`,
+            message: `You are outside the event area. Time remaining: ${remainingMinutes}m ${remainingSeconds}s. Please return soon.`,
             timestamp: new Date(),
             persistent: true,
             actionRequired: true

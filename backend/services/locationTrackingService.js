@@ -231,6 +231,9 @@ class LocationTrackingService {
     }
     locationStatus.status = 'outside';
 
+    // CRITICAL FIX: Add alert when participant leaves geofence
+    locationStatus.addAlert('left_geofence');
+
     // Set up monitoring timer for this participant
     this.startMonitoringTimer(locationStatus._id, event.maxTimeOutside);
   }

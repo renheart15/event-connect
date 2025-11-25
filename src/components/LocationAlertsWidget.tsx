@@ -20,7 +20,7 @@ interface LocationAlert {
   participantEmail: string;
   eventTitle: string;
   eventId: string;
-  type: 'warning' | 'exceeded_limit' | 'returned';
+  type: 'warning' | 'exceeded_limit' | 'returned' | 'left_geofence';
   timestamp: string;
   acknowledged: boolean;
   currentStatus: 'inside' | 'outside' | 'warning' | 'exceeded_limit';
@@ -113,6 +113,8 @@ const LocationAlertsWidget: React.FC<LocationAlertsWidgetProps> = ({ className }
         return <AlertTriangle className="w-4 h-4 text-red-600" />;
       case 'returned':
         return <MapPin className="w-4 h-4 text-green-600" />;
+      case 'left_geofence':
+        return <MapPin className="w-4 h-4 text-orange-600" />;
       default:
         return <Bell className="w-4 h-4" />;
     }
@@ -126,6 +128,8 @@ const LocationAlertsWidget: React.FC<LocationAlertsWidgetProps> = ({ className }
         return 'bg-red-50 border-red-200 text-red-800';
       case 'returned':
         return 'bg-green-50 border-green-200 text-green-800';
+      case 'left_geofence':
+        return 'bg-orange-50 border-orange-200 text-orange-800';
       default:
         return 'bg-gray-50 border-gray-200 text-gray-800';
     }
@@ -139,6 +143,8 @@ const LocationAlertsWidget: React.FC<LocationAlertsWidgetProps> = ({ className }
         return 'Exceeded time limit';
       case 'returned':
         return 'Returned to premises';
+      case 'left_geofence':
+        return 'Left event premises';
       default:
         return 'Unknown alert';
     }

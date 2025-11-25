@@ -32,7 +32,7 @@ interface LocationStatus {
   status: 'inside' | 'outside' | 'warning' | 'exceeded_limit' | 'absent';
   alertsSent: Array<{
     _id: string;
-    type: 'warning' | 'exceeded_limit' | 'returned';
+    type: 'warning' | 'exceeded_limit' | 'returned' | 'left_geofence';
     timestamp: string;
     acknowledged: boolean;
   }>;
