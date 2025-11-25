@@ -102,6 +102,13 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
         }
         setParticipants(attendanceLogs);
         setEventData(event);
+        console.log('[EVENT-DATA] Event data set:', {
+          title: event?.title,
+          date: event?.date,
+          startTime: event?.startTime,
+          endTime: event?.endTime,
+          status: event?.status
+        });
       } else {
         console.error('API returned unsuccessful response:', attendanceResult);
         throw new Error(attendanceResult.message || 'Failed to fetch participants');
@@ -121,34 +128,43 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
   // Helper function to determine if check-in was late or on time
   const getCheckInStatus = (participant: Participant) => {
+    console.log(`[STATUS-CHECK] Participant ${participant.participant?.name}: status=${participant.status}, checkInTime=${!!participant.checkInTime}, checkOutTime=${!!participant.checkOutTime}`);
+
     // CRITICAL FIX: Check for absent status first
     if (participant.status === 'absent') {
+      console.log(`[STATUS-CHECK] ${participant.participant?.name}: Marked as Absent (status=absent)`);
       return 'Absent';
     }
 
     // CRITICAL FIX: If participant is registered but never checked in, they are absent
     if (participant.status === 'registered' && !participant.checkInTime) {
+      console.log(`[STATUS-CHECK] ${participant.participant?.name}: Marked as Absent (registered, no check-in)`);
       return 'Absent';
     }
 
     // CRITICAL FIX: If no checkInTime exists (for any reason), mark as Absent
     if (!participant.checkInTime) {
+      console.log(`[STATUS-CHECK] ${participant.participant?.name}: Marked as Absent (no checkInTime)`);
       return 'Absent';
     }
 
     // CRITICAL FIX: Check if participant left early (before event ended)
     // If they checked out before the event end time, consider them Absent
-    if (participant.checkOutTime && eventData?.endTime) {
+    if (participant.checkOutTime && eventData?.endTime && eventData?.date) {
       try {
-        const eventEndDateTime = new Date(`${eventData.date}T${eventData.endTime}`);
+        const eventDateStr = typeof eventData.date === 'string'
+          ? eventData.date.split('T')[0]
+          : new Date(eventData.date).toISOString().split('T')[0];
+        const eventEndDateTime = new Date(`${eventDateStr}T${eventData.endTime}`);
         const checkOutDateTime = new Date(participant.checkOutTime);
 
         // If checked out before event ended, they left early = Absent
         if (checkOutDateTime < eventEndDateTime) {
+          console.log(`[STATUS-CHECK] ${participant.participant?.name}: Marked as Absent (left early)`);
           return 'Absent';
         }
       } catch (error) {
-        console.error('Error checking left early status:', error);
+        console.error('[STATUS-CHECK] Error checking left early status:', error);
       }
     }
 
@@ -286,13 +302,23 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
   // Helper function to check if participant left early
   const leftEarly = (participant: Participant): boolean => {
     if (!participant.checkOutTime || !eventData?.endTime || !eventData?.date) {
+      console.log(`[LEFT-EARLY] Participant ${participant.participant?.name}: Missing data - checkOutTime: ${!!participant.checkOutTime}, endTime: ${!!eventData?.endTime}, date: ${!!eventData?.date}`);
       return false;
     }
     try {
-      const eventEndDateTime = new Date(`${eventData.date}T${eventData.endTime}`);
+      // Handle date properly - it might be ISO string or date object
+      const eventDateStr = typeof eventData.date === 'string'
+        ? eventData.date.split('T')[0]
+        : new Date(eventData.date).toISOString().split('T')[0];
+      const eventEndDateTime = new Date(`${eventDateStr}T${eventData.endTime}`);
       const checkOutDateTime = new Date(participant.checkOutTime);
-      return checkOutDateTime < eventEndDateTime;
+
+      const leftEarlyResult = checkOutDateTime < eventEndDateTime;
+      console.log(`[LEFT-EARLY] Participant ${participant.participant?.name}: checkOut=${checkOutDateTime.toISOString()}, eventEnd=${eventEndDateTime.toISOString()}, leftEarly=${leftEarlyResult}`);
+
+      return leftEarlyResult;
     } catch (error) {
+      console.error('[LEFT-EARLY] Error checking left early status:', error);
       return false;
     }
   };
@@ -302,24 +328,34 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     // CRITICAL FIX: Only count participants who ACTUALLY checked in AND stayed until end
     // Exclude: registered, absent, and those who left early
     checkedIn: participants.filter(p => {
+      console.log(`[STATS-CHECKED-IN] Checking ${p.participant?.name}: status=${p.status}`);
       // Must have checked in
       if (p.status !== 'checked-in' && p.status !== 'checked-out') {
+        console.log(`[STATS-CHECKED-IN] ${p.participant?.name}: EXCLUDED (status=${p.status})`);
         return false;
       }
       // Must not have left early
       if (leftEarly(p)) {
+        console.log(`[STATS-CHECKED-IN] ${p.participant?.name}: EXCLUDED (left early)`);
         return false;
       }
+      console.log(`[STATS-CHECKED-IN] ${p.participant?.name}: INCLUDED`);
       return true;
     }).length,
     currentlyPresent: participants.filter(p => p.status === 'checked-in').length,
     // Count: 'absent' status, 'registered' without check-in, AND left early
-    absent: participants.filter(p =>
-      p.status === 'absent' ||
-      (p.status === 'registered' && !p.checkInTime) ||
-      leftEarly(p)
-    ).length
+    absent: participants.filter(p => {
+      const isAbsent = p.status === 'absent' ||
+        (p.status === 'registered' && !p.checkInTime) ||
+        leftEarly(p);
+      if (isAbsent) {
+        console.log(`[STATS-ABSENT] ${p.participant?.name}: Counted as absent (status=${p.status}, checkInTime=${!!p.checkInTime}, leftEarly=${leftEarly(p)})`);
+      }
+      return isAbsent;
+    }).length
   };
+
+  console.log('[STATS] Final stats:', stats);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
