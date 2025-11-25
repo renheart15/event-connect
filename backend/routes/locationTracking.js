@@ -432,10 +432,14 @@ router.get('/event/:eventId/alerts',
       const alerts = [];
       locationStatuses.forEach(status => {
         status.alertsSent.forEach(alert => {
+          // DEBUG: Log all alert types to investigate "Unknown alert" issue
+          console.log(`🔍 [ALERTS-API] Processing alert: type="${alert.type}", typeOf=${typeof alert.type}, participant="${status.participant?.name}"`);
+
           if (acknowledged === undefined || alert.acknowledged.toString() === acknowledged) {
             // CRITICAL FIX: Filter out invalid/unknown alert types from old database records
-            if (!validAlertTypes.includes(alert.type)) {
-              console.warn(`⚠️ [ALERTS-API] Skipping alert with invalid type: "${alert.type}" for participant ${status.participant.name}`);
+            // Check for undefined, null, or invalid types
+            if (!alert.type || !validAlertTypes.includes(alert.type)) {
+              console.warn(`⚠️ [ALERTS-API] Skipping alert with invalid type: type="${alert.type}", typeOf=${typeof alert.type}, participant="${status.participant?.name}"`);
               return; // Skip this alert
             }
 

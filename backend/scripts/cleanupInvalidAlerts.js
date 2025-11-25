@@ -3,6 +3,8 @@
 
 const mongoose = require('mongoose');
 const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
+const User = require('../models/User'); // Required for populate to work
+const Event = require('../models/Event'); // Required for populate to work
 
 // Valid alert types based on current schema
 const VALID_ALERT_TYPES = ['warning', 'exceeded_limit', 'returned', 'left_geofence'];
@@ -26,16 +28,17 @@ async function cleanupInvalidAlerts() {
       totalDocumentsChecked++;
       const originalAlertCount = status.alertsSent.length;
 
-      // Filter out invalid alerts
+      // Filter out invalid alerts (including null/undefined types)
       const validAlerts = status.alertsSent.filter(alert => {
-        const isValid = VALID_ALERT_TYPES.includes(alert.type);
+        const isValid = alert.type && VALID_ALERT_TYPES.includes(alert.type);
 
         if (!isValid) {
-          // Track this invalid type
-          const count = invalidTypesFound.get(alert.type) || 0;
-          invalidTypesFound.set(alert.type, count + 1);
+          // Track this invalid type (convert null/undefined to string for tracking)
+          const typeKey = alert.type === null ? 'null' : alert.type === undefined ? 'undefined' : alert.type;
+          const count = invalidTypesFound.get(typeKey) || 0;
+          invalidTypesFound.set(typeKey, count + 1);
 
-          console.log(`  ❌ Removing invalid alert: type="${alert.type}", participant="${status.participant?.name || 'Unknown'}", event="${status.event?.title || 'Unknown'}", timestamp=${alert.timestamp}`);
+          console.log(`  ❌ Removing invalid alert: type="${alert.type}" (${typeof alert.type}), participant="${status.participant?.name || 'Unknown'}", event="${status.event?.title || 'Unknown'}", timestamp=${alert.timestamp}`);
         }
 
         return isValid;
@@ -82,9 +85,12 @@ async function cleanupInvalidAlerts() {
 
 // If run directly (not imported)
 if (require.main === module) {
-  const connectDB = require('../config/database');
+  require('dotenv').config();
 
-  connectDB()
+  mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
     .then(() => {
       console.log('✅ Connected to database');
       return cleanupInvalidAlerts();

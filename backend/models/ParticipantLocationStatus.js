@@ -76,7 +76,11 @@ const participantLocationStatusSchema = new mongoose.Schema({
   alertsSent: [{
     type: {
       type: String,
-      enum: ['warning', 'exceeded_limit', 'returned', 'left_geofence']
+      required: [true, 'Alert type is required'],
+      enum: {
+        values: ['warning', 'exceeded_limit', 'returned', 'left_geofence'],
+        message: '{VALUE} is not a valid alert type'
+      }
     },
     timestamp: {
       type: Date,
