@@ -212,7 +212,27 @@ class LocationTrackingService {
       }
 
       // Only save if still active
-      await locationStatus.save();
+      try {
+        await locationStatus.save();
+
+        // DEBUG: Log alerts after save to verify they persisted
+        if (locationStatus.alertsSent.length > 0) {
+          const latestAlert = locationStatus.alertsSent[locationStatus.alertsSent.length - 1];
+          console.log(`✅ [SAVE] Saved location status. Latest alert: type="${latestAlert.type}", timestamp=${latestAlert.timestamp}`);
+        }
+      } catch (saveError) {
+        console.error(`❌ [SAVE-ERROR] Failed to save location status:`, saveError);
+        // Check if it's a validation error
+        if (saveError.name === 'ValidationError') {
+          console.error(`❌ [VALIDATION-ERROR] Validation errors:`, saveError.errors);
+          // Log specific field errors
+          if (saveError.errors.alertsSent) {
+            console.error(`❌ [ALERT-VALIDATION] Alert validation failed:`, saveError.errors.alertsSent);
+          }
+        }
+        throw saveError;
+      }
+
       return locationStatus;
     } catch (error) {
       console.error('Error updating participant location:', error);
@@ -222,7 +242,7 @@ class LocationTrackingService {
 
   // Handle participant leaving geofence
   async handleParticipantLeftGeofence(locationStatus, event) {
-    console.log(`Participant ${locationStatus.participant.name} left geofence for event ${event.title}`);
+    console.log(`🚪 [LEFT-GEOFENCE] Participant ${locationStatus.participant.name} left geofence for event ${event.title}`);
 
     // Start outside timer with reason 'outside'
     locationStatus.startOutsideTimer();
@@ -232,7 +252,9 @@ class LocationTrackingService {
     locationStatus.status = 'outside';
 
     // CRITICAL FIX: Add alert when participant leaves geofence
+    console.log(`📢 [LEFT-GEOFENCE] Adding 'left_geofence' alert for ${locationStatus.participant.name}`);
     locationStatus.addAlert('left_geofence');
+    console.log(`📢 [LEFT-GEOFENCE] Alert added. Total alerts: ${locationStatus.alertsSent.length}, Latest alert type: "${locationStatus.alertsSent[locationStatus.alertsSent.length - 1]?.type}"`);
 
     // Set up monitoring timer for this participant
     this.startMonitoringTimer(locationStatus._id, event.maxTimeOutside);

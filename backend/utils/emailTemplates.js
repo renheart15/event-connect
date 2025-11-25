@@ -105,10 +105,6 @@ const generateInvitationEmail = (invitation, event, organizer, qrCodeDataURL) =>
                 </ul>
             </div>
             
-            <div class="invitation-code">
-                Your Invitation Code: ${invitation.invitationCode}
-            </div>
-            
             <div class="qr-section">
                 <h3>📱 Check-in QR Code</h3>
                 <p>Use this QR code to check in at the event:</p>
