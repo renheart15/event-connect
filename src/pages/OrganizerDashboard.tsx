@@ -748,7 +748,7 @@ const OrganizerDashboard = () => {
                       <TableHead>Status</TableHead>
                       <TableHead className="text-center">Total</TableHead>
                       <TableHead className="text-center">Checked In</TableHead>
-                      <TableHead className="text-center">Present</TableHead>
+                      <TableHead className="text-center">Absent</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -761,50 +761,60 @@ const OrganizerDashboard = () => {
                       </TableRow>
                     ) : (
                       displayedEvents.map((event) => (
-                        <TableRow key={event.id}>
+                        <TableRow key={event.id} className="hover:bg-muted/50 transition-colors">
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4 text-muted-foreground" />
-                              {event.title}
+                              <span className="font-semibold">{event.title}</span>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
                             {formatEventDate(event)}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <MapPin className="w-4 h-4 text-muted-foreground" />
-                              <span className="truncate max-w-[150px]" title={typeof event.location === 'string' ? event.location : event.location?.address || 'Location not specified'}>
+                              <span className="truncate max-w-[150px] text-sm" title={typeof event.location === 'string' ? event.location : event.location?.address || 'Location not specified'}>
                                 {typeof event.location === 'string' ? event.location : event.location?.address || 'Location not specified'}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <Badge
-                              variant={
-                                event.status === 'active' ? 'default' :
-                                event.status === 'upcoming' ? 'secondary' :
-                                'outline'
-                              }
+                              className={`${
+                                event.status === 'active'
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-950/30 dark:text-green-400'
+                                  : event.status === 'completed'
+                                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-400'
+                                  : event.status === 'upcoming'
+                                  ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:text-yellow-400'
+                                  : 'bg-blue-100 text-blue-700 hover:bg-blue-100'
+                              }`}
                             >
                               {event.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-1">
+                            <div className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-muted/50">
                               <Users className="w-4 h-4 text-muted-foreground" />
-                              {event.totalParticipants}
+                              <span className="font-bold">{event.totalParticipants}</span>
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="font-medium text-green-600">
-                              {event.checkedIn}
-                            </span>
+                            <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-950/30">
+                              <span className="font-bold text-green-600">
+                                {event.status === 'completed'
+                                  ? event.totalParticipants - event.currentlyPresent
+                                  : event.checkedIn}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="font-medium text-blue-600">
-                              {event.currentlyPresent}
-                            </span>
+                            <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/30">
+                              <span className="font-bold text-red-600">
+                                {event.currentlyPresent}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
