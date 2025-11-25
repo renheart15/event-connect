@@ -5,19 +5,9 @@ import { API_CONFIG } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  Eye, Filter, Calendar, Plus, WifiOff, MapPin, Users, MoreVertical,
-  Settings, FileText, MessageSquare, QrCode, Trash2, Share2, Bell, MapPinned
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
+import { Eye, Filter, Calendar, Plus, WifiOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import EventCard from '@/components/EventCard';
 import ParticipantReports from '@/components/ParticipantReports';
 import EventSettings from '@/components/EventSettings';
 import FeedbackFormManager from '@/components/FeedbackFormManager';
@@ -513,174 +503,24 @@ const AllEvents = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Event Title
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Location
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Total
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Checked In
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Present
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {displayedEvents.map((event) => {
-                    const getStatusBadge = (status: string) => {
-                      const statusConfig = {
-                        active: { label: 'active', className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
-                        upcoming: { label: 'upcoming', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-                        completed: { label: 'completed', className: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200' }
-                      };
-                      const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.completed;
-                      return <Badge className={`${config.className} text-xs px-2 py-1`}>{config.label}</Badge>;
-                    };
-
-                    const formatDate = (date: string, endDate?: string) => {
-                      const startDate = new Date(date).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      });
-
-                      if (endDate && endDate !== date) {
-                        const endDateFormatted = new Date(endDate).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        });
-                        return `${startDate.split(',')[1].trim()} - ${endDateFormatted}`;
-                      }
-                      return startDate;
-                    };
-
-                    return (
-                      <tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Calendar className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />
-                            <Link
-                              to={`/event/${event.id}`}
-                              className="text-sm font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400"
-                            >
-                              {event.title}
-                            </Link>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                          {formatDate(event.date, event.endDate)}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                            <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
-                            <span className="truncate max-w-xs" title={event.location.address}>
-                              {event.location.address}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {getStatusBadge(event.status)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center text-sm text-gray-900 dark:text-white">
-                            <Users className="w-4 h-4 mr-1 text-gray-400" />
-                            {event.totalParticipants}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                            {event.checkedIn}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                            {event.currentlyPresent}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
-                              <DropdownMenuItem onClick={() => navigate(`/event/${event.id}`)}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => navigate(`/event/${event.id}/monitor`)}>
-                                <Users className="mr-2 h-4 w-4" />
-                                Live Monitor
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleReportsClick(event.id)}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                Reports
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleInvitationClick(event.id)}>
-                                <Share2 className="mr-2 h-4 w-4" />
-                                Send Invitations
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openQRDialog(event.id)}>
-                                <QrCode className="mr-2 h-4 w-4" />
-                                Show QR Code
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openGeofenceDialog(event.id)}>
-                                <MapPinned className="mr-2 h-4 w-4" />
-                                Configure Geofence
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleFeedbackClick(event.id)}>
-                                <MessageSquare className="mr-2 h-4 w-4" />
-                                Feedback Forms
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleSettingsClick(event.id)}>
-                                <Settings className="mr-2 h-4 w-4" />
-                                Settings
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handlePublishClick(event.id)}>
-                                <Bell className="mr-2 h-4 w-4" />
-                                {event.published ? 'Make Private' : 'Make Public'}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteClick(event.id, event.status === 'completed')}
-                                className="text-red-600 dark:text-red-400"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                {event.status === 'completed' ? 'Hide' : 'Delete'}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {displayedEvents.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                onInvitationClick={handleInvitationClick}
+                onReportsClick={handleReportsClick}
+                onSettingsClick={handleSettingsClick}
+                onGeofenceUpdate={handleGeofenceUpdate}
+                onFeedbackClick={handleFeedbackClick}
+                onDeleteClick={handleDeleteClick}
+                onPublishClick={handlePublishClick}
+                onPublishChangesClick={handlePublishChangesClick}
+                hasUnpublishedChanges={eventsWithChanges.has(event.id)}
+                onQRClick={openQRDialog}
+                onGeofenceClick={openGeofenceDialog}
+              />
+            ))}
           </div>
         )}
 
