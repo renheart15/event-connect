@@ -66,18 +66,23 @@ class NotificationService {
     }
   }
 
-  async sendReturnedToGeofenceNotification(eventName: string) {
+  async sendReturnedToGeofenceNotification(eventName: string, timeRemaining?: string) {
     if (!this.permissionGranted || !Capacitor.isNativePlatform()) {
       return;
     }
 
     try {
+      // CRITICAL FIX: Include time remaining in notification body
+      const bodyText = timeRemaining
+        ? `You have returned to the ${eventName} premises. Timer paused. Time remaining: ${timeRemaining}`
+        : `You have returned to the ${eventName} premises. Timer paused.`;
+
       await LocalNotifications.schedule({
         notifications: [
           {
             id: this.notificationId++,
             title: '✅ Back Inside Event Area',
-            body: `You have returned to the ${eventName} premises. Timer paused.`,
+            body: bodyText,
             sound: 'default',
             smallIcon: 'ic_stat_notification',
             largeIcon: 'ic_launcher',

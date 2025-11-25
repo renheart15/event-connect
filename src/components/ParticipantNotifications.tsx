@@ -106,8 +106,8 @@ const ParticipantNotifications: React.FC<ParticipantNotificationsProps> = ({
         notificationService.sendOutsideGeofenceNotification(eventName, timeRemainingStr);
         setSentNativeNotifications(prev => new Set(prev).add('outside'));
       } else if (isWithinGeofence && sentNativeNotifications.has('outside')) {
-        // Returned to geofence
-        notificationService.sendReturnedToGeofenceNotification(eventName);
+        // Returned to geofence - Include time remaining
+        notificationService.sendReturnedToGeofenceNotification(eventName, timeRemainingStr);
         setSentNativeNotifications(new Set()); // Reset notification tracking
       }
 

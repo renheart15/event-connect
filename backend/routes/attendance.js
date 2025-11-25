@@ -852,6 +852,7 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
     }
 
     let totalCheckedOut = 0;
+    let totalRegisteredMarkedAbsent = 0;
     const results = [];
 
     // Batch update all attendances for ended events
@@ -898,12 +899,39 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
         // by their actual status='absent', not by isActive=false in ParticipantLocationStatus
         // Participants who are already marked absent will be excluded from auto-checkout above
 
+        // CRITICAL FIX: Mark participants who only registered but never checked in as absent
+        // These participants joined the event but never actually checked in before it ended
+        const registeredOnlyResult = await AttendanceLog.updateMany(
+          {
+            event: event._id,
+            status: 'registered', // Only registered, never checked in
+            checkInTime: { $exists: false } // Confirm they never checked in
+          },
+          {
+            $set: {
+              status: 'absent',
+              checkOutTime: now
+            },
+            $push: {
+              notes: { $each: [' [Auto-marked absent: Registered but never checked in]'] }
+            }
+          }
+        );
+
+        const registeredMarkedAbsent = registeredOnlyResult.modifiedCount;
+        totalRegisteredMarkedAbsent += registeredMarkedAbsent;
+
+        if (registeredMarkedAbsent > 0) {
+          console.log(`[AUTO-CHECKOUT] Event "${event.title}": Marked ${registeredMarkedAbsent} registered-only participants as absent`);
+        }
+
         results.push({
           eventId: event._id,
           eventTitle: event.title,
           eventEndTime: event.endTime,
           participantsCheckedOut: eventCheckedOut,
-          participantsMarkedAbsent: absentAttendanceLogIds.length
+          participantsMarkedAbsent: absentAttendanceLogIds.length,
+          registeredOnlyMarkedAbsent: registeredMarkedAbsent
         });
 
       } catch (eventError) {
@@ -917,12 +945,25 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
       }
     }
 
+    // Build summary message
+    const summaryParts = [];
+    if (totalCheckedOut > 0) {
+      summaryParts.push(`${totalCheckedOut} participants checked out`);
+    }
+    if (totalRegisteredMarkedAbsent > 0) {
+      summaryParts.push(`${totalRegisteredMarkedAbsent} registered-only participants marked absent`);
+    }
+    const summaryMessage = summaryParts.length > 0
+      ? `Auto-checkout completed. ${summaryParts.join(', ')} from ${endedEvents.length} ended event(s).`
+      : `Auto-checkout completed. No participants to process from ${endedEvents.length} ended event(s).`;
+
     res.json({
       success: true,
-      message: `Auto-checkout completed. ${totalCheckedOut} participants checked out from ${endedEvents.length} ended event(s).`,
+      message: summaryMessage,
       data: {
         totalEventsProcessed: endedEvents.length,
         totalParticipantsCheckedOut: totalCheckedOut,
+        totalRegisteredMarkedAbsent: totalRegisteredMarkedAbsent,
         results
       }
     });

@@ -788,6 +788,9 @@ const ParticipantDashboard = () => {
     fetchParticipantData();
   }, [token]);
 
+  // CRITICAL FIX: Track scheduled events to prevent duplicate "Event is Starting Now!" notifications
+  const scheduledEventIdsRef = useRef<Set<string>>(new Set());
+
   // Schedule notifications for upcoming events
   useEffect(() => {
     const scheduleNotifications = async () => {
@@ -816,8 +819,23 @@ const ParticipantDashboard = () => {
           }
         });
 
-        // Schedule notification for each upcoming event
-        for (const event of upcomingEvents) {
+        // CRITICAL FIX: Only schedule events that haven't been scheduled yet
+        // This prevents duplicate notifications when useEffect re-runs
+        const newEventIds = new Set(upcomingEvents.map(e => e._id));
+        const eventsToSchedule = upcomingEvents.filter(event =>
+          !scheduledEventIdsRef.current.has(event._id)
+        );
+
+        // Remove events that are no longer upcoming
+        const currentScheduledIds = new Set(scheduledEventIdsRef.current);
+        for (const eventId of currentScheduledIds) {
+          if (!newEventIds.has(eventId)) {
+            scheduledEventIdsRef.current.delete(eventId);
+          }
+        }
+
+        // Schedule notification for each NEW upcoming event (only once!)
+        for (const event of eventsToSchedule) {
           if (event.date && event.startTime) {
             await eventNotificationService.scheduleEventNotifications({
               id: event._id,
@@ -828,6 +846,9 @@ const ParticipantDashboard = () => {
                 ? event.location
                 : event.location?.address || 'Event location'
             });
+            // Mark as scheduled
+            scheduledEventIdsRef.current.add(event._id);
+            console.log(`✅ Scheduled notifications for event: ${event.title}`);
           }
         }
 
@@ -1414,8 +1435,8 @@ const ParticipantDashboard = () => {
           const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
           if (!lastNotificationTime || lastNotificationTime < fiveMinutesAgo) {
-            // Send stale data notification - "Countdown Has Begun"
-            await notificationService.sendStaleDataNotification(eventName);
+            // REMOVED: Countdown Has Begun notification per user request
+            // await notificationService.sendStaleDataNotification(eventName);
             lastStaleNotificationRef.current = now;
           }
         }
@@ -1457,21 +1478,30 @@ const ParticipantDashboard = () => {
       if (currentStatus !== previousStatus) {
         previousLocationStatusRef.current = currentStatus;
 
-        // Detect outside geofence - Send "Countdown Has Begun" notification
-        if (currentStatus === 'outside' && previousStatus !== 'outside') {
-          const timeRemaining = event.maxTimeOutside - (currentLocationStatus.currentTimeOutside || 0);
-          if (timeRemaining > 0) {
-            await notificationService.sendCountdownBeganNotification(
-              eventName,
-              formatTimeRemaining(timeRemaining)
-            );
-            lastOutsideNotificationRef.current = now;
-          }
-        }
+        // REMOVED: Countdown Has Begun notification per user request
+        // User already gets "Outside Event Area" notification from ParticipantNotifications.tsx
+        // if (currentStatus === 'outside' && previousStatus !== 'outside') {
+        //   const timeRemaining = event.maxTimeOutside - (currentLocationStatus.currentTimeOutside || 0);
+        //   if (timeRemaining > 0) {
+        //     await notificationService.sendCountdownBeganNotification(
+        //       eventName,
+        //       formatTimeRemaining(timeRemaining)
+        //     );
+        //     lastOutsideNotificationRef.current = now;
+        //   }
+        // }
 
-        // Detect return to geofence
+        // Detect return to geofence - Include time remaining
         if (currentStatus === 'inside' && previousStatus === 'outside') {
-          await notificationService.sendReturnedToGeofenceNotification(eventName);
+          const maxTimeOutsideSeconds = event.maxTimeOutside * 60;
+          const timeSpent = currentLocationStatus.currentTimeOutside || 0;
+          const timeRemainingSeconds = Math.max(0, maxTimeOutsideSeconds - timeSpent);
+          const formatTimeRemainingStr = () => {
+            const minutes = Math.floor(timeRemainingSeconds / 60);
+            const seconds = timeRemainingSeconds % 60;
+            return `${minutes}m ${seconds}s`;
+          };
+          await notificationService.sendReturnedToGeofenceNotification(eventName, formatTimeRemainingStr());
           lastInsideNotificationRef.current = now;
         }
 
