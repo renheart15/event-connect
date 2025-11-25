@@ -52,19 +52,19 @@ class LocationTrackingService {
         }
 
         // Create new location status
-        // NOTE: Start with unknown location status
-        // First location update will determine if they're inside or outside
+        // NOTE: Start with placeholder coordinates (0,0) and default status
+        // First location update will establish actual position without triggering alerts
         locationStatus = new ParticipantLocationStatus({
           event: eventId,
           participant: participantId,
           attendanceLog: attendanceLogId,
           currentLocation: {
             latitude: 0,
-            longitude: 0,
+            longitude: 0, // Placeholder - indicates no real location yet
             timestamp: new Date()
           },
-          isWithinGeofence: false, // Will be determined on first location update
-          status: 'outside' // Will be updated on first location update
+          isWithinGeofence: false, // Default - will be set on first real update
+          status: 'outside' // Default - will be set on first real update
         });
 
         await locationStatus.save();
@@ -191,13 +191,22 @@ class LocationTrackingService {
         console.log(`✅ [AUTO-CHECK-IN] Participant ${locationStatus.participant.name} automatically checked in`);
       }
 
-      // Handle geofence status change
-      if (wasWithinGeofence && !isWithinGeofence) {
-        // Participant left the geofence
-        await this.handleParticipantLeftGeofence(locationStatus, event);
-      } else if (!wasWithinGeofence && isWithinGeofence) {
-        // Participant returned to the geofence
-        await this.handleParticipantReturnedToGeofence(locationStatus, event);
+      // CRITICAL FIX: Check if this is the first real location update (initial state)
+      // If current location is at 0,0, this is the first update - don't trigger alerts
+      const isFirstLocationUpdate = locationStatus.currentLocation.latitude === 0 && locationStatus.currentLocation.longitude === 0;
+
+      if (isFirstLocationUpdate) {
+        console.log(`📍 [FIRST-UPDATE] First location update for ${locationStatus.participant.name} - setting initial state, no alerts`);
+        // Just update the location, don't trigger any geofence change handlers
+      } else {
+        // Handle geofence status change (only for subsequent updates)
+        if (wasWithinGeofence && !isWithinGeofence) {
+          // Participant left the geofence
+          await this.handleParticipantLeftGeofence(locationStatus, event);
+        } else if (!wasWithinGeofence && isWithinGeofence) {
+          // Participant returned to the geofence
+          await this.handleParticipantReturnedToGeofence(locationStatus, event);
+        }
       }
 
       // Update status based on current state and timer
