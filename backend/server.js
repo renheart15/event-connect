@@ -22,6 +22,7 @@ const feedbackFormRoutes = require('./routes/feedbackForms'); // ✅ Added this 
 const locationTrackingRoutes = require('./routes/locationTracking');
 const organizationsRoutes = require('./routes/organizations');
 const organizationMembershipRoutes = require('./routes/organizationMembership');
+const maintenanceRoutes = require('./routes/maintenance');
 
 // Import cron jobs
 const { updateEventStatuses } = require('./utils/updateEventStatuses');
@@ -190,6 +191,7 @@ app.use('/api/location-tracking', locationTrackingRoutes);
 console.log('🎯 [RENDER] Location tracking routes registered successfully');
 app.use('/api/organizations', organizationsRoutes);
 app.use('/api/organization-membership', organizationMembershipRoutes);
+app.use('/api/maintenance', maintenanceRoutes);
 console.log('✅ [RENDER] All API routes registered');
 
 // Health check endpoint

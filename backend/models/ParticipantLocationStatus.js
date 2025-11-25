@@ -149,6 +149,16 @@ participantLocationStatusSchema.methods.pauseOutsideTimer = function() {
 
 // Add alert
 participantLocationStatusSchema.methods.addAlert = function(type) {
+  // CRITICAL FIX: Validate alert type before adding
+  const validTypes = ['warning', 'exceeded_limit', 'returned', 'left_geofence'];
+
+  if (!type || !validTypes.includes(type)) {
+    console.error(`❌ [ADD-ALERT] Invalid alert type: "${type}" (${typeof type}). Skipping alert creation.`);
+    console.error(`❌ [ADD-ALERT] Stack trace:`, new Error().stack);
+    return; // Don't add invalid alerts
+  }
+
+  console.log(`✅ [ADD-ALERT] Adding valid alert type: "${type}"`);
   this.alertsSent.push({
     type: type,
     timestamp: new Date(),
