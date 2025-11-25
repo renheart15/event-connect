@@ -8,6 +8,7 @@ const AttendanceLog = require('../models/AttendanceLog');
 const Invitation = require('../models/Invitation');
 const RegistrationForm = require('../models/RegistrationForm');
 const { auth, requireOrganizer } = require('../middleware/auth');
+const { fromZonedTime } = require('date-fns-tz');
 
 // Temporary in-memory store for location and battery data
 const participantLocationData = new Map(); // participantId -> { latitude, longitude, accuracy, batteryLevel, timestamp }
@@ -160,6 +161,7 @@ router.get('/', auth, async (req, res) => {
     const eventIds = events.map(e => e._id);
 
     // Batch fetch attendance statistics for all events (organizers only)
+    // COPIED FROM PARTICIPANT REPORTS - ACCURATE IMPLEMENTATION
     let invitationStats = new Map();
     let attendanceStats = new Map();
 
@@ -174,135 +176,64 @@ router.get('/', auth, async (req, res) => {
           invitationStats.set(stat._id.toString(), stat.count);
         });
 
-        // Aggregate attendance counts and currently present counts in one query
-        // CRITICAL FIX: Count registered-only AND left-early participants as absent
-        const attendanceCounts = await AttendanceLog.aggregate([
-          { $match: { event: { $in: eventIds } } },
-          // Lookup event data to get endTime for left-early detection
-          {
-            $lookup: {
-              from: 'events',
-              localField: 'event',
-              foreignField: '_id',
-              as: 'eventData'
-            }
-          },
-          { $unwind: { path: '$eventData', preserveNullAndEmptyArrays: true } },
-          // Add computed field to check if participant left early
-          // CRITICAL FIX: Properly handle Singapore timezone (UTC+8)
-          {
-            $addFields: {
-              leftEarly: {
-                $cond: [
-                  {
-                    $and: [
-                      { $ne: ['$checkOutTime', null] },
-                      { $ne: ['$eventData.endTime', null] },
-                      { $ne: ['$eventData.date', null] },
-                      // Compare checkOutTime with event end time
-                      // Event times are in Singapore time, need to subtract 8 hours to convert to UTC
-                      {
-                        $lt: [
-                          '$checkOutTime',
-                          {
-                            $subtract: [
-                              {
-                                $dateFromString: {
-                                  dateString: {
-                                    $concat: [
-                                      { $substr: ['$eventData.date', 0, 10] },
-                                      'T',
-                                      '$eventData.endTime',
-                                      ':00.000Z'
-                                    ]
-                                  },
-                                  format: '%Y-%m-%dT%H:%M:%S.%LZ',
-                                  onError: false,
-                                  onNull: false
-                                }
-                              },
-                              28800000  // Subtract 8 hours (in milliseconds) to convert Singapore time to UTC
-                            ]
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  true,
-                  false
-                ]
-              }
-            }
-          },
-          {
-            $group: {
-              _id: '$event',
-              totalAttendees: { $sum: 1 }, // Count ALL participants including registered
-              currentlyPresent: {
-                $sum: { $cond: [{ $eq: ['$status', 'checked-in'] }, 1, 0] }
-              },
-              // CRITICAL FIX: Count as absent if:
-              // 1. status = 'absent' OR
-              // 2. status = 'registered' AND no checkInTime (never checked in) OR
-              // 3. leftEarly = true (checked out before event ended)
-              totalAbsent: {
-                $sum: {
-                  $cond: [
-                    {
-                      $or: [
-                        { $eq: ['$status', 'absent'] },
-                        {
-                          $and: [
-                            { $eq: ['$status', 'registered'] },
-                            {
-                              $or: [
-                                { $eq: ['$checkInTime', null] },
-                                { $eq: [{ $type: '$checkInTime' }, 'missing'] }
-                              ]
-                            }
-                          ]
-                        },
-                        { $eq: ['$leftEarly', true] }
-                      ]
-                    },
-                    1,
-                    0
-                  ]
-                }
-              },
-              // Count checked-in/checked-out participants who stayed until end
-              // EXCLUDE those who left early
-              totalCheckedIn: {
-                $sum: {
-                  $cond: [
-                    {
-                      $and: [
-                        {
-                          $or: [
-                            { $eq: ['$status', 'checked-in'] },
-                            { $eq: ['$status', 'checked-out'] }
-                          ]
-                        },
-                        { $ne: ['$leftEarly', true] }
-                      ]
-                    },
-                    1,
-                    0
-                  ]
-                }
-              }
-            }
+        // Fetch all attendance logs for all events
+        const allAttendanceLogs = await AttendanceLog.find({ event: { $in: eventIds } });
+
+        // Group attendance logs by event and calculate stats using JavaScript (same as participant reports)
+        const logsByEvent = new Map();
+        allAttendanceLogs.forEach(log => {
+          const eventId = log.event.toString();
+          if (!logsByEvent.has(eventId)) {
+            logsByEvent.set(eventId, []);
           }
-        ]);
-        attendanceCounts.forEach(stat => {
-          console.log(`📊 [ATTENDANCE-STATS] Event ${stat._id}: total=${stat.totalAttendees}, checkedIn=${stat.totalCheckedIn}, absent=${stat.totalAbsent}`);
-          attendanceStats.set(stat._id.toString(), {
-            totalAttendees: stat.totalAttendees,
-            currentlyPresent: stat.currentlyPresent,
-            totalAbsent: stat.totalAbsent,
-            totalCheckedIn: stat.totalCheckedIn
-          });
+          logsByEvent.get(eventId).push(log);
         });
+
+        // Calculate stats for each event using the EXACT same logic as participant reports
+        for (const [eventIdStr, logs] of logsByEvent.entries()) {
+          const event = events.find(e => e._id.toString() === eventIdStr);
+          if (!event) continue;
+
+          // Helper function to check if participant left early (COPIED FROM PARTICIPANT REPORTS)
+          const leftEarly = (log) => {
+            if (!log.checkOutTime || !event.endTime || !event.date) {
+              return false;
+            }
+            try {
+              const eventDateStr = typeof event.date === 'string'
+                ? event.date.split('T')[0]
+                : event.date.toISOString().split('T')[0];
+              const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
+
+              // Convert Singapore time to UTC (same as participant reports)
+              const eventEndUTC = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
+              const checkOutDateTime = new Date(log.checkOutTime);
+              return checkOutDateTime < eventEndUTC;
+            } catch (error) {
+              return false;
+            }
+          };
+
+          // CRITICAL FIX: Filter out registered participants - they haven't actually checked in yet
+          const checkedInLogs = logs.filter(log => log.status !== 'registered');
+
+          // Calculate left-early count for absent
+          const leftEarlyCount = checkedInLogs.filter(log => leftEarly(log)).length;
+
+          // Count participants who actually checked in and didn't leave early
+          const actuallyCheckedIn = checkedInLogs.filter(log => !leftEarly(log)).length;
+
+          // Get summary statistics (EXACT SAME CALCULATION AS PARTICIPANT REPORTS)
+          const stats = {
+            currentlyPresent: checkedInLogs.filter(log => log.status === 'checked-in').length,
+            totalAbsent: checkedInLogs.filter(log => log.status === 'absent').length + leftEarlyCount,
+            totalCheckedIn: actuallyCheckedIn
+          };
+
+          console.log(`📊 [ATTENDANCE-STATS] Event ${eventIdStr}: checkedIn=${stats.totalCheckedIn}, absent=${stats.totalAbsent}, leftEarly=${leftEarlyCount}`);
+
+          attendanceStats.set(eventIdStr, stats);
+        }
       } catch (aggregateError) {
         console.error('Error batch fetching attendance stats:', aggregateError);
       }
@@ -328,17 +259,17 @@ router.get('/', auth, async (req, res) => {
       let eventData = event.toObject();
       if (req.user.role === 'organizer') {
         const eventIdStr = event._id.toString();
-        const attendance = attendanceStats.get(eventIdStr) || { totalAttendees: 0, currentlyPresent: 0, totalAbsent: 0, totalCheckedIn: 0 };
+        const attendance = attendanceStats.get(eventIdStr) || { currentlyPresent: 0, totalAbsent: 0, totalCheckedIn: 0 };
 
-        // CRITICAL FIX: Proper count mapping
-        // totalParticipants = checkedIn + absent (the correct total according to business logic)
-        // checkedIn = participants who actually checked in (checked-in + checked-out, excluding left-early)
+        // EXACT SAME MAPPING AS PARTICIPANT REPORTS
+        // totalParticipants = checkedIn + absent
+        // checkedIn = participants who checked in and didn't leave early
         // currentlyPresent = participants with status 'checked-in' (actually present)
-        // absent = participants who are absent, left early, or registered but never checked in
+        // absent = participants with status 'absent' OR left early
         eventData.totalParticipants = attendance.totalCheckedIn + attendance.totalAbsent; // Total = Checked In + Absent
-        eventData.checkedIn = attendance.totalCheckedIn; // Actually checked in (not registered-only)
-        eventData.currentlyPresent = attendance.currentlyPresent; // Actually present (status 'checked-in')
-        eventData.absent = attendance.totalAbsent; // Absent count
+        eventData.checkedIn = attendance.totalCheckedIn; // Actually checked in and stayed
+        eventData.currentlyPresent = attendance.currentlyPresent; // Currently present (status 'checked-in')
+        eventData.absent = attendance.totalAbsent; // Absent or left early
       }
 
       eventsWithStats.push(eventData);
