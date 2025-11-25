@@ -136,6 +136,22 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
       return 'Absent';
     }
 
+    // CRITICAL FIX: Check if participant left early (before event ended)
+    // If they checked out before the event end time, consider them Absent
+    if (participant.checkOutTime && eventData?.endTime) {
+      try {
+        const eventEndDateTime = new Date(`${eventData.date}T${eventData.endTime}`);
+        const checkOutDateTime = new Date(participant.checkOutTime);
+
+        // If checked out before event ended, they left early = Absent
+        if (checkOutDateTime < eventEndDateTime) {
+          return 'Absent';
+        }
+      } catch (error) {
+        console.error('Error checking left early status:', error);
+      }
+    }
+
     // If we can't get event start time, but they did check in, default to On Time
     if (!eventData || !eventData.date || !eventData.startTime) {
       return 'On Time';
@@ -267,16 +283,41 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     });
   };
 
+  // Helper function to check if participant left early
+  const leftEarly = (participant: Participant): boolean => {
+    if (!participant.checkOutTime || !eventData?.endTime || !eventData?.date) {
+      return false;
+    }
+    try {
+      const eventEndDateTime = new Date(`${eventData.date}T${eventData.endTime}`);
+      const checkOutDateTime = new Date(participant.checkOutTime);
+      return checkOutDateTime < eventEndDateTime;
+    } catch (error) {
+      return false;
+    }
+  };
+
   const stats = {
     total: participants.length,
-    // CRITICAL FIX: Only count participants who ACTUALLY checked in (not 'registered' or 'absent')
-    checkedIn: participants.filter(p =>
-      p.status === 'checked-in' || p.status === 'checked-out'
-    ).length,
+    // CRITICAL FIX: Only count participants who ACTUALLY checked in AND stayed until end
+    // Exclude: registered, absent, and those who left early
+    checkedIn: participants.filter(p => {
+      // Must have checked in
+      if (p.status !== 'checked-in' && p.status !== 'checked-out') {
+        return false;
+      }
+      // Must not have left early
+      if (leftEarly(p)) {
+        return false;
+      }
+      return true;
+    }).length,
     currentlyPresent: participants.filter(p => p.status === 'checked-in').length,
-    // Count both 'absent' status AND 'registered' participants who never checked in
+    // Count: 'absent' status, 'registered' without check-in, AND left early
     absent: participants.filter(p =>
-      p.status === 'absent' || (p.status === 'registered' && !p.checkInTime)
+      p.status === 'absent' ||
+      (p.status === 'registered' && !p.checkInTime) ||
+      leftEarly(p)
     ).length
   };
 
