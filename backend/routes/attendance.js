@@ -857,16 +857,17 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
     // Batch update all attendances for ended events
     for (const event of endedEvents) {
       try {
-        // Get participants who should be marked absent (not auto-checked-out)
-        const ParticipantLocationStatus = require('../models/ParticipantLocationStatus');
-        const locationStatuses = await ParticipantLocationStatus.find({
+        // CRITICAL FIX: Get participants who were ACTUALLY marked absent during the event
+        // (not just those with isActive=false, since stopAllTrackingForEvent sets that for everyone)
+        // We identify truly absent participants by checking their attendance status
+        const absentAttendanceLogs = await AttendanceLog.find({
           event: event._id,
-          isActive: false // Participants marked inactive (absent)
-        }).select('attendanceLog');
+          status: 'absent' // Participants who were already marked absent during the event
+        }).select('_id');
 
-        const absentAttendanceLogIds = locationStatuses.map(ls => ls.attendanceLog);
+        const absentAttendanceLogIds = absentAttendanceLogs.map(log => log._id);
 
-        console.log(`[AUTO-CHECKOUT] Event "${event.title}": Found ${absentAttendanceLogIds.length} participants marked absent, excluding from auto-checkout`);
+        console.log(`[AUTO-CHECKOUT] Event "${event.title}": Found ${absentAttendanceLogIds.length} participants already marked absent, will preserve their data`);
 
         // Use updateMany to batch update all checked-in participants
         // EXCEPT those who should be marked absent
@@ -891,26 +892,11 @@ router.post('/auto-checkout-ended-events', auth, async (req, res) => {
         const eventCheckedOut = updateResult.modifiedCount;
         totalCheckedOut += eventCheckedOut;
 
-        console.log(`Event ${event.title}: ${eventCheckedOut} participants auto-checked out (${absentAttendanceLogIds.length} excluded as absent)`);
+        console.log(`[AUTO-CHECKOUT] Event "${event.title}": ${eventCheckedOut} participants auto-checked out, ${absentAttendanceLogIds.length} already absent (preserved their original checkOutTime)`);
 
-        // Also update any participants that were already checked-out but should be absent
-        if (absentAttendanceLogIds.length > 0) {
-          const absentCorrectionResult = await AttendanceLog.updateMany(
-            {
-              _id: { $in: absentAttendanceLogIds },
-              status: { $ne: 'absent' } // Only update if not already absent
-            },
-            {
-              $set: {
-                status: 'absent'
-              }
-            }
-          );
-
-          if (absentCorrectionResult.modifiedCount > 0) {
-            console.log(`[AUTO-CHECKOUT] Corrected ${absentCorrectionResult.modifiedCount} participants to absent status for event "${event.title}"`);
-          }
-        }
+        // CRITICAL FIX: No correction needed since we now properly identify absent participants
+        // by their actual status='absent', not by isActive=false in ParticipantLocationStatus
+        // Participants who are already marked absent will be excluded from auto-checkout above
 
         results.push({
           eventId: event._id,
