@@ -175,9 +175,58 @@ router.get('/', auth, async (req, res) => {
         });
 
         // Aggregate attendance counts and currently present counts in one query
-        // CRITICAL FIX: Count registered-only participants (never checked in) as absent
+        // CRITICAL FIX: Count registered-only AND left-early participants as absent
         const attendanceCounts = await AttendanceLog.aggregate([
           { $match: { event: { $in: eventIds } } },
+          // Lookup event data to get endTime for left-early detection
+          {
+            $lookup: {
+              from: 'events',
+              localField: 'event',
+              foreignField: '_id',
+              as: 'eventData'
+            }
+          },
+          { $unwind: { path: '$eventData', preserveNullAndEmptyArrays: true } },
+          // Add computed field to check if participant left early
+          {
+            $addFields: {
+              leftEarly: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ['$checkOutTime', null] },
+                      { $ne: ['$eventData.endTime', null] },
+                      { $ne: ['$eventData.date', null] },
+                      // Compare checkOutTime with event end time
+                      {
+                        $lt: [
+                          '$checkOutTime',
+                          {
+                            $dateFromString: {
+                              dateString: {
+                                $concat: [
+                                  { $substr: ['$eventData.date', 0, 10] },
+                                  'T',
+                                  '$eventData.endTime',
+                                  ':00.000Z'
+                                ]
+                              },
+                              format: '%Y-%m-%dT%H:%M:%S.%LZ',
+                              onError: false,
+                              onNull: false
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  true,
+                  false
+                ]
+              }
+            }
+          },
           {
             $group: {
               _id: '$event',
@@ -187,7 +236,8 @@ router.get('/', auth, async (req, res) => {
               },
               // CRITICAL FIX: Count as absent if:
               // 1. status = 'absent' OR
-              // 2. status = 'registered' AND no checkInTime (never checked in)
+              // 2. status = 'registered' AND no checkInTime (never checked in) OR
+              // 3. leftEarly = true (checked out before event ended)
               totalAbsent: {
                 $sum: {
                   $cond: [
@@ -204,7 +254,8 @@ router.get('/', auth, async (req, res) => {
                               ]
                             }
                           ]
-                        }
+                        },
+                        { $eq: ['$leftEarly', true] }
                       ]
                     },
                     1,
@@ -212,14 +263,20 @@ router.get('/', auth, async (req, res) => {
                   ]
                 }
               },
-              // Count checked-in/checked-out participants (actually attended)
+              // Count checked-in/checked-out participants who stayed until end
+              // EXCLUDE those who left early
               totalCheckedIn: {
                 $sum: {
                   $cond: [
                     {
-                      $or: [
-                        { $eq: ['$status', 'checked-in'] },
-                        { $eq: ['$status', 'checked-out'] }
+                      $and: [
+                        {
+                          $or: [
+                            { $eq: ['$status', 'checked-in'] },
+                            { $eq: ['$status', 'checked-out'] }
+                          ]
+                        },
+                        { $ne: ['$leftEarly', true] }
                       ]
                     },
                     1,
@@ -231,6 +288,7 @@ router.get('/', auth, async (req, res) => {
           }
         ]);
         attendanceCounts.forEach(stat => {
+          console.log(`📊 [ATTENDANCE-STATS] Event ${stat._id}: total=${stat.totalAttendees}, checkedIn=${stat.totalCheckedIn}, absent=${stat.totalAbsent}`);
           attendanceStats.set(stat._id.toString(), {
             totalAttendees: stat.totalAttendees,
             currentlyPresent: stat.currentlyPresent,
