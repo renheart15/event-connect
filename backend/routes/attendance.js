@@ -164,51 +164,60 @@ router.post('/checkin', [
       });
     }
 
-    // CRITICAL: Check if event is active (per requirements)
     const event = invitation.event;
-    if (event.status !== 'active') {
+
+    // CRITICAL: Different behavior based on event status
+    // If event is upcoming: Register participant (don't check in yet)
+    // If event is active: Check in participant (with geofence verification if location provided)
+    const isUpcoming = event.status === 'upcoming';
+    const isActive = event.status === 'active';
+
+    if (!isUpcoming && !isActive) {
       return res.status(400).json({
         success: false,
-        message: `Cannot check in - event is ${event.status}. Event must be active.`
+        message: `Cannot join or check in - event is ${event.status}.`
       });
     }
 
-    // Check if check-in is within allowed time window
+    // Check if check-in/registration is within allowed time window (only for active events)
     const now = new Date();
 
-    if (event.startTime && event.date) {
-      // Parse event start time in Singapore timezone using date-fns-tz
-      const eventDateStr = typeof event.date === 'string'
-        ? event.date.split('T')[0]
-        : event.date.toISOString().split('T')[0];
-      const startDateTimeStr = `${eventDateStr}T${event.startTime}:00`;
+    if (isActive) {
+      // Only enforce time window for active events that require actual check-in
+      if (event.startTime && event.date) {
+        // Parse event start time in Singapore timezone using date-fns-tz
+        const eventDateStr = typeof event.date === 'string'
+          ? event.date.split('T')[0]
+          : event.date.toISOString().split('T')[0];
+        const startDateTimeStr = `${eventDateStr}T${event.startTime}:00`;
 
-      // Convert Singapore time to UTC
-      const eventStartUTC = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
+        // Convert Singapore time to UTC
+        const eventStartUTC = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
 
-      // Allow check-in from 2 hours before event start up to 24 hours after
-      const twoHoursBefore = new Date(eventStartUTC.getTime() - (2 * 60 * 60 * 1000));
-      const twentyFourHoursAfter = new Date(eventStartUTC.getTime() + (24 * 60 * 60 * 1000));
+        // Allow check-in from 2 hours before event start up to 24 hours after
+        const twoHoursBefore = new Date(eventStartUTC.getTime() - (2 * 60 * 60 * 1000));
+        const twentyFourHoursAfter = new Date(eventStartUTC.getTime() + (24 * 60 * 60 * 1000));
 
-      if (now < twoHoursBefore || now > twentyFourHoursAfter) {
-        return res.status(400).json({
-          success: false,
-          message: 'Check-in is only allowed from 2 hours before event start to 24 hours after event start'
-        });
-      }
-    } else {
-      // Fallback: If no startTime, use simple date check (allow same day)
-      const eventDate = new Date(event.date);
-      const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-      const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (now < twoHoursBefore || now > twentyFourHoursAfter) {
+          return res.status(400).json({
+            success: false,
+            message: 'Check-in is only allowed from 2 hours before event start to 24 hours after event start'
+          });
+        }
+      } else {
+        // Fallback: If no startTime, use simple date check (allow same day)
+        const eventDate = new Date(event.date);
+        const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+        const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      const daysDiff = Math.floor((nowDateOnly - eventDateOnly) / (1000 * 60 * 60 * 24));
+        const daysDiff = Math.floor((nowDateOnly - eventDateOnly) / (1000 * 60 * 60 * 24));
 
-      if (Math.abs(daysDiff) > 1) {
-        return res.status(400).json({
-          success: false,
-          message: 'Check-in is only allowed on the event day'
-        });
+        if (Math.abs(daysDiff) > 1) {
+          return res.status(400).json({
+            success: false,
+            message: 'Check-in is only allowed on the event day'
+          });
+        }
       }
     }
 
@@ -233,7 +242,23 @@ router.post('/checkin', [
     }
 
     if (existingAttendance) {
-      // If attendance record exists, check if they're ACTUALLY checked in
+      // If attendance record exists
+      if (isUpcoming) {
+        // For upcoming events, if they're already registered, just return success
+        return res.status(200).json({
+          success: true,
+          message: 'You are already registered for this event. You will be checked in automatically when the event starts and you are within the premises.',
+          data: {
+            attendanceLog: existingAttendance,
+            participant: invitation.participant,
+            event: invitation.event,
+            registered: true,
+            checkedIn: false
+          }
+        });
+      }
+
+      // For active events, check if they're ACTUALLY checked in
       if (existingAttendance.checkInTime || existingAttendance.status === 'checked-in') {
         return res.status(400).json({
           success: false,
@@ -242,7 +267,7 @@ router.post('/checkin', [
       }
 
       // Attendance exists but not checked in yet (status: 'registered')
-      // Update existing record instead of creating new one
+      // Update existing record for check-in (active event only)
       existingAttendance.checkInTime = new Date();
       existingAttendance.checkInLocation = location || null;
       existingAttendance.status = 'checked-in';
@@ -260,18 +285,34 @@ router.post('/checkin', [
       var attendanceLog = existingAttendance;
     } else {
       // Create new attendance log
-      var attendanceLog = await AttendanceLog.create({
-        event: eventId,
-        participant: participantId,
-        invitation: invitationId,
-        checkInTime: new Date(),
-        checkInLocation: location || null,
-        status: 'checked-in',
-        registrationName: finalName,
-        registrationEmail: finalEmail
-      });
+      if (isUpcoming) {
+        // For upcoming events: Register only (don't check in)
+        var attendanceLog = await AttendanceLog.create({
+          event: eventId,
+          participant: participantId,
+          invitation: invitationId,
+          status: 'registered', // Registered, not checked in
+          registrationName: finalName,
+          registrationEmail: finalEmail
+          // No checkInTime or checkInLocation for upcoming events
+        });
 
-      console.log('✅ Created new attendance record for check-in');
+        console.log('✅ Created new attendance record with status=registered for upcoming event');
+      } else {
+        // For active events: Check in immediately
+        var attendanceLog = await AttendanceLog.create({
+          event: eventId,
+          participant: participantId,
+          invitation: invitationId,
+          checkInTime: new Date(),
+          checkInLocation: location || null,
+          status: 'checked-in',
+          registrationName: finalName,
+          registrationEmail: finalEmail
+        });
+
+        console.log('✅ Created new attendance record for check-in');
+      }
     }
 
     // Initialize or reset location tracking for this participant/event
@@ -282,38 +323,52 @@ router.post('/checkin', [
         participant: participantId
       });
 
-      if (existingLocationStatus) {
-        // Reset existing location tracking (preserve current location status)
-        // Only reset the timer, not the geofence status
-        await ParticipantLocationStatus.findOneAndUpdate(
-          { event: eventId, participant: participantId },
-          {
-            $set: {
-              'outsideTimer.isActive': false,
-              'outsideTimer.startTime': null,
-              'outsideTimer.totalTimeOutside': 0,
-              'outsideTimer.currentSessionStart': null,
-              // Don't force isWithinGeofence or status - let location updates determine this
-              attendanceLog: attendanceLog._id,
-              isActive: true
-            }
-          },
-          { upsert: false }
-        );
-        console.log('✅ Reset location timer for participant on check-in (preserved location status)');
+      if (isActive) {
+        // For active events: Initialize or reset location tracking for check-in
+        if (existingLocationStatus) {
+          // Reset existing location tracking (preserve current location status)
+          // Only reset the timer, not the geofence status
+          await ParticipantLocationStatus.findOneAndUpdate(
+            { event: eventId, participant: participantId },
+            {
+              $set: {
+                'outsideTimer.isActive': false,
+                'outsideTimer.startTime': null,
+                'outsideTimer.totalTimeOutside': 0,
+                'outsideTimer.currentSessionStart': null,
+                // Don't force isWithinGeofence or status - let location updates determine this
+                attendanceLog: attendanceLog._id,
+                isActive: true
+              }
+            },
+            { upsert: false }
+          );
+          console.log('✅ Reset location timer for participant on check-in (preserved location status)');
+        } else {
+          // Initialize location tracking for new check-in
+          const locationTrackingService = require('../services/locationTrackingService');
+          await locationTrackingService.initializeLocationTracking(
+            eventId,
+            participantId,
+            attendanceLog._id
+          );
+          console.log('✅ Initialized location tracking for participant on check-in');
+        }
       } else {
-        // Initialize location tracking for new check-in
-        const locationTrackingService = require('../services/locationTrackingService');
-        await locationTrackingService.initializeLocationTracking(
-          eventId,
-          participantId,
-          attendanceLog._id
-        );
-        console.log('✅ Initialized location tracking for participant on check-in');
+        // For upcoming events: Initialize location tracking for registration
+        if (!existingLocationStatus) {
+          const locationTrackingService = require('../services/locationTrackingService');
+          await locationTrackingService.initializeLocationTracking(
+            eventId,
+            participantId,
+            attendanceLog._id
+          );
+          console.log('✅ Initialized location tracking for participant registration');
+        }
       }
     } catch (resetError) {
       console.error('⚠️ Failed to initialize/reset location tracking:', resetError);
-      // Don't fail the check-in if location tracking fails
+      // Don't fail the registration/check-in if location tracking fails
     }
 
     // Mark invitation as used
@@ -327,13 +382,20 @@ router.post('/checkin', [
 
     await attendanceLog.populate(['event', 'participant', 'invitation']);
 
+    // Different response messages based on event status
+    const responseMessage = isUpcoming
+      ? 'Successfully registered for the event! You will be checked in automatically when the event starts and you are within the premises.'
+      : 'Check-in successful';
+
     res.json({
       success: true,
-      message: 'Check-in successful',
+      message: responseMessage,
       data: {
         attendanceLog,
         participant: invitation.participant,
-        event: invitation.event
+        event: invitation.event,
+        registered: isUpcoming,
+        checkedIn: isActive
       }
     });
   } catch (error) {
@@ -1491,12 +1553,17 @@ router.post('/checkin-direct', auth, [
 
     console.log('Event found:', event.title);
 
-    // CRITICAL: Check if event is active (per requirements)
-    if (event.status !== 'active') {
-      console.log('Event is not active:', event.status);
+    // CRITICAL: Different behavior based on event status
+    // If event is upcoming: Only allow if user has already registered (just confirm registration)
+    // If event is active: Allow check-in
+    const isUpcoming = event.status === 'upcoming';
+    const isActive = event.status === 'active';
+
+    if (!isUpcoming && !isActive) {
+      console.log('Event is not active or upcoming:', event.status);
       return res.status(400).json({
         success: false,
-        message: `Cannot check in - event is ${event.status}. Event must be active.`
+        message: `Cannot check in - event is ${event.status}.`
       });
     }
 
@@ -1510,7 +1577,24 @@ router.post('/checkin-direct', auth, [
       console.log('No attendance record found for user');
       return res.status(404).json({
         success: false,
-        message: 'You need to join this event first before checking in'
+        message: 'You need to join this event first'
+      });
+    }
+
+    // For upcoming events, if they're already registered, just return success
+    if (isUpcoming) {
+      console.log('Event is upcoming, user is already registered');
+      await attendanceRecord.populate(['event', 'participant']);
+      return res.status(200).json({
+        success: true,
+        message: 'You are already registered for this event. You will be checked in automatically when the event starts and you are within the premises.',
+        data: {
+          attendanceLog: attendanceRecord,
+          participant: attendanceRecord.participant,
+          event: attendanceRecord.event,
+          registered: true,
+          checkedIn: false
+        }
       });
     }
 

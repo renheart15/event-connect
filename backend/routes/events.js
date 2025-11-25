@@ -123,9 +123,9 @@ router.get('/', auth, async (req, res) => {
   try {
     // Trigger immediate status update for all events before fetching
     await updateAllEventStatuses();
-    
+
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 10000; // Removed limit - changed from 10 to 10000
     const skip = (page - 1) * limit;
 
     let query = {};
@@ -339,7 +339,7 @@ router.get('/public', async (req, res) => {
     await updateAllEventStatuses();
 
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 10000; // Removed limit - changed from 20 to 10000
     const skip = (page - 1) * limit;
 
     // Only get published events (we'll filter by status after fetching)

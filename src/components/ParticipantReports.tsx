@@ -209,6 +209,17 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     }
   };
 
+  // Format duration between check-in and check-out times
+  const formatDuration = (checkIn: string, checkOut?: string) => {
+    if (!checkIn) return 'N/A';
+    const startTime = new Date(checkIn);
+    const endTime = checkOut ? new Date(checkOut) : new Date();
+    const diffMs = endTime.getTime() - startTime.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${minutes}m`;
+  };
+
   const filteredParticipants = participants.filter(participant => {
     if (!participant?.participant?.name || !participant?.participant?.email) {
       console.warn('Invalid participant data:', participant);
@@ -250,11 +261,12 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
       { width: 30 }, // Email
       { width: 20 }, // Check-in Time
       { width: 20 }, // Check-out Time
+      { width: 15 }, // Duration
       { width: 15 }  // Status
     ];
 
-    // Row 1: Event title (merged A1:E1)
-    worksheet.mergeCells('A1:E1');
+    // Row 1: Event title (merged A1:F1)
+    worksheet.mergeCells('A1:F1');
     const titleCell = worksheet.getCell('A1');
     titleCell.value = eventTitle;
     titleCell.font = { bold: true, size: 14 };
@@ -268,7 +280,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
     // Row 4: Headers
     const headerRow = worksheet.getRow(4);
-    headerRow.values = ['Participant Name', 'Email', 'Check-in Time', 'Check-out Time', 'Status'];
+    headerRow.values = ['Participant Name', 'Email', 'Check-in Time', 'Check-out Time', 'Duration', 'Status'];
     headerRow.font = { bold: true };
 
     // Row 5+: Data
@@ -281,6 +293,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
           p.participant.email,
           formatTimeOnly(p.checkInTime),
           p.checkOutTime ? formatTimeOnly(p.checkOutTime) : 'N/A',
+          formatDuration(p.checkInTime, p.checkOutTime),
           getCheckInStatus(p)
         ];
       });
@@ -465,13 +478,14 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                       <TableHead>Email</TableHead>
                       <TableHead>Check-in Time</TableHead>
                       <TableHead>Check-out Time</TableHead>
+                      <TableHead>Duration</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredParticipants.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center p-8 text-gray-500">
+                        <TableCell colSpan={6} className="text-center p-8 text-gray-500">
                           {participants.length === 0 ? (
                             <div>
                               <p className="mb-2">No attendance records found for this event.</p>
@@ -496,6 +510,9 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                           </TableCell>
                           <TableCell>
                             {participant.checkOutTime ? formatDateTime(participant.checkOutTime) : 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {formatDuration(participant.checkInTime, participant.checkOutTime)}
                           </TableCell>
                           <TableCell>
                             <Badge variant={

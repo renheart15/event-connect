@@ -260,12 +260,23 @@ export const useParticipantLocationUpdater = () => {
     latitude: number,
     longitude: number,
     accuracy?: number,
-    batteryLevel?: number | null
+    batteryLevel?: number | null,
+    retryCount: number = 0
   ) => {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS = [1000, 3000, 5000]; // Exponential backoff: 1s, 3s, 5s
+    const REQUEST_TIMEOUT = 10000; // 10 seconds
+
     try {
       setError(null);
-      const token = localStorage.getItem('token');
 
+      // Check network connectivity
+      if (!navigator.onLine) {
+        console.warn('⚠️ [LOCATION UPDATE] No internet connection, will retry...');
+        throw new Error('No internet connection');
+      }
+
+      const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('No authentication token found');
       }
@@ -293,8 +304,13 @@ export const useParticipantLocationUpdater = () => {
           lng: longitude,
           accuracy: accuracy || 'N/A',
           battery: batteryLevel !== null ? `${batteryLevel}%` : 'N/A'
-        }
+        },
+        retryAttempt: retryCount
       });
+
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
       const response = await axios.post(
         endpoint,
@@ -303,22 +319,57 @@ export const useParticipantLocationUpdater = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          timeout: REQUEST_TIMEOUT,
+          signal: controller.signal
         }
       );
 
+      clearTimeout(timeoutId);
+
       console.log('✅ [LOCATION UPDATE] Update successful:', {
         response: response.data,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        retryAttempt: retryCount
       });
 
       return response.data;
     } catch (err: any) {
+      const errorMessage = err.response?.data?.message || err.message;
+
       console.error('❌ [LOCATION UPDATE] Update failed:', {
-        error: err.response?.data?.message || err.message,
-        fullError: err,
+        error: errorMessage,
+        retryAttempt: retryCount,
+        maxRetries: MAX_RETRIES,
         timestamp: new Date().toISOString()
       });
-      setError(err.response?.data?.message || 'Failed to update location');
+
+      // Retry logic for network/timeout errors
+      const isRetryableError =
+        err.code === 'ECONNABORTED' ||
+        err.code === 'ERR_NETWORK' ||
+        err.message?.includes('Network Error') ||
+        err.message?.includes('timeout') ||
+        err.message?.includes('connection') ||
+        !navigator.onLine;
+
+      if (isRetryableError && retryCount < MAX_RETRIES) {
+        const delay = RETRY_DELAYS[retryCount];
+        console.warn(`⏳ [LOCATION UPDATE] Retrying in ${delay}ms... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
+
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        return updateLocation(
+          eventId,
+          participantId,
+          latitude,
+          longitude,
+          accuracy,
+          batteryLevel,
+          retryCount + 1
+        );
+      }
+
+      setError(errorMessage);
       throw err;
     }
   }, []);
