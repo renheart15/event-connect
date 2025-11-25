@@ -106,6 +106,11 @@ const LocationAlertsWidget: React.FC<LocationAlertsWidgetProps> = ({ className }
   }, []);
 
   const getAlertIcon = (type: string) => {
+    // DEBUG: Log unknown alert types for investigation
+    if (!['warning', 'exceeded_limit', 'returned', 'left_geofence'].includes(type)) {
+      console.error(`❌ [LOCATION-ALERTS] Unknown alert type: "${type}" (type: ${typeof type})`);
+    }
+
     switch (type) {
       case 'warning':
         return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
@@ -146,7 +151,9 @@ const LocationAlertsWidget: React.FC<LocationAlertsWidgetProps> = ({ className }
       case 'left_geofence':
         return 'Left event premises';
       default:
-        return 'Unknown alert';
+        // DEBUG: Show the actual unknown type value for investigation
+        console.error(`❌ [LOCATION-ALERTS] Unknown alert type in getAlertText: "${type}"`);
+        return `Unknown alert (${type || 'null'})`;
     }
   };
 

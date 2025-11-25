@@ -428,10 +428,17 @@ router.get('/event/:eventId/alerts',
         .sort({ 'alertsSent.timestamp': -1 });
 
       // Extract and flatten alerts
+      const validAlertTypes = ['warning', 'exceeded_limit', 'returned', 'left_geofence'];
       const alerts = [];
       locationStatuses.forEach(status => {
         status.alertsSent.forEach(alert => {
           if (acknowledged === undefined || alert.acknowledged.toString() === acknowledged) {
+            // CRITICAL FIX: Filter out invalid/unknown alert types from old database records
+            if (!validAlertTypes.includes(alert.type)) {
+              console.warn(`⚠️ [ALERTS-API] Skipping alert with invalid type: "${alert.type}" for participant ${status.participant.name}`);
+              return; // Skip this alert
+            }
+
             alerts.push({
               alertId: alert._id,
               statusId: status._id,
@@ -676,6 +683,35 @@ router.get('/debug/event/:eventId',
         message: 'Failed to retrieve debug data',
         error: error.message,
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
+  }
+);
+
+// ADMIN ENDPOINT: Cleanup invalid alerts from database
+// @route   POST /api/location-tracking/admin/cleanup-invalid-alerts
+// @desc    Remove alerts with invalid types from ParticipantLocationStatus documents
+// @access  Private (authenticated users only)
+router.post('/admin/cleanup-invalid-alerts',
+  auth,
+  async (req, res) => {
+    try {
+      console.log('🧹 [ADMIN] Cleanup invalid alerts requested by:', req.user.email);
+
+      const cleanupInvalidAlerts = require('../scripts/cleanupInvalidAlerts');
+      const result = await cleanupInvalidAlerts();
+
+      res.json({
+        success: true,
+        message: `Cleanup completed. Removed ${result.invalidAlertsRemoved} invalid alert(s) from ${result.documentsModified} document(s).`,
+        data: result
+      });
+    } catch (error) {
+      console.error('❌ [ADMIN] Cleanup failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to cleanup invalid alerts',
+        error: error.message
       });
     }
   }
