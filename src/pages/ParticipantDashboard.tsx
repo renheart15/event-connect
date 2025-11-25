@@ -4242,7 +4242,7 @@ const ParticipantDashboard = () => {
                       </div>
                       
                       <div className="flex items-center mt-3 text-xs text-gray-500 dark:text-gray-400">
-                        <span>Checked in: {new Date(attendance.checkInTime).toLocaleTimeString()}</span>
+                        <span>Checked in: {new Date(attendance.checkInTime).toLocaleString()}</span>
                       </div>
 
                       {/* Absent Status Alert */}
@@ -6569,29 +6569,48 @@ const ParticipantDashboard = () => {
       {/* Current Status */}
       {getCurrentlyAttending().length > 0 && (
         <div className="mx-4 mt-2 space-y-2">
-          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
-            <h3 className="text-green-800 dark:text-green-200 font-semibold text-xs mb-2">Currently Attending</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-green-200 dark:border-green-700">
-                    <th className="text-left py-2 px-2 font-semibold text-green-800 dark:text-green-200">Event Name</th>
-                    <th className="text-left py-2 px-2 font-semibold text-green-800 dark:text-green-200">Start Time</th>
-                    <th className="text-left py-2 px-2 font-semibold text-green-800 dark:text-green-200">End Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {getCurrentlyAttending().map(attendance => (
-                    <tr key={attendance._id} className="border-b border-green-100 dark:border-green-800 last:border-0">
-                      <td className="py-2 px-2 font-medium text-gray-900 dark:text-white">{attendance.event.title}</td>
-                      <td className="py-2 px-2 text-gray-700 dark:text-gray-300">{formatTime(attendance.event.startTime)}</td>
-                      <td className="py-2 px-2 text-gray-700 dark:text-gray-300">{formatTime(attendance.event.endTime)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {getCurrentlyAttending().map(attendance => (
+            <div key={attendance._id} className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+              <h3 className="text-green-800 dark:text-green-200 font-semibold text-xs mb-2">Currently Attending</h3>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{attendance.event.title}</h2>
+
+              <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400 mb-3">
+                <span>Duration: {formatDuration(attendance.checkInTime)}</span>
+                {(() => {
+                  const timeRemaining = getTimeRemaining(attendance.event, attendance);
+                  if (timeRemaining) {
+                    return (
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {timeRemaining.text} available
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleOpenFeedbackForm(attendance.event._id, attendance.event.title)}
+                  disabled={isFeedbackButtonDisabled(attendance.event._id)}
+                  className="text-xs"
+                >
+                  Feedback
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleCheckOut(attendance)}
+                  className="text-xs"
+                >
+                  Check Out
+                </Button>
+              </div>
             </div>
-          </div>
+          ))}
 
           {/* Location Status */}
           {(isTracking || currentLocationStatus) && (

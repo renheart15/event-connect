@@ -651,7 +651,7 @@ const EventMonitor = () => {
               <Card>
                 <CardContent className="pt-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-green-600">{stats.totalCheckedIn + (stats.totalAbsent || 0)}</p>
+                    <p className="text-2xl font-bold text-blue-600">{stats.totalCheckedIn + (stats.totalAbsent || 0)}</p>
                     <p className="text-xs text-gray-600 dark:text-gray-400">Total</p>
                   </div>
                 </CardContent>
@@ -660,7 +660,7 @@ const EventMonitor = () => {
               <Card>
                 <CardContent className="pt-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-600">{stats.currentlyPresent}</p>
+                    <p className="text-2xl font-bold text-green-600">{stats.currentlyPresent}</p>
                     <p className="text-xs text-gray-600 dark:text-gray-400">Currently Present</p>
                   </div>
                 </CardContent>
