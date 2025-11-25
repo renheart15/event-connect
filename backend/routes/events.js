@@ -189,6 +189,7 @@ router.get('/', auth, async (req, res) => {
           },
           { $unwind: { path: '$eventData', preserveNullAndEmptyArrays: true } },
           // Add computed field to check if participant left early
+          // CRITICAL FIX: Properly handle Singapore timezone (UTC+8)
           {
             $addFields: {
               leftEarly: {
@@ -199,23 +200,29 @@ router.get('/', auth, async (req, res) => {
                       { $ne: ['$eventData.endTime', null] },
                       { $ne: ['$eventData.date', null] },
                       // Compare checkOutTime with event end time
+                      // Event times are in Singapore time, need to subtract 8 hours to convert to UTC
                       {
                         $lt: [
                           '$checkOutTime',
                           {
-                            $dateFromString: {
-                              dateString: {
-                                $concat: [
-                                  { $substr: ['$eventData.date', 0, 10] },
-                                  'T',
-                                  '$eventData.endTime',
-                                  ':00.000Z'
-                                ]
+                            $subtract: [
+                              {
+                                $dateFromString: {
+                                  dateString: {
+                                    $concat: [
+                                      { $substr: ['$eventData.date', 0, 10] },
+                                      'T',
+                                      '$eventData.endTime',
+                                      ':00.000Z'
+                                    ]
+                                  },
+                                  format: '%Y-%m-%dT%H:%M:%S.%LZ',
+                                  onError: false,
+                                  onNull: false
+                                }
                               },
-                              format: '%Y-%m-%dT%H:%M:%S.%LZ',
-                              onError: false,
-                              onNull: false
-                            }
+                              28800000  // Subtract 8 hours (in milliseconds) to convert Singapore time to UTC
+                            ]
                           }
                         ]
                       }
