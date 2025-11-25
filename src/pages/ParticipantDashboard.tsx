@@ -4200,119 +4200,29 @@ const ParticipantDashboard = () => {
               <p className="text-sm">Check in to events to see them here</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {activeEvents.map((attendance) => (
-                <div key={attendance._id} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 dark:text-white">{attendance.event.title}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{attendance.event.description}</p>
-                      
-                      <div className="flex items-center flex-wrap gap-2 mt-2 text-xs">
-                        {attendance.status === 'absent' ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
-                            • Marked Absent
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
-                            • Currently Attending
-                          </span>
-                        )}
-                        <span className="text-gray-500 dark:text-gray-400">
-                          Duration: {formatDuration(attendance.checkInTime)}
-                        </span>
-                        {(() => {
-                          const timeRemaining = getTimeRemaining(attendance.event, attendance);
-                          if (timeRemaining) {
-                            return (
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                timeRemaining.expired
-                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300'
-                                  : timeRemaining.showCountdown
-                                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300 animate-pulse'
-                                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
-                              }`}>
-                                <Clock className="w-3 h-3 mr-1" />
-                                {timeRemaining.text}
-                              </span>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                      
-                      <div className="flex items-center mt-3 text-xs text-gray-500 dark:text-gray-400">
-                        <span>Checked in: {new Date(attendance.checkInTime).toLocaleString()}</span>
-                      </div>
-
-                      {/* Absent Status Alert */}
-                      {attendance.status === 'absent' && (
-                        <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded text-xs text-red-800 dark:text-red-300">
-                          <div className="flex items-start gap-2">
-                            <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="font-semibold">You have been marked absent</p>
-                              <p className="mt-1">This may be due to exceeding the allowed time outside the event premises or location data becoming unavailable. Please contact the event organizer if you believe this is an error.</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 mt-3">
-                        <Button
-                          onClick={() => handleOpenFeedbackForm(attendance.event._id, attendance.event.title)}
-                          disabled={isFeedbackButtonDisabled(attendance.event._id)}
-                          variant="outline"
-                          size="sm"
-                          className={`flex items-center gap-2 text-xs ${
-                            isFeedbackButtonDisabled(attendance.event._id) 
-                              ? 'opacity-50 cursor-not-allowed' 
-                              : ''
-                          }`}
-                          title={getFeedbackButtonTooltip(attendance.event._id)}
-                        >
-                          <MessageSquare className="w-3 h-3" />
-                          Feedback
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col items-center space-y-2">
-                      {attendance.status === 'absent' ? (
-                        <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center">
-                          <AlertTriangle className="w-5 h-5 text-white" />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center">
-                          <CheckCircle className="w-5 h-5 text-white" />
-                        </div>
-                      )}
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => handleOpenFeedbackForm(attendance.event._id, attendance.event.title)}
-                          disabled={isFeedbackButtonDisabled(attendance.event._id)}
-                          className={`px-3 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
-                            isFeedbackButtonDisabled(attendance.event._id)
-                              ? 'bg-gray-400 cursor-not-allowed opacity-50 text-gray-600'
-                              : 'bg-blue-500 hover:bg-blue-600 text-white'
-                          }`}
-                          title={getFeedbackButtonTooltip(attendance.event._id)}
-                        >
-                          <MessageSquare className="w-3 h-3" />
-                          Feedback
-                        </button>
-                        <button 
-                          onClick={() => handleCheckOut(attendance._id)}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
-                        >
-                          Check Out
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                    <tr>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Event Name</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Checked In</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Start Time</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">End Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeEvents.map((attendance) => (
+                      <tr key={attendance._id} className="border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+                        <td className="py-3 px-4 font-medium text-gray-900 dark:text-white">{attendance.event.title}</td>
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{new Date(attendance.checkInTime).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{formatTime(attendance.event.startTime)}</td>
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{formatTime(attendance.event.endTime)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
