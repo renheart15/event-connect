@@ -35,7 +35,7 @@ interface LocationAlert {
   participantEmail: string;
   eventTitle: string;
   eventId: string;
-  type: 'warning' | 'exceeded_limit' | 'returned';
+  type: 'warning' | 'exceeded_limit' | 'returned' | 'left_geofence';
   timestamp: string;
   acknowledged: boolean;
   currentStatus: 'inside' | 'outside' | 'warning' | 'exceeded_limit';
@@ -143,6 +143,8 @@ const NotificationDropdown: React.FC = () => {
         return <AlertTriangle className="w-4 h-4 text-red-600" />;
       case 'returned':
         return <MapPin className="w-4 h-4 text-green-600" />;
+      case 'left_geofence':
+        return <MapPin className="w-4 h-4 text-orange-600" />;
       default:
         return <Bell className="w-4 h-4" />;
     }
@@ -156,6 +158,8 @@ const NotificationDropdown: React.FC = () => {
         return 'Exceeded time limit';
       case 'returned':
         return 'Returned to premises';
+      case 'left_geofence':
+        return 'Left event premises';
       default:
         return 'Unknown alert';
     }
@@ -377,6 +381,8 @@ const NotificationDropdown: React.FC = () => {
                         ? 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
                         : alert.type === 'warning'
                         ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800'
+                        : alert.type === 'left_geofence'
+                        ? 'bg-orange-50 border-orange-200 dark:bg-orange-950 dark:border-orange-800'
                         : 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
                     }`}
                   >
@@ -396,9 +402,13 @@ const NotificationDropdown: React.FC = () => {
                                 ? 'destructive'
                                 : alert.type === 'warning'
                                 ? 'secondary'
+                                : alert.type === 'left_geofence'
+                                ? 'secondary'
                                 : 'default'
                             }
-                            className="text-xs"
+                            className={`text-xs ${
+                              alert.type === 'left_geofence' ? 'bg-orange-200 text-orange-800' : ''
+                            }`}
                           >
                             {getAlertText(alert.type)}
                           </Badge>
