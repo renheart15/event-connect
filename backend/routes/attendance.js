@@ -576,7 +576,28 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
     // Battery data and lastLocationUpdate are now stored directly in attendance logs
     console.log('📊 [ATTENDANCE] Processing attendance logs with stored battery data');
 
+    // CRITICAL FIX: Helper function to check if participant left early
+    const leftEarly = (log) => {
+      if (!log.checkOutTime || !event.endTime || !event.date) {
+        return false;
+      }
+      try {
+        const eventDateStr = typeof event.date === 'string'
+          ? event.date.split('T')[0]
+          : event.date.toISOString().split('T')[0];
+        const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
+
+        // Convert Singapore time to UTC (same as late check-in logic)
+        const eventEndUTC = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
+        const checkOutDateTime = new Date(log.checkOutTime);
+        return checkOutDateTime < eventEndUTC;
+      } catch (error) {
+        return false;
+      }
+    };
+
     // Calculate late check-ins (more than 15 minutes after event start)
+    // CRITICAL FIX: Exclude participants who left early from late count
     let totalLate = 0;
     if (event.startTime && event.date) {
       try {
@@ -590,10 +611,13 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
         const eventStartUTC = fromZonedTime(startDateTimeStr, 'Asia/Singapore');
         const lateThreshold = new Date(eventStartUTC.getTime() + (15 * 60 * 1000)); // 15 minutes after start
 
-        // Count participants who checked in after the late threshold
+        // Count participants who checked in late BUT did not leave early
         totalLate = enrichedLogs.filter(log => {
           if (!log.checkInTime) return false;
-          return new Date(log.checkInTime) > lateThreshold;
+          const checkedInLate = new Date(log.checkInTime) > lateThreshold;
+          const didLeftEarly = leftEarly(log);
+          // Only count as late if they checked in late AND didn't leave early
+          return checkedInLate && !didLeftEarly;
         }).length;
 
         console.log(`📊 [LATE CHECK-IN] Event start: ${eventStartUTC.toISOString()}, Late threshold: ${lateThreshold.toISOString()}, Total late: ${totalLate}`);
@@ -605,17 +629,23 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
     // CRITICAL FIX: Filter out registered participants - they haven't actually checked in yet
     const checkedInLogs = enrichedLogs.filter(log => log.status !== 'registered');
 
+    // Calculate left-early count for absent
+    const leftEarlyCount = checkedInLogs.filter(log => leftEarly(log)).length;
+
     // Get summary statistics
     const stats = {
       totalCheckedIn: checkedInLogs.length,
       currentlyPresent: checkedInLogs.filter(log => log.status === 'checked-in').length,
-      totalCheckedOut: totalLate, // Use totalLate instead of checked-out count
-      totalAbsent: checkedInLogs.filter(log => log.status === 'absent').length,
+      totalCheckedOut: totalLate, // Use totalLate instead of checked-out count (displayed as "Late")
+      // CRITICAL FIX: Count absent as those with status='absent' OR left early
+      totalAbsent: checkedInLogs.filter(log => log.status === 'absent').length + leftEarlyCount,
       averageDuration: checkedInLogs
         .filter(log => log.duration > 0)
         .reduce((sum, log) => sum + log.duration, 0) /
         checkedInLogs.filter(log => log.duration > 0).length || 0
     };
+
+    console.log(`📊 [STATS] Total late: ${totalLate}, Left early: ${leftEarlyCount}, Total absent: ${stats.totalAbsent}`);
 
     // Debug: Check what location data we're sending
     console.log('📍 [ATTENDANCE ENDPOINT] Sending event location:', {
