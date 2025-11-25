@@ -288,6 +288,26 @@ const ParticipantDashboard = () => {
       };
     }
 
+    // CRITICAL FIX: Trust the event status from backend instead of calculating
+    // This prevents timing issues and timezone discrepancies
+    if (event.status === 'completed') {
+      return {
+        available: false,
+        reason: 'Event has ended',
+        opensAt: null
+      };
+    }
+
+    // If event is active, allow joining regardless of calculated times
+    if (event.status === 'active') {
+      return {
+        available: true,
+        reason: 'Event is currently active',
+        opensAt: null
+      };
+    }
+
+    // For upcoming events, check attendance window (1 hour before start)
     const now = new Date();
     const eventDateStr = typeof event.date === 'string'
       ? event.date.split('T')[0]
@@ -305,28 +325,10 @@ const ParticipantDashboard = () => {
     // Attendance opens 1 hour before event start
     const attendanceOpenTime = new Date(eventStartTime.getTime() - 60 * 60 * 1000);
 
-    // Check if event has already ended
-    let eventEndTime: Date;
-    if (event.endTime) {
-      const endDateTimeStr = `${eventDateStr}T${event.endTime}:00`;
-      eventEndTime = fromZonedTime(endDateTimeStr, 'Asia/Singapore');
-    } else {
-      // Default 3 hours if no end time
-      eventEndTime = new Date(eventStartTime.getTime() + 3 * 60 * 60 * 1000);
-    }
-
-    if (now > eventEndTime) {
-      return {
-        available: false,
-        reason: 'Event has ended',
-        opensAt: null
-      };
-    }
-
     if (now < attendanceOpenTime) {
       const timeUntilOpen = attendanceOpenTime.getTime() - now.getTime();
       const timeUntilOpenFormatted = formatTimeDifference(timeUntilOpen);
-      
+
       return {
         available: false,
         reason: `Attendance opens ${timeUntilOpenFormatted} before event start`,
@@ -4215,7 +4217,7 @@ const ParticipantDashboard = () => {
                     {activeEvents.map((attendance) => (
                       <tr key={attendance._id} className="border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/30">
                         <td className="py-3 px-4 font-medium text-gray-900 dark:text-white">{attendance.event.title}</td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{new Date(attendance.checkInTime).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{new Date(attendance.checkInTime).toLocaleTimeString()}</td>
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{formatTime(attendance.event.startTime)}</td>
                         <td className="py-3 px-4 text-gray-600 dark:text-gray-400">{formatTime(attendance.event.endTime)}</td>
                       </tr>
