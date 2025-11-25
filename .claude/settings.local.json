@@ -89,7 +89,8 @@
       "Bash(done)",
       "Bash(for comp in DashboardHeader InvitationForm)",
       "Bash(keytool:*)",
-      "Bash(jarsigner:*)"
+      "Bash(jarsigner:*)",
+      "Bash(premises\" alert.\n\nThe problem flow:\n1. Participant checks in\n2. Location tracking initialized with coordinates (0,0) and outside status\n3. First real location update comes in (participant is inside)\n4. Code sees: wasWithinGeofence=false, isWithinGeofence=true\n5. Triggers: handleParticipantReturnedToGeofence\n6. Creates: Spurious \"returned to premises\" alert\n\nThe fix:\n- Detect first location update by checking if current coords are (0,0)\n- Skip geofence change handlers for first update\n- Only trigger left/returned alerts for subsequent updates\n\nThis ensures:\n- No alerts on initial check-in\n- \"Left premises\" alert only when actually leaving\n- \"Returned to premises\" alert only when actually returning\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
