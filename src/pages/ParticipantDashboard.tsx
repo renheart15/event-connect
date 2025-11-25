@@ -530,6 +530,54 @@ const ParticipantDashboard = () => {
   const [scanningStatus, setScanningStatus] = useState('Ready to scan');
   const [isScanning, setIsScanning] = useState(false);
 
+  // Track pending location updates to prevent duplicates
+  const pendingLocationUpdate = useRef<boolean>(false);
+  const lastLocationSent = useRef<{ lat: number; lng: number; timestamp: number } | null>(null);
+
+  // Wrapper for updateLocation with deduplication logic
+  const sendLocationUpdate = async (
+    eventId: string,
+    lat: number,
+    lng: number,
+    accuracy: number,
+    batteryLevel: number | null
+  ) => {
+    const now = Date.now();
+
+    // Check if location has changed significantly (> 5 meters or > 15 seconds)
+    if (lastLocationSent.current) {
+      const timeDiff = now - lastLocationSent.current.timestamp;
+      const latDiff = Math.abs(lat - lastLocationSent.current.lat);
+      const lngDiff = Math.abs(lng - lastLocationSent.current.lng);
+      const hasMovedSignificantly = latDiff > 0.00005 || lngDiff > 0.00005; // ~5 meters
+
+      // Only skip if no significant movement AND less than 15 seconds
+      if (!hasMovedSignificantly && timeDiff < 15000) {
+        console.log(`⏸️ [LOCATION] Skipping duplicate update (${Math.round(timeDiff / 1000)}s since last)`);
+        return;
+      }
+    }
+
+    try {
+      await updateLocation(
+        eventId,
+        user._id,
+        lat,
+        lng,
+        accuracy,
+        batteryLevel
+      );
+
+      // Update tracking on success
+      lastLocationSent.current = { lat, lng, timestamp: now };
+      setLastLocationUpdateTime(new Date());
+      console.log('✅ [LOCATION] Update sent successfully');
+    } catch (error) {
+      console.error('❌ [LOCATION] Update failed:', error);
+      // Don't update lastLocationSent on failure so it will retry next time
+    }
+  };
+
   const checkLocationPermissions = async () => {
     try {
       if (Capacitor.isNativePlatform()) {
@@ -5643,78 +5691,75 @@ const ParticipantDashboard = () => {
     }
   };
 
-  // Helper function to force a location update (heartbeat)
+  // Helper function to force a location update (heartbeat) with deduplication
   const forceLocationUpdate = async (eventId: string) => {
+    // Prevent duplicate concurrent requests
+    if (pendingLocationUpdate.current) {
+      console.log('⏸️ [LOCATION] Update already in progress, skipping...');
+      return;
+    }
+
+    // Check if we're online
+    if (!navigator.onLine) {
+      console.warn('⚠️ [LOCATION] Offline, skipping location update');
+      return;
+    }
+
     try {
+      pendingLocationUpdate.current = true;
+
+      const getBatteryLevel = async () => {
+        try {
+          if ('getBattery' in navigator) {
+            const battery = await (navigator as any).getBattery();
+            return Math.round(battery.level * 100);
+          }
+          return null;
+        } catch (error) {
+          return null;
+        }
+      };
+
       if (Capacitor.isNativePlatform()) {
         const position = await Geolocation.getCurrentPosition({
           enableHighAccuracy: true,
-          timeout: 10000
+          timeout: 10000,
+          maximumAge: 5000 // Allow 5s cached location
         });
 
-        const getBatteryLevel = async () => {
-          try {
-            if ('getBattery' in navigator) {
-              const battery = await (navigator as any).getBattery();
-              return Math.round(battery.level * 100);
-            }
-            return null;
-          } catch (error) {
-            return null;
-          }
-        };
-
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
         const batteryLevel = await getBatteryLevel();
-        await updateLocation(
-          eventId,
-          user._id,
-          position.coords.latitude,
-          position.coords.longitude,
-          position.coords.accuracy,
-          batteryLevel
-        );
-        setLastLocationUpdateTime(new Date());
+
+        await sendLocationUpdate(eventId, lat, lng, position.coords.accuracy, batteryLevel);
       } else {
         // For web platforms
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             async (position) => {
-              const getBatteryLevel = async () => {
-                try {
-                  if ('getBattery' in navigator) {
-                    const battery = await (navigator as any).getBattery();
-                    return Math.round(battery.level * 100);
-                  }
-                  return null;
-                } catch (error) {
-                  return null;
-                }
-              };
-
+              const lat = position.coords.latitude;
+              const lng = position.coords.longitude;
               const batteryLevel = await getBatteryLevel();
-              await updateLocation(
-                eventId,
-                user._id,
-                position.coords.latitude,
-                position.coords.longitude,
-                position.coords.accuracy,
-                batteryLevel
-              );
-              setLastLocationUpdateTime(new Date());
+
+              await sendLocationUpdate(eventId, lat, lng, position.coords.accuracy, batteryLevel);
+              pendingLocationUpdate.current = false;
             },
-            () => {
-              // Heartbeat failed - silently ignore
+            (error) => {
+              console.error('❌ [LOCATION] Failed to get position:', error.message);
+              pendingLocationUpdate.current = false;
             },
             {
               enableHighAccuracy: true,
               timeout: 10000,
-              maximumAge: 0
+              maximumAge: 5000
             }
           );
         }
       }
     } catch (error) {
-      // Force location update failed - silently ignore
+      console.error('❌ [LOCATION] Update failed:', error);
+    } finally {
+      pendingLocationUpdate.current = false;
     }
   };
 
@@ -5792,21 +5837,14 @@ const ParticipantDashboard = () => {
                   time: new Date(location.time).toLocaleTimeString()
                 });
 
-                try {
-                  const batteryLevel = await getBatteryLevel();
-                  await updateLocation(
-                    eventId,
-                    user._id,
-                    location.latitude,
-                    location.longitude,
-                    location.accuracy || 0,
-                    batteryLevel
-                  );
-                  setLastLocationUpdateTime(new Date());
-                  console.log('✅ Location sent to server successfully');
-                } catch (updateError) {
-                  console.error('❌ Failed to send location to server:', updateError);
-                }
+                const batteryLevel = await getBatteryLevel();
+                await sendLocationUpdate(
+                  eventId,
+                  location.latitude,
+                  location.longitude,
+                  location.accuracy || 0,
+                  batteryLevel
+                );
               }
             }
           );
@@ -5836,19 +5874,13 @@ const ParticipantDashboard = () => {
           }, async (position) => {
             if (position) {
               const batteryLevel = await getBatteryLevel();
-              try {
-                await updateLocation(
-                  eventId,
-                  user._id,
-                  position.coords.latitude,
-                  position.coords.longitude,
-                  position.coords.accuracy,
-                  batteryLevel
-                );
-                setLastLocationUpdateTime(new Date());
-              } catch (error) {
-                console.error('Location update failed:', error);
-              }
+              await sendLocationUpdate(
+                eventId,
+                position.coords.latitude,
+                position.coords.longitude,
+                position.coords.accuracy,
+                batteryLevel
+              );
             }
           });
           setLocationWatchId(watchId as any);
@@ -5861,19 +5893,13 @@ const ParticipantDashboard = () => {
           const watchId = navigator.geolocation.watchPosition(
             async (position) => {
               const batteryLevel = await getBatteryLevel();
-              try {
-                await updateLocation(
-                  eventId,
-                  user._id,
-                  position.coords.latitude,
-                  position.coords.longitude,
-                  position.coords.accuracy,
-                  batteryLevel
-                );
-                setLastLocationUpdateTime(new Date());
-              } catch (error) {
-                console.error('Web location update failed:', error);
-              }
+              await sendLocationUpdate(
+                eventId,
+                position.coords.latitude,
+                position.coords.longitude,
+                position.coords.accuracy,
+                batteryLevel
+              );
             },
             (error) => {
               console.error('Geolocation error:', error);
@@ -6483,44 +6509,64 @@ const ParticipantDashboard = () => {
         <div className="mx-4 mt-2 space-y-2">
           {getCurrentlyAttending().map(attendance => (
             <div key={attendance._id} className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
-              <h3 className="text-green-800 dark:text-green-200 font-semibold text-xs mb-2">Currently Attending</h3>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{attendance.event.title}</h2>
-
-              <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400 mb-3">
-                <span>Duration: {formatDuration(attendance.checkInTime)}</span>
-                {(() => {
-                  const timeRemaining = getTimeRemaining(attendance.event, attendance);
-                  if (timeRemaining) {
-                    return (
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {timeRemaining.text} available
+              <h3 className="text-green-800 dark:text-green-200 font-semibold text-xs mb-1">Currently Attending</h3>
+              {getCurrentlyAttending().map(attendance => (
+                <div key={attendance._id} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{attendance.event.title}</p>
+                    {attendance.status === 'absent' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                        Absent
                       </span>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleOpenFeedbackForm(attendance.event._id, attendance.event.title)}
-                  disabled={isFeedbackButtonDisabled(attendance.event._id)}
-                  className="text-xs"
-                >
-                  Feedback
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleCheckOut(attendance)}
-                  className="text-xs"
-                >
-                  Check Out
-                </Button>
-              </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap text-xs text-gray-600 dark:text-gray-400">
+                    <span>Duration: {formatDuration(attendance.checkInTime)}</span>
+                    {(() => {
+                      const timeRemaining = getTimeRemaining(attendance.event, attendance);
+                      if (timeRemaining) {
+                        return (
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-medium ${
+                            timeRemaining.expired
+                              ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300'
+                              : timeRemaining.showCountdown
+                                ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300 animate-pulse'
+                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
+                          }`}>
+                            <Clock className="w-3 h-3 mr-1" />
+                            {timeRemaining.text}
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      onClick={() => handleOpenFeedbackForm(attendance.event._id, attendance.event.title)}
+                      disabled={isFeedbackButtonDisabled(attendance.event._id)}
+                      variant="outline"
+                      size="sm"
+                      className={`text-blue-700 border-blue-300 hover:bg-blue-100 dark:text-blue-300 dark:border-blue-600 dark:hover:bg-blue-900/30 h-7 text-xs px-2 ${
+                        isFeedbackButtonDisabled(attendance.event._id)
+                          ? 'opacity-50 cursor-not-allowed'
+                          : ''
+                      }`}
+                      title={getFeedbackButtonTooltip(attendance.event._id)}
+                    >
+                      <MessageSquare className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      onClick={() => handleCheckOut(attendance._id)}
+                      variant="outline"
+                      size="sm"
+                      className="text-green-700 border-green-300 hover:bg-green-100 dark:text-green-300 dark:border-green-600 dark:hover:bg-green-900/30 h-7 text-xs"
+                    >
+                      Check Out
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
 
