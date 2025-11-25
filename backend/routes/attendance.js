@@ -633,12 +633,24 @@ router.get('/event/:eventId', auth, requireOrganizer, async (req, res) => {
     const leftEarlyCount = checkedInLogs.filter(log => leftEarly(log)).length;
 
     // Get summary statistics
+    // EXACT SAME LOGIC AS FRONTEND ParticipantReports.tsx
     const stats = {
-      totalCheckedIn: checkedInLogs.length,
+      // Total Checked In = participants with status 'checked-in' or 'checked-out' AND didn't leave early
+      totalCheckedIn: checkedInLogs.filter(log => {
+        // Must have status checked-in or checked-out
+        if (log.status !== 'checked-in' && log.status !== 'checked-out') {
+          return false;
+        }
+        // Must not have left early
+        if (leftEarly(log)) {
+          return false;
+        }
+        return true;
+      }).length,
       currentlyPresent: checkedInLogs.filter(log => log.status === 'checked-in').length,
       totalCheckedOut: totalLate, // Use totalLate instead of checked-out count (displayed as "Late")
-      // CRITICAL FIX: Count absent as those with status='absent' OR left early
-      totalAbsent: checkedInLogs.filter(log => log.status === 'absent').length + leftEarlyCount,
+      // CRITICAL FIX: Count absent as those with status='absent' OR left early (avoid double-counting)
+      totalAbsent: checkedInLogs.filter(log => log.status === 'absent' || leftEarly(log)).length,
       averageDuration: checkedInLogs
         .filter(log => log.duration > 0)
         .reduce((sum, log) => sum + log.duration, 0) /

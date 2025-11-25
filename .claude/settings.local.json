@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(node -e:*)",
-      "Bash(timeout 5 sleep:*)"
+      "Bash(timeout 5 sleep:*)",
+      "Bash(cat:*)",
+      "Bash(dir:*)",
+      "Bash(npx cap sync)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []

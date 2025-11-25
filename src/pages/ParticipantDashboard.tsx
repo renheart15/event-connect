@@ -17,8 +17,12 @@ import { Geolocation } from '@capacitor/geolocation';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import jsQR from 'jsqr';
+
+// Import Background Geolocation plugin for background location tracking
+import type { BackgroundGeolocationPlugin } from '@capacitor-community/background-geolocation';
+const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation');
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { fromZonedTime } from 'date-fns-tz';
 import { eventNotificationService } from '@/services/eventNotificationService';
@@ -516,7 +520,7 @@ const ParticipantDashboard = () => {
   } = useParticipantLocationUpdater();
   
   // Location tracking state
-  const [locationWatchId, setLocationWatchId] = useState<number | null>(null);
+  const [locationWatchId, setLocationWatchId] = useState<string | number | null>(null);
   const [locationHeartbeatInterval, setLocationHeartbeatInterval] = useState<NodeJS.Timeout | null>(null);
   const [lastLocationUpdateTime, setLastLocationUpdateTime] = useState<Date | null>(null);
   const [currentLocationStatus, setCurrentLocationStatus] = useState<any>(null);
@@ -950,9 +954,15 @@ const ParticipantDashboard = () => {
       // Stop location tracking if active
       if (locationWatchId) {
         if (Capacitor.isNativePlatform()) {
-          Geolocation.clearWatch({ id: locationWatchId as any }).catch(() => {});
+          if (typeof locationWatchId === 'string') {
+            BackgroundGeolocation.removeWatcher({ id: locationWatchId }).catch(() => {});
+          } else {
+            Geolocation.clearWatch({ id: String(locationWatchId) }).catch(() => {});
+          }
         } else {
-          navigator.geolocation.clearWatch(locationWatchId);
+          if (typeof locationWatchId === 'number') {
+            navigator.geolocation.clearWatch(locationWatchId);
+          }
         }
       }
     };
@@ -4232,7 +4242,7 @@ const ParticipantDashboard = () => {
                       </div>
                       
                       <div className="flex items-center mt-3 text-xs text-gray-500 dark:text-gray-400">
-                        <span>Checked in: {new Date(attendance.checkInTime).toLocaleString()}</span>
+                        <span>Checked in: {new Date(attendance.checkInTime).toLocaleTimeString()}</span>
                       </div>
 
                       {/* Absent Status Alert */}
@@ -5827,126 +5837,131 @@ const ParticipantDashboard = () => {
         }
       };
 
-      // Get and send initial location immediately
-      try {
-        if (Capacitor.isNativePlatform()) {
-          const position = await Geolocation.getCurrentPosition({
-            enableHighAccuracy: true,
-            timeout: 10000
-          });
-          const batteryLevel = await getBatteryLevel();
-          await updateLocation(
-            eventId,
-            user._id,
-            position.coords.latitude,
-            position.coords.longitude,
-            position.coords.accuracy,
-            batteryLevel
-          );
-          setLastLocationUpdateTime(new Date());
-        } else {
-          // For web platforms
-          navigator.geolocation.getCurrentPosition(
-            async (position) => {
-              const batteryLevel = await getBatteryLevel();
-              await updateLocation(
-                eventId,
-                user._id,
-                position.coords.latitude,
-                position.coords.longitude,
-                position.coords.accuracy,
-                batteryLevel
-              );
-              setLastLocationUpdateTime(new Date());
-            },
-            (error) => {
-              console.error('Initial location fetch failed:', error);
-            },
+      // Start watching location with BACKGROUND GEOLOCATION
+      if (Capacitor.isNativePlatform()) {
+        // For native platforms, use BackgroundGeolocation for reliable background tracking
+        console.log('🌍 Starting BACKGROUND geolocation tracking...');
+
+        try {
+          const watchId = await BackgroundGeolocation.addWatcher(
             {
-              enableHighAccuracy: true,
-              timeout: 10000
+              // Background notification config
+              backgroundMessage: "Tracking your location for event attendance",
+              backgroundTitle: "Event Attendance Tracking",
+
+              // Request permissions (including "Always Allow" for iOS)
+              requestPermissions: true,
+
+              // Location settings
+              stale: false,  // Don't use stale locations
+              distanceFilter: 10,  // Update every 10 meters
+
+            },
+            async (location, error) => {
+              if (error) {
+                console.error('❌ Background location error:', error);
+
+                // Handle specific error codes
+                if (error.code === 'NOT_AUTHORIZED') {
+                  toast({
+                    title: "Location Permission Denied",
+                    description: "Please enable 'Always Allow' location permission in Settings for background tracking.",
+                    variant: "destructive",
+                  });
+                }
+                return;
+              }
+
+              if (location) {
+                console.log('📍 Background location update:', {
+                  lat: location.latitude,
+                  lng: location.longitude,
+                  accuracy: location.accuracy,
+                  time: new Date(location.time).toLocaleTimeString()
+                });
+
+                try {
+                  const batteryLevel = await getBatteryLevel();
+                  await updateLocation(
+                    eventId,
+                    user._id,
+                    location.latitude,
+                    location.longitude,
+                    location.accuracy || 0,
+                    batteryLevel
+                  );
+                  setLastLocationUpdateTime(new Date());
+                  console.log('✅ Location sent to server successfully');
+                } catch (updateError) {
+                  console.error('❌ Failed to send location to server:', updateError);
+                }
+              }
             }
           );
-        }
-      } catch (error) {
-        console.error('Failed to get initial location:', error);
-      }
 
-      toast({
-        title: "Location Tracking Started",
-        description: "Your location is being tracked for this event.",
-      });
+          console.log('✅ Background geolocation watcher started with ID:', watchId);
+          setLocationWatchId(watchId);
 
-      // Start watching location
-      if (Capacitor.isNativePlatform()) {
-        // For native platforms, use Capacitor Geolocation
-        const watchId = await Geolocation.watchPosition({
-          enableHighAccuracy: true,
-          timeout: 10000
-        }, (position) => {
-          if (position) {
-            // Get battery level if available
-            const getBatteryLevel = async () => {
+          toast({
+            title: "Background Tracking Enabled",
+            description: "Your location will be tracked even when the app is in the background or screen is off.",
+          });
+
+        } catch (bgError: any) {
+          console.error('❌ Failed to start background geolocation:', bgError);
+
+          // Fallback to foreground tracking if background fails
+          toast({
+            title: "Using Foreground Tracking",
+            description: "Background tracking failed. Using foreground-only tracking.",
+            variant: "default",
+          });
+
+          // Fallback to standard geolocation
+          const watchId = await Geolocation.watchPosition({
+            enableHighAccuracy: true,
+            timeout: 10000
+          }, async (position) => {
+            if (position) {
+              const batteryLevel = await getBatteryLevel();
               try {
-                if ('getBattery' in navigator) {
-                  const battery = await (navigator as any).getBattery();
-                  return Math.round(battery.level * 100);
-                }
-                return null;
-              } catch (error) {
-                return null;
-              }
-            };
-
-            getBatteryLevel().then((batteryLevel) => {
-              updateLocation(
-                eventId,
-                user._id,
-                position.coords.latitude,
-                position.coords.longitude,
-                position.coords.accuracy,
-                batteryLevel
-              ).then(() => {
-                setLastLocationUpdateTime(new Date());
-              }).catch((error) => {
-                console.error('Location update failed:', error);
-              });
-            });
-          }
-        });
-        setLocationWatchId(watchId as any);
-      } else {
-        // For web platforms, use standard geolocation API
-        if (navigator.geolocation) {
-          const watchId = navigator.geolocation.watchPosition(
-            (position) => {
-              // Get battery level if available
-              const getBatteryLevel = async () => {
-                try {
-                  if ('getBattery' in navigator) {
-                    const battery = await (navigator as any).getBattery();
-                    return Math.round(battery.level * 100);
-                  }
-                  return null;
-                } catch (error) {
-                  return null;
-                }
-              };
-
-              getBatteryLevel().then((batteryLevel) => {
-                updateLocation(
+                await updateLocation(
                   eventId,
                   user._id,
                   position.coords.latitude,
                   position.coords.longitude,
                   position.coords.accuracy,
                   batteryLevel
-                ).then(() => {
-                  setLastLocationUpdateTime(new Date());
-                }).catch((error) => {
-                  console.error('Web location update failed:', error);
-                });
-              });
+                );
+                setLastLocationUpdateTime(new Date());
+              } catch (error) {
+                console.error('Location update failed:', error);
+              }
+            }
+          });
+          setLocationWatchId(watchId as any);
+        }
+
+      } else {
+        // For web platforms, use standard geolocation API
+        console.log('🌐 Starting web geolocation tracking...');
+        if (navigator.geolocation) {
+          const watchId = navigator.geolocation.watchPosition(
+            async (position) => {
+              const batteryLevel = await getBatteryLevel();
+              try {
+                await updateLocation(
+                  eventId,
+                  user._id,
+                  position.coords.latitude,
+                  position.coords.longitude,
+                  position.coords.accuracy,
+                  batteryLevel
+                );
+                setLastLocationUpdateTime(new Date());
+              } catch (error) {
+                console.error('Web location update failed:', error);
+              }
             },
             (error) => {
               console.error('Geolocation error:', error);
@@ -5965,27 +5980,6 @@ const ParticipantDashboard = () => {
           setLocationWatchId(watchId);
         }
       }
-
-      // Set up heartbeat to force location updates every 2 minutes
-      // This ensures updates continue even if watchPosition stops sending updates
-      const heartbeatInterval = setInterval(() => {
-        const now = new Date();
-        const timeSinceLastUpdate = lastLocationUpdateTime
-          ? (now.getTime() - lastLocationUpdateTime.getTime()) / 1000 / 60
-          : 999;
-
-        // Force update if more than 2 minutes since last update
-        if (timeSinceLastUpdate > 2) {
-          forceLocationUpdate(eventId);
-        }
-      }, 120000); // Check every 2 minutes
-
-      setLocationHeartbeatInterval(heartbeatInterval);
-
-      toast({
-        title: "Location Tracking Started",
-        description: "Your location is now being tracked for this event.",
-      });
     } catch (error: any) {
       toast({
         title: "Location Tracking Failed",
@@ -6003,9 +5997,22 @@ const ParticipantDashboard = () => {
       // Stop watching location
       if (locationWatchId) {
         if (Capacitor.isNativePlatform()) {
-          await Geolocation.clearWatch({ id: locationWatchId as any });
+          try {
+            // Check if it's a background geolocation watcher (string) or standard (number)
+            if (typeof locationWatchId === 'string') {
+              await BackgroundGeolocation.removeWatcher({ id: locationWatchId });
+              console.log('✅ Background geolocation watcher stopped');
+            } else {
+              await Geolocation.clearWatch({ id: String(locationWatchId) });
+              console.log('✅ Standard geolocation watcher stopped');
+            }
+          } catch (error) {
+            console.error('Failed to stop geolocation watcher:', error);
+          }
         } else {
-          navigator.geolocation.clearWatch(locationWatchId);
+          if (typeof locationWatchId === 'number') {
+            navigator.geolocation.clearWatch(locationWatchId);
+          }
         }
         setLocationWatchId(null);
       }
@@ -6021,10 +6028,11 @@ const ParticipantDashboard = () => {
 
       toast({
         title: "Location Tracking Stopped",
-        description: "Location tracking has been disabled for this event.",
+        description: "Background location tracking has been disabled for this event.",
       });
     } catch (error) {
-      // Error stopping location tracking - silently ignore
+      console.error('Error stopping location tracking:', error);
+      // Don't show error to user, just log it
     }
   };
 
@@ -6562,64 +6570,27 @@ const ParticipantDashboard = () => {
       {getCurrentlyAttending().length > 0 && (
         <div className="mx-4 mt-2 space-y-2">
           <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
-            <h3 className="text-green-800 dark:text-green-200 font-semibold text-xs mb-1">Currently Attending</h3>
-            {getCurrentlyAttending().map(attendance => (
-              <div key={attendance._id} className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{attendance.event.title}</p>
-                  {attendance.status === 'absent' && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
-                      Absent
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 flex-wrap text-xs text-gray-600 dark:text-gray-400">
-                  <span>Duration: {formatDuration(attendance.checkInTime)}</span>
-                  {(() => {
-                    const timeRemaining = getTimeRemaining(attendance.event, attendance);
-                    if (timeRemaining) {
-                      return (
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-medium ${
-                          timeRemaining.expired
-                            ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300'
-                            : timeRemaining.showCountdown
-                              ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300 animate-pulse'
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
-                        }`}>
-                          <Clock className="w-3 h-3 mr-1" />
-                          {timeRemaining.text}
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
-                <div className="flex gap-1">
-                  <Button
-                    onClick={() => handleOpenFeedbackForm(attendance.event._id, attendance.event.title)}
-                    disabled={isFeedbackButtonDisabled(attendance.event._id)}
-                    variant="outline"
-                    size="sm"
-                    className={`text-blue-700 border-blue-300 hover:bg-blue-100 dark:text-blue-300 dark:border-blue-600 dark:hover:bg-blue-900/30 h-7 text-xs px-2 ${
-                      isFeedbackButtonDisabled(attendance.event._id)
-                        ? 'opacity-50 cursor-not-allowed'
-                        : ''
-                    }`}
-                    title={getFeedbackButtonTooltip(attendance.event._id)}
-                  >
-                    <MessageSquare className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    onClick={() => handleCheckOut(attendance._id)}
-                    variant="outline"
-                    size="sm"
-                    className="text-green-700 border-green-300 hover:bg-green-100 dark:text-green-300 dark:border-green-600 dark:hover:bg-green-900/30 h-7 text-xs"
-                  >
-                    Check Out
-                  </Button>
-                </div>
-              </div>
-            ))}
+            <h3 className="text-green-800 dark:text-green-200 font-semibold text-xs mb-2">Currently Attending</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-green-200 dark:border-green-700">
+                    <th className="text-left py-2 px-2 font-semibold text-green-800 dark:text-green-200">Event Name</th>
+                    <th className="text-left py-2 px-2 font-semibold text-green-800 dark:text-green-200">Start Time</th>
+                    <th className="text-left py-2 px-2 font-semibold text-green-800 dark:text-green-200">End Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getCurrentlyAttending().map(attendance => (
+                    <tr key={attendance._id} className="border-b border-green-100 dark:border-green-800 last:border-0">
+                      <td className="py-2 px-2 font-medium text-gray-900 dark:text-white">{attendance.event.title}</td>
+                      <td className="py-2 px-2 text-gray-700 dark:text-gray-300">{formatTime(attendance.event.startTime)}</td>
+                      <td className="py-2 px-2 text-gray-700 dark:text-gray-300">{formatTime(attendance.event.endTime)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Location Status */}

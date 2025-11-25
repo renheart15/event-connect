@@ -26,6 +26,13 @@ const config: CapacitorConfig = {
     Geolocation: {
       permissions: ['location', 'coarseLocation']
     },
+    BackgroundGeolocation: {
+      backgroundMessage: "Tracking your location for event attendance",
+      backgroundTitle: "Event Attendance Tracking",
+      requestPermissions: true,
+      stale: false,
+      distanceFilter: 50  // Update every 50 meters for geofence monitoring
+    },
     LocalNotifications: {
       smallIcon: "ic_stat_icon_config_sample",
       iconColor: "#488AFF",
@@ -34,7 +41,8 @@ const config: CapacitorConfig = {
   },
   // App Links (Android) and Universal Links (iOS) configuration
   android: {
-    allowMixedContent: true
+    allowMixedContent: true,
+    useLegacyBridge: true  // Required for background geolocation to prevent location halting after 5 minutes
   },
   ios: {
     contentInset: 'automatic'

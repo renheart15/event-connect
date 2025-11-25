@@ -46,9 +46,9 @@ const StatCard = ({ title, value, change, icon, iconColor }: StatCardProps) => {
 interface DashboardStatsProps {
   stats: {
     totalEvents: number;
+    upcomingEvents: number;
     activeEvents: number;
-    totalParticipants: number;
-    currentlyPresent: number;
+    completedEvents: number;
   };
 }
 
@@ -58,28 +58,24 @@ const DashboardStats = ({ stats }: DashboardStatsProps) => {
       <StatCard
         title="Total Events"
         value={stats.totalEvents}
-        change={{ value: "+12%", positive: true }}
         icon={<div className="w-6 h-6 bg-blue-500 rounded-lg"></div>}
         iconColor="bg-blue-500"
       />
       <StatCard
-        title="Active Events"
-        value={stats.activeEvents}
-        change={{ value: "+5%", positive: true }}
+        title="Upcoming Events"
+        value={stats.upcomingEvents}
         icon={<div className="w-6 h-6 bg-green-500 rounded-lg"></div>}
         iconColor="bg-green-500"
       />
       <StatCard
-        title="Total Participants"
-        value={stats.totalParticipants}
-        change={{ value: "+18%", positive: true }}
+        title="Active Events"
+        value={stats.activeEvents}
         icon={<div className="w-6 h-6 bg-purple-500 rounded-lg"></div>}
         iconColor="bg-purple-500"
       />
       <StatCard
-        title="Currently Present"
-        value={stats.currentlyPresent}
-        change={{ value: "-2%", positive: false }}
+        title="Completed Events"
+        value={stats.completedEvents}
         icon={<div className="w-6 h-6 bg-orange-500 rounded-lg"></div>}
         iconColor="bg-orange-500"
       />

@@ -49,17 +49,6 @@ const generateInvitationEmail = (invitation, event, organizer, qrCodeDataURL) =>
                 border-radius: 8px;
                 padding: 10px;
             }
-            .invitation-code {
-                background: #667eea;
-                color: white;
-                padding: 15px;
-                border-radius: 8px;
-                text-align: center;
-                font-size: 18px;
-                font-weight: bold;
-                letter-spacing: 2px;
-                margin: 20px 0;
-            }
             .footer {
                 text-align: center;
                 color: #666;

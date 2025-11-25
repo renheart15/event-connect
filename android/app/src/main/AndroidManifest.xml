@@ -67,6 +67,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- Wake lock to keep location tracking running -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Battery optimization exemption for reliable background location tracking -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Camera permission for QR code scanning -->
     <uses-permission android:name="android.permission.CAMERA" />
 </manifest>

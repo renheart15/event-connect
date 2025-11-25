@@ -221,14 +221,24 @@ router.get('/', auth, async (req, res) => {
 
           const totalParticipants = logs.length; // All participants
 
+          // Debug: Log all participant data for this event
+          console.log(`📊 [EVENT-LOGS] Event ${event.title} has ${logs.length} participants:`);
+          logs.forEach((log, idx) => {
+            console.log(`📊 [PARTICIPANT-${idx}] status="${log.status}", checkInTime=${!!log.checkInTime}, checkOutTime=${!!log.checkOutTime}`);
+          });
+
           // Count participants who checked in and didn't leave early (FRONTEND LOGIC)
           const checkedInCount = logs.filter(log => {
+            const hasCheckInStatus = log.status === 'checked-in' || log.status === 'checked-out';
+            const didLeaveEarly = leftEarly(log);
+            console.log(`📊 [CHECKED-IN-FILTER] Participant status="${log.status}", hasCheckInStatus=${hasCheckInStatus}, didLeaveEarly=${didLeaveEarly}, included=${hasCheckInStatus && !didLeaveEarly}`);
+
             // Must have status checked-in or checked-out
-            if (log.status !== 'checked-in' && log.status !== 'checked-out') {
+            if (!hasCheckInStatus) {
               return false;
             }
             // Must not have left early
-            if (leftEarly(log)) {
+            if (didLeaveEarly) {
               return false;
             }
             return true;

@@ -61,5 +61,13 @@
 		<string>applinks:event-connect.site</string>
 		<string>applinks:www.event-connect.site</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need to track your location for event attendance and geofencing features</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We need to track your location in the background to monitor your attendance at events even when the app is not in use</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 </dict>
 </plist>

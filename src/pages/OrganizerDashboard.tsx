@@ -232,9 +232,9 @@ const OrganizerDashboard = () => {
 
   const stats = {
     totalEvents: events?.length || 0,
+    upcomingEvents: events?.filter(e => e.status === 'upcoming').length || 0,
     activeEvents: events?.filter(e => e.status === 'active').length || 0,
-    totalParticipants: events?.reduce((sum, e) => sum + (e.totalParticipants || 0), 0) || 0,
-    currentlyPresent: events?.reduce((sum, e) => sum + (e.currentlyPresent || 0), 0) || 0
+    completedEvents: events?.filter(e => e.status === 'completed').length || 0
   };
 
   const handleGeofenceUpdate = async (eventId: string, center: [number, number], radius: number) => {
@@ -803,9 +803,7 @@ const OrganizerDashboard = () => {
                           <TableCell className="text-center">
                             <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-950/30">
                               <span className="font-bold text-green-600">
-                                {event.status === 'completed'
-                                  ? event.totalParticipants - event.currentlyPresent
-                                  : event.checkedIn}
+                                {event.checkedIn}
                               </span>
                             </div>
                           </TableCell>

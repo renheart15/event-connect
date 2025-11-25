@@ -208,10 +208,6 @@ router.post('/', auth, requireOrganizer, [
           </ul>
         </div>
 
-        <div style="background-color: #EEF2FF; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 0;"><strong>Your invitation code:</strong> <span style="font-family: monospace; font-size: 18px; color: #4C1D95;">${invitation.invitationCode}</span></p>
-        </div>
-
         <div style="text-align: center; margin: 30px 0;">
           <a href="${invitationLink}"
              style="display: inline-block; padding: 16px 32px; background-color: #4C1D95; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px 0; font-size: 16px;">
@@ -660,10 +656,6 @@ router.post('/:id/resend', auth, requireOrganizer, async (req, res) => {
             <li style="margin: 5px 0;">Location: ${invitation.event.location?.address || 'Location TBD'}</li>
             <li style="margin: 5px 0;">Description: ${invitation.event.description || 'No description provided'}</li>
           </ul>
-        </div>
-
-        <div style="background-color: #EEF2FF; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 0;"><strong>Your invitation code:</strong> <span style="font-family: monospace; font-size: 18px; color: #4C1D95;">${invitation.invitationCode}</span></p>
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
