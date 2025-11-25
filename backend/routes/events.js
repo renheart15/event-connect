@@ -214,23 +214,43 @@ router.get('/', auth, async (req, res) => {
             }
           };
 
-          // CRITICAL FIX: Filter out registered participants - they haven't actually checked in yet
-          const checkedInLogs = logs.filter(log => log.status !== 'registered');
+          // EXACT SAME LOGIC AS FRONTEND ParticipantReports.tsx lines 330-355
+          // Total = ALL participants (including registered, checked-in, absent, left-early)
+          // Checked In = participants with status 'checked-in' or 'checked-out' AND didn't leave early
+          // Absent = participants with status 'absent' OR (registered without checkInTime) OR left early
 
-          // Calculate left-early count for absent
-          const leftEarlyCount = checkedInLogs.filter(log => leftEarly(log)).length;
+          const totalParticipants = logs.length; // All participants
 
-          // Count participants who actually checked in and didn't leave early
-          const actuallyCheckedIn = checkedInLogs.filter(log => !leftEarly(log)).length;
+          // Count participants who checked in and didn't leave early (FRONTEND LOGIC)
+          const checkedInCount = logs.filter(log => {
+            // Must have status checked-in or checked-out
+            if (log.status !== 'checked-in' && log.status !== 'checked-out') {
+              return false;
+            }
+            // Must not have left early
+            if (leftEarly(log)) {
+              return false;
+            }
+            return true;
+          }).length;
 
-          // Get summary statistics (EXACT SAME CALCULATION AS PARTICIPANT REPORTS)
+          // Count absent: status 'absent' OR (registered without check-in) OR left early (FRONTEND LOGIC)
+          const absentCount = logs.filter(log => {
+            return log.status === 'absent' ||
+                   (log.status === 'registered' && !log.checkInTime) ||
+                   leftEarly(log);
+          }).length;
+
+          // Get summary statistics (EXACT SAME AS FRONTEND)
           const stats = {
-            currentlyPresent: checkedInLogs.filter(log => log.status === 'checked-in').length,
-            totalAbsent: checkedInLogs.filter(log => log.status === 'absent').length + leftEarlyCount,
-            totalCheckedIn: actuallyCheckedIn
+            totalParticipants: totalParticipants,
+            currentlyPresent: logs.filter(log => log.status === 'checked-in').length,
+            totalAbsent: absentCount,
+            totalCheckedIn: checkedInCount
           };
 
-          console.log(`📊 [ATTENDANCE-STATS] Event ${eventIdStr}: checkedIn=${stats.totalCheckedIn}, absent=${stats.totalAbsent}, leftEarly=${leftEarlyCount}`);
+          const leftEarlyCount = logs.filter(log => leftEarly(log)).length;
+          console.log(`📊 [ATTENDANCE-STATS] Event ${eventIdStr}: total=${stats.totalParticipants}, checkedIn=${stats.totalCheckedIn}, absent=${stats.totalAbsent}, leftEarly=${leftEarlyCount}`);
 
           attendanceStats.set(eventIdStr, stats);
         }
@@ -259,17 +279,17 @@ router.get('/', auth, async (req, res) => {
       let eventData = event.toObject();
       if (req.user.role === 'organizer') {
         const eventIdStr = event._id.toString();
-        const attendance = attendanceStats.get(eventIdStr) || { currentlyPresent: 0, totalAbsent: 0, totalCheckedIn: 0 };
+        const attendance = attendanceStats.get(eventIdStr) || { totalParticipants: 0, currentlyPresent: 0, totalAbsent: 0, totalCheckedIn: 0 };
 
-        // EXACT SAME MAPPING AS PARTICIPANT REPORTS
-        // totalParticipants = checkedIn + absent
+        // EXACT SAME LOGIC AS FRONTEND ParticipantReports.tsx
+        // totalParticipants = ALL participants (total count)
         // checkedIn = participants who checked in and didn't leave early
         // currentlyPresent = participants with status 'checked-in' (actually present)
-        // absent = participants with status 'absent' OR left early
-        eventData.totalParticipants = attendance.totalCheckedIn + attendance.totalAbsent; // Total = Checked In + Absent
-        eventData.checkedIn = attendance.totalCheckedIn; // Actually checked in and stayed
-        eventData.currentlyPresent = attendance.currentlyPresent; // Currently present (status 'checked-in')
-        eventData.absent = attendance.totalAbsent; // Absent or left early
+        // absent = participants with status 'absent' OR registered without check-in OR left early
+        eventData.totalParticipants = attendance.totalParticipants; // All participants
+        eventData.checkedIn = attendance.totalCheckedIn; // Checked in and stayed
+        eventData.currentlyPresent = attendance.currentlyPresent; // Currently present
+        eventData.absent = attendance.totalAbsent; // Absent or left early or never checked in
       }
 
       eventsWithStats.push(eventData);
