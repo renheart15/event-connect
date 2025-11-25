@@ -812,7 +812,7 @@ const OrganizerDashboard = () => {
                           <TableCell className="text-center">
                             <div className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/30">
                               <span className="font-bold text-red-600">
-                                {event.currentlyPresent}
+                                {event.absent || 0}
                               </span>
                             </div>
                           </TableCell>

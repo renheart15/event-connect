@@ -299,7 +299,7 @@ const EventCard = ({
           </div>
           <div className="text-center p-3 rounded-lg bg-red-50 dark:bg-red-950/30">
             <div className="text-2xl font-bold text-red-600">
-              {event.currentlyPresent}
+              {event.absent || 0}
             </div>
             <div className="text-xs text-muted-foreground">Absent</div>
           </div>

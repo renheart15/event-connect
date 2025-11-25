@@ -326,10 +326,12 @@ router.get('/', auth, async (req, res) => {
         // CRITICAL FIX: Proper count mapping
         // totalParticipants = ALL participants (registered + checked-in + absent + checked-out)
         // checkedIn = participants who actually checked in (checked-in + checked-out, excluding registered and absent)
-        // currentlyPresent = for display purposes, send totalAbsent
+        // currentlyPresent = participants with status 'checked-in' (actually present)
+        // absent = participants who are absent or left early
         eventData.totalParticipants = attendance.totalAttendees; // All participants
         eventData.checkedIn = attendance.totalCheckedIn; // Actually checked in (not registered-only)
-        eventData.currentlyPresent = attendance.totalAbsent; // Absent count (displayed as "Absent")
+        eventData.currentlyPresent = attendance.currentlyPresent; // Actually present (status 'checked-in')
+        eventData.absent = attendance.totalAbsent; // Absent count
       }
 
       eventsWithStats.push(eventData);
