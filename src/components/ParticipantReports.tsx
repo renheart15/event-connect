@@ -19,7 +19,7 @@ interface Participant {
   };
   checkInTime: string;
   checkOutTime?: string;
-  status: 'checked-in' | 'checked-out' | 'absent';
+  status: 'checked-in' | 'checked-out' | 'absent' | 'registered';
   duration: number;
   invitation?: {
     _id: string;
@@ -121,12 +121,24 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
   // Helper function to determine if check-in was late or on time
   const getCheckInStatus = (participant: Participant) => {
+    // CRITICAL FIX: Check for absent status first
     if (participant.status === 'absent') {
       return 'Absent';
     }
 
-    if (!eventData || !eventData.date || !eventData.startTime || !participant.checkInTime) {
-      return 'On Time'; // Default to On Time if we can't determine
+    // CRITICAL FIX: If participant is registered but never checked in, they are absent
+    if (participant.status === 'registered' && !participant.checkInTime) {
+      return 'Absent';
+    }
+
+    // CRITICAL FIX: If no checkInTime exists (for any reason), mark as Absent
+    if (!participant.checkInTime) {
+      return 'Absent';
+    }
+
+    // If we can't get event start time, but they did check in, default to On Time
+    if (!eventData || !eventData.date || !eventData.startTime) {
+      return 'On Time';
     }
 
     try {
@@ -257,9 +269,15 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
   const stats = {
     total: participants.length,
-    checkedIn: participants.filter(p => p.status !== 'absent').length, // Only count non-absent participants
+    // CRITICAL FIX: Only count participants who ACTUALLY checked in (not 'registered' or 'absent')
+    checkedIn: participants.filter(p =>
+      p.status === 'checked-in' || p.status === 'checked-out'
+    ).length,
     currentlyPresent: participants.filter(p => p.status === 'checked-in').length,
-    absent: participants.filter(p => p.status === 'absent').length
+    // Count both 'absent' status AND 'registered' participants who never checked in
+    absent: participants.filter(p =>
+      p.status === 'absent' || (p.status === 'registered' && !p.checkInTime)
+    ).length
   };
 
   return (
