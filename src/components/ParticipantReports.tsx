@@ -136,7 +136,13 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
       return 'Absent';
     }
 
-    // CRITICAL FIX: If participant is registered but never checked in, they are absent
+    // CRITICAL FIX: For UPCOMING events, registered participants are NOT absent (they're waiting for event to start)
+    if (eventData?.status === 'upcoming' && participant.status === 'registered' && !participant.checkInTime) {
+      console.log(`[STATUS-CHECK] ${participant.participant?.name}: Marked as Registered (upcoming event, waiting to check in)`);
+      return 'Registered';
+    }
+
+    // CRITICAL FIX: For active/completed events, if participant is registered but never checked in, they are absent
     if (participant.status === 'registered' && !participant.checkInTime) {
       console.log(`[STATUS-CHECK] ${participant.participant?.name}: Marked as Absent (registered, no check-in)`);
       return 'Absent';
@@ -357,7 +363,18 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     }).length,
     currentlyPresent: participants.filter(p => p.status === 'checked-in').length,
     // Count: 'absent' status, 'registered' without check-in, AND left early
+    // CRITICAL FIX: For UPCOMING events, registered participants are NOT absent
     absent: participants.filter(p => {
+      // For upcoming events, registered participants without check-in are NOT absent
+      if (eventData?.status === 'upcoming' && p.status === 'registered' && !p.checkInTime) {
+        console.log(`[STATS-ABSENT] ${p.participant?.name}: NOT counted as absent (upcoming event, registered)`);
+        return false; // Don't count as absent
+      }
+
+      // For active/completed events, count as absent if:
+      // - status is 'absent'
+      // - registered without check-in (no-show)
+      // - left early
       const isAbsent = p.status === 'absent' ||
         (p.status === 'registered' && !p.checkInTime) ||
         leftEarly(p);
