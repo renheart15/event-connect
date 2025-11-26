@@ -6,7 +6,9 @@
       "Bash(cat:*)",
       "Bash(dir:*)",
       "Bash(npx cap sync)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(npm run dev:*)",
+      "Bash(timeout 3 npm run dev:*)"
     ],
     "deny": [],
     "ask": []

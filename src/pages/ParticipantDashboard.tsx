@@ -533,6 +533,8 @@ const ParticipantDashboard = () => {
   // Track pending location updates to prevent duplicates
   const pendingLocationUpdate = useRef<boolean>(false);
   const lastLocationSent = useRef<{ lat: number; lng: number; timestamp: number } | null>(null);
+  const lastHeartbeatTime = useRef<number>(0);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Wrapper for updateLocation with deduplication logic
   const sendLocationUpdate = async (
@@ -575,6 +577,60 @@ const ParticipantDashboard = () => {
     } catch (error) {
       console.error('❌ [LOCATION] Update failed:', error);
       // Don't update lastLocationSent on failure so it will retry next time
+    }
+  };
+
+  // Heartbeat mechanism to force periodic location updates
+  const forceHeartbeatUpdate = async () => {
+    const now = Date.now();
+    const timeSinceLastHeartbeat = Math.floor((now - lastHeartbeatTime.current) / 1000);
+
+    // Throttle: Don't send heartbeat if less than 10 seconds since last one
+    if (lastHeartbeatTime.current > 0 && timeSinceLastHeartbeat < 10) {
+      console.log(`⚠️ [HEARTBEAT] Too soon since last update (${timeSinceLastHeartbeat}s), skipping`);
+      return;
+    }
+
+    console.log('❤️ [HEARTBEAT] Forcing location update...');
+    lastHeartbeatTime.current = now;
+
+    try {
+      // Get current position and force send
+      if (Capacitor.isNativePlatform()) {
+        const position = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 5000
+        });
+
+        const currentlyAttending = getCurrentlyAttending();
+        if (currentlyAttending.length > 0) {
+          const event = currentlyAttending[0];
+          const eventId = event.event._id || event.event;
+
+          const getBatteryLevel = async () => {
+            try {
+              if ('getBattery' in navigator) {
+                const battery = await (navigator as any).getBattery();
+                return Math.round(battery.level * 100);
+              }
+              return null;
+            } catch {
+              return null;
+            }
+          };
+
+          const batteryLevel = await getBatteryLevel();
+          await sendLocationUpdate(
+            eventId,
+            position.coords.latitude,
+            position.coords.longitude,
+            position.coords.accuracy,
+            batteryLevel
+          );
+        }
+      }
+    } catch (error) {
+      console.error('❌ [HEARTBEAT] Failed to get position:', error);
     }
   };
 
@@ -1467,14 +1523,45 @@ const ParticipantDashboard = () => {
       fetchLocationStatus(eventId);
 
       // Then refresh every 5 seconds for accurate timer
-      const interval = setInterval(() => {
+      const statusInterval = setInterval(() => {
         fetchLocationStatus(eventId);
       }, 5000); // Refresh every 5 seconds for smoother timer
 
-      return () => clearInterval(interval);
+      // Set up heartbeat to force location updates every 15 seconds
+      const startHeartbeat = () => {
+        // Clear any existing heartbeat
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+        }
+
+        // Start new heartbeat
+        heartbeatIntervalRef.current = setInterval(() => {
+          forceHeartbeatUpdate();
+        }, 15000); // Every 15 seconds
+
+        console.log('❤️ [HEARTBEAT] Started heartbeat interval (15s)');
+      };
+
+      startHeartbeat();
+
+      return () => {
+        clearInterval(statusInterval);
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+          heartbeatIntervalRef.current = null;
+          console.log('❤️ [HEARTBEAT] Stopped heartbeat interval');
+        }
+      };
     } else {
       // CRITICAL FIX: Clear location status when no longer attending any event
       // This prevents stale location warnings from showing after checkout
+
+      // Stop heartbeat when not attending
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+        console.log('❤️ [HEARTBEAT] Stopped heartbeat interval (not attending)');
+      }
       console.log(`✅ [LOCATION-STATUS] No currently attending events, clearing location status`);
       setCurrentLocationStatus(null);
     }
@@ -3016,8 +3103,8 @@ const ParticipantDashboard = () => {
     }
   };
 
-  // State for countdown timer
-  const [currentTime, setCurrentTime] = useState(new Date());
+  // State for countdown timer - use timestamp to force re-renders
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   // Update current time every second for real-time countdown when outside/stale
   useEffect(() => {
@@ -3028,7 +3115,7 @@ const ParticipantDashboard = () => {
     const interval = needsRealtimeUpdate ? 1000 : 60000; // 1 second if outside/stale, 1 minute otherwise
 
     const timer = setInterval(() => {
-      setCurrentTime(new Date());
+      setCurrentTime(Date.now()); // Use timestamp to guarantee state change detection
     }, interval);
 
     return () => clearInterval(timer);

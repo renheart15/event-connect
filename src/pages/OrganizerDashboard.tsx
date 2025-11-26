@@ -328,7 +328,8 @@ const OrganizerDashboard = () => {
       // Process results into report data
       const detailedReportData = [];
 
-      responses.forEach(({ event, result, error }) => {
+      responses.forEach((response) => {
+        const { event, result } = response;
         if (result?.success) {
           const attendanceLogs = result.data?.attendanceLogs || [];
 
@@ -873,13 +874,13 @@ const OrganizerDashboard = () => {
                                     <DropdownMenuItem onClick={() => handleTogglePublicPrivate(event.id)}>
                                       {event.published ? (
                                         <>
-                                          <Lock className="w-4 h-4 mr-2" />
-                                          Make Private
+                                          <Globe className="w-4 h-4 mr-2" />
+                                          Public
                                         </>
                                       ) : (
                                         <>
-                                          <Globe className="w-4 h-4 mr-2" />
-                                          Make Public
+                                          <Lock className="w-4 h-4 mr-2" />
+                                          Private
                                         </>
                                       )}
                                     </DropdownMenuItem>

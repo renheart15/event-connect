@@ -151,52 +151,63 @@ const InvitationView = () => {
     }
 
     console.log('🎯 [INVITATION] Responding to invitation:', response, 'for event:', invitation.event.id);
-    setResponding(true);
-    try {
-      const token = localStorage.getItem('token');
-      const apiResponse = await fetch(`${API_CONFIG.API_BASE}/invitations/${invitation._id}/respond`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify({ response })
-      });
 
-      const data = await apiResponse.json();
-      console.log('📝 [INVITATION] Response from server:', data);
+    // If declining, process immediately
+    if (response === 'declined') {
+      setResponding(true);
+      try {
+        const token = localStorage.getItem('token');
+        const apiResponse = await fetch(`${API_CONFIG.API_BASE}/invitations/${invitation._id}/respond`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+          body: JSON.stringify({ response })
+        });
 
-      if (data.success) {
-        console.log('✅ [INVITATION] Successfully responded:', response);
-        setInvitation({ ...invitation, status: response });
+        const data = await apiResponse.json();
+        console.log('📝 [INVITATION] Response from server:', data);
 
-        // If accepted, check if event has a registration form
-        if (response === 'accepted') {
-          console.log('🔄 [INVITATION] Invitation accepted, checking for registration form...');
-          await checkForRegistrationForm(invitation.event.id);
-        } else {
+        if (data.success) {
+          console.log('✅ [INVITATION] Successfully declined');
+          setInvitation({ ...invitation, status: response });
           toast({
-            title: `Invitation ${response}`,
-            description: `You have ${response} the invitation to ${invitation.event.title}.`,
+            title: `Invitation declined`,
+            description: `You have declined the invitation to ${invitation.event.title}.`,
           });
+        } else {
+          throw new Error(data.message || 'Failed to decline invitation');
         }
-      } else {
-        console.error('❌ [INVITATION] Failed to respond:', data.message);
+      } catch (error: any) {
+        console.error('❌ [INVITATION] Error declining invitation:', error);
         toast({
           title: "Error",
-          description: data.message || `Failed to ${response} invitation.`,
+          description: error.message || "Failed to decline invitation. Please try again.",
           variant: "destructive",
         });
+      } finally {
+        setResponding(false);
       }
-    } catch (error) {
-      console.error('❌ [INVITATION] Error responding to invitation:', error);
-      toast({
-        title: "Error",
-        description: "Failed to respond to invitation. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setResponding(false);
+      return;
+    }
+
+    // If accepting, check for registration form first
+    if (response === 'accepted') {
+      console.log('🔄 [INVITATION] Checking for registration form before accepting...');
+      setResponding(true);
+      try {
+        await checkForRegistrationForm(invitation.event.id);
+      } catch (error) {
+        console.error('❌ [INVITATION] Error checking for registration form:', error);
+        toast({
+          title: "Error",
+          description: "Failed to process invitation. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setResponding(false);
+      }
     }
   };
 
@@ -235,24 +246,20 @@ const InvitationView = () => {
         if (responseCheck.success && responseCheck.data && !responseCheck.data.hasSubmitted) {
           console.log('✅ [INVITATION] User has not submitted, showing form modal');
           console.log('📋 [INVITATION] Form data:', formData.data.registrationForm);
-          // Show registration form modal - mark as required to prevent dismissal
+          // Show registration form modal - NOT required, can be dismissed
           setRegistrationFormData(formData.data.registrationForm);
-          setIsRegistrationRequired(true); // Form must be completed
+          setIsRegistrationRequired(false); // Form is optional, can be closed
           setShowRegistrationForm(true);
-          console.log('🎬 [INVITATION] Modal state set - showRegistrationForm: true, isRequired: true');
+          console.log('🎬 [INVITATION] Modal state set - showRegistrationForm: true, isRequired: false');
         } else {
-          console.log('ℹ️ [INVITATION] User already submitted form or form not required');
-          toast({
-            title: "Invitation accepted",
-            description: `You have accepted the invitation to ${invitation?.event.title}.`,
-          });
+          console.log('ℹ️ [INVITATION] User already submitted form, accepting invitation');
+          // Accept invitation if form already submitted or not required
+          await acceptInvitationDirectly();
         }
       } else {
-        console.log('ℹ️ [INVITATION] No registration form found for event');
-        toast({
-          title: "Invitation accepted",
-          description: `You have accepted the invitation to ${invitation?.event.title}.`,
-        });
+        console.log('ℹ️ [INVITATION] No registration form found for event, accepting invitation');
+        // Accept invitation if no form exists
+        await acceptInvitationDirectly();
       }
     } catch (error) {
       console.error('❌ [INVITATION] Error checking for registration form:', error);
@@ -263,9 +270,49 @@ const InvitationView = () => {
     }
   };
 
-  const handleRegistrationSuccess = () => {
+  const acceptInvitationDirectly = async () => {
+    if (!invitation) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const apiResponse = await fetch(`${API_CONFIG.API_BASE}/invitations/${invitation._id}/respond`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({ response: 'accepted' })
+      });
+
+      const data = await apiResponse.json();
+
+      if (data.success) {
+        console.log('✅ [INVITATION] Successfully accepted invitation');
+        setInvitation({ ...invitation, status: 'accepted' });
+        toast({
+          title: "Invitation accepted",
+          description: `You have accepted the invitation to ${invitation.event.title}.`,
+        });
+      } else {
+        throw new Error(data.message || 'Failed to accept invitation');
+      }
+    } catch (error: any) {
+      console.error('❌ [INVITATION] Error accepting invitation:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to accept invitation.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRegistrationSuccess = async () => {
     setShowRegistrationForm(false);
     setIsRegistrationRequired(false);
+
+    // Now accept the invitation after successful registration
+    await acceptInvitationDirectly();
+
     toast({
       title: "Success",
       description: "Registration completed! You're all set for the event.",
@@ -273,11 +320,15 @@ const InvitationView = () => {
   };
 
   const handleRegistrationClose = () => {
-    // Only allow closing if form is not required
-    if (!isRegistrationRequired) {
-      setShowRegistrationForm(false);
-      setRegistrationFormData(null);
-    }
+    // Always allow closing
+    setShowRegistrationForm(false);
+    setRegistrationFormData(null);
+
+    // Invitation remains pending when form is closed without submission
+    toast({
+      title: "Registration form closed",
+      description: "Your invitation is still pending. Complete the registration to accept.",
+    });
   };
 
   const formatDate = (dateString: string) => {

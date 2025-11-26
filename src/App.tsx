@@ -51,6 +51,7 @@ import InvitationView from "./pages/InvitationView";
 import OrganizationManagement from "./pages/OrganizationManagement";
 import NotFound from "./pages/NotFound";
 import JoinEvent from "./pages/JoinEvent";
+import Reports from "./pages/Reports";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MobileAccessGuard from "./components/MobileAccessGuard";
 import WebAccessGuard from "./components/WebAccessGuard";
@@ -166,6 +167,13 @@ const App = () => {
                 <ProtectedRoute requiredRole="organizer">
                   <MobileAccessGuard allowedRoles={['organizer-web-only']}>
                     <EventMonitor />
+                  </MobileAccessGuard>
+                </ProtectedRoute>
+              } />
+              <Route path="/reports" element={
+                <ProtectedRoute requiredRole="organizer">
+                  <MobileAccessGuard allowedRoles={['organizer-web-only']}>
+                    <Reports />
                   </MobileAccessGuard>
                 </ProtectedRoute>
               } />

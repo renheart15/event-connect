@@ -244,15 +244,16 @@ router.get('/', auth, async (req, res) => {
             return true;
           }).length;
 
-          // Count absent: status 'absent' OR (registered without check-in) OR left early (FRONTEND LOGIC)
-          // CRITICAL FIX: For UPCOMING events, registered participants are NOT absent (they're waiting for event to start)
+          // Count absent: status 'absent' OR (registered without check-in for completed events) OR left early (FRONTEND LOGIC)
+          // CRITICAL FIX: Only count registered participants as absent when event is COMPLETED
+          // For UPCOMING/ACTIVE events, registered participants are NOT absent (they still have time to check in)
           const absentCount = logs.filter(log => {
-            // For upcoming events, registered participants without check-in are NOT absent
-            if (event.status === 'upcoming' && log.status === 'registered' && !log.checkInTime) {
-              return false; // Don't count as absent
+            // For upcoming/active events, registered participants without check-in are NOT absent
+            if ((event.status === 'upcoming' || event.status === 'active') && log.status === 'registered' && !log.checkInTime) {
+              return false; // Don't count as absent until event ends
             }
 
-            // For active/completed events, count as absent if:
+            // For completed events, count as absent if:
             // - status is 'absent'
             // - registered without check-in (no-show)
             // - left early

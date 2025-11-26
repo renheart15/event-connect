@@ -450,7 +450,7 @@ const InvitationSummary = () => {
             </Button>
             <Button
               variant="outline"
-              onClick={() => navigate(`/invitation-history?eventId=${eventId}&eventTitle=${encodeURIComponent(eventTitle || '')}`)}
+              onClick={() => navigate(`/invitations`)}
             >
               View All History
             </Button>

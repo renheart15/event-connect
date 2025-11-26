@@ -69,6 +69,13 @@ const eventItems = [
     color: 'from-indigo-500 to-indigo-600',
     description: 'Real-time monitoring'
   },
+  {
+    title: 'Reports',
+    url: '/reports',
+    icon: FileText,
+    color: 'from-pink-500 to-pink-600',
+    description: 'View attendance reports'
+  },
 ];
 
 

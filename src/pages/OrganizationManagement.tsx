@@ -125,7 +125,17 @@ const OrganizationManagement = () => {
       if (result.success) {
         setOrganizations(result.data);
         if (result.data.length > 0) {
-          setSelectedOrg(result.data[0]); // Select first organization by default
+          // Check if there's a selected organization in localStorage (same as ProfileDropdown)
+          const savedOrgId = localStorage.getItem('selectedOrganizationId');
+          const savedOrg = result.data.find((org: Organization) => org._id === savedOrgId);
+
+          if (savedOrg) {
+            setSelectedOrg(savedOrg); // Use the currently selected organization
+          } else {
+            // Default to first organization and save it
+            setSelectedOrg(result.data[0]);
+            localStorage.setItem('selectedOrganizationId', result.data[0]._id);
+          }
         } else {
           setShowCreateForm(true); // Show create form if no organizations
         }

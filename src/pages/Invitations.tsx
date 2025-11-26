@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useEvents, type Event } from '@/hooks/useEvents';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -41,6 +42,18 @@ interface InvitationRecord {
   invitationId?: string;
 }
 
+interface JoinRequest {
+  _id: string;
+  participant: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  event: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+}
+
 const Invitations = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -66,6 +79,11 @@ const Invitations = () => {
   const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('send');
   const [resendingInvitations, setResendingInvitations] = useState<string[]>([]);
+
+  // Join requests states
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
+  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
 
   // Handle events error
   useEffect(() => {
@@ -100,6 +118,7 @@ const Invitations = () => {
   useEffect(() => {
     if (activeTab === 'history' && selectedEventId) {
       fetchInvitationHistory();
+      fetchJoinRequests();
     }
   }, [activeTab, selectedEventId]);
 
@@ -112,7 +131,7 @@ const Invitations = () => {
     try {
       setHistoryLoading(true);
       const token = localStorage.getItem('token');
-      
+
       // Use the existing API endpoint from your backend
       const response = await fetch(`/api/invitations/event/${selectedEventId}`, {
         headers: {
@@ -121,7 +140,7 @@ const Invitations = () => {
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
         const transformedInvitations: InvitationRecord[] = result.data.invitations.map((inv: any) => ({
           id: inv._id || inv.id,
@@ -153,6 +172,75 @@ const Invitations = () => {
       });
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const fetchJoinRequests = async () => {
+    if (!selectedEventId) return;
+
+    try {
+      setJoinRequestsLoading(true);
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`/api/events/${selectedEventId}/join-requests`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setJoinRequests(result.data.joinRequests || []);
+      } else {
+        console.error('Failed to load join requests:', result.message);
+      }
+    } catch (error) {
+      console.error('Error fetching join requests:', error);
+    } finally {
+      setJoinRequestsLoading(false);
+    }
+  };
+
+  const handleJoinRequest = async (requestId: string, action: 'approve' | 'reject') => {
+    try {
+      setProcessingRequest(requestId);
+      const token = localStorage.getItem('token');
+
+      const response = await fetch(`/api/events/join-requests/${requestId}/${action}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: action === 'approve' ? 'Request Approved' : 'Request Rejected',
+          description: `Join request has been ${action}d successfully.`,
+        });
+
+        // Refresh join requests
+        fetchJoinRequests();
+      } else {
+        toast({
+          title: "Error",
+          description: result.message || `Failed to ${action} request.`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing request:`, error);
+      toast({
+        title: "Error",
+        description: `Failed to ${action} request.`,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingRequest(null);
     }
   };
 
@@ -368,7 +456,7 @@ const Invitations = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Invitations</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">Send invitations and manage invitation history</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Send invitations and manage participants</p>
           </div>
           <Link to="/create-event">
             <Button variant="outline" className="flex items-center gap-2">
@@ -388,8 +476,8 @@ const Invitations = () => {
                 Send Invitations
               </TabsTrigger>
               <TabsTrigger value="history" className="flex items-center gap-2">
-                <History className="w-4 h-4" />
-                Invitation History
+                <Users className="w-4 h-4" />
+                Participants
               </TabsTrigger>
             </TabsList>
 
@@ -599,13 +687,13 @@ const Invitations = () => {
                 <Card className="bg-white dark:bg-gray-800">
                   <CardContent className="flex flex-col items-center justify-center py-12">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                      <History className="w-8 h-8 text-gray-400" />
+                      <Users className="w-8 h-8 text-gray-400" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
                       Select an Event
                     </h3>
                     <p className="text-gray-600 text-center mb-6">
-                      Choose an event from the Send Invitations tab to view its invitation history.
+                      Choose an event from the Send Invitations tab to view its participants.
                     </p>
                     <Button onClick={() => setActiveTab('send')} variant="outline">
                       <Send className="w-4 h-4 mr-2" />
@@ -622,8 +710,8 @@ const Invitations = () => {
                         <div className="flex items-center justify-between">
                           <div>
                             <CardTitle className="flex items-center gap-2">
-                              <History className="w-5 h-5" />
-                              Invitation History
+                              <Users className="w-5 h-5" />
+                              Participants
                             </CardTitle>
                             <div className="mt-2">
                               <div className="flex items-center gap-2">
@@ -642,7 +730,9 @@ const Invitations = () => {
                           <Button
                             onClick={() => {
                               setInvitations([]);
+                              setJoinRequests([]);
                               fetchInvitationHistory();
+                              fetchJoinRequests();
                             }}
                             variant="outline"
                             size="sm"
@@ -655,25 +745,49 @@ const Invitations = () => {
                     </Card>
                   )}
 
-                  {/* Search, Filter, and Email Settings */}
-                  <Card className="bg-white dark:bg-gray-800">
-                    <CardContent className="pt-6 space-y-4">
-                      <div className="flex flex-col sm:flex-row gap-4">
-                        <div className="flex-1">
-                          <Label htmlFor="search">Search Invitations</Label>
+                  {/* Two Column Layout: Invitation Records & Join Requests */}
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Left Column: Invitation Records */}
+                    <Card className="bg-white dark:bg-gray-800">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              <Mail className="w-5 h-5" />
+                              Invitation Records ({filteredInvitations.length})
+                            </CardTitle>
+                            <CardDescription>
+                              Participants invited via email
+                            </CardDescription>
+                          </div>
+                          {selectedInvitations.length > 0 && (
+                            <Button
+                              size="sm"
+                              onClick={resendSelectedInvitations}
+                              disabled={resendingInvitations.length > 0}
+                              className="h-7 px-3 text-[10px] flex items-center gap-1"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${resendingInvitations.length > 0 ? 'animate-spin' : ''}`} />
+                              {resendingInvitations.length > 0
+                                ? `Resending... (${resendingInvitations.length})`
+                                : `Resend Selected (${selectedInvitations.length})`
+                              }
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {/* Search and Filter */}
+                        <div className="space-y-3 mb-4">
                           <div className="relative">
                             <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                             <Input
-                              id="search"
                               placeholder="Search by name or email..."
                               value={searchQuery}
                               onChange={(e) => setSearchQuery(e.target.value)}
                               className="pl-10"
                             />
                           </div>
-                        </div>
-                        <div className="sm:w-48">
-                          <Label htmlFor="status-filter">Status Filter</Label>
                           <Select value={statusFilter} onValueChange={setStatusFilter}>
                             <SelectTrigger>
                               <SelectValue placeholder="All statuses" />
@@ -686,154 +800,182 @@ const Invitations = () => {
                             </SelectContent>
                           </Select>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
 
-                  {/* Invitations List */}
-                  <Card className="bg-white dark:bg-gray-800">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle>
-                          Invitation Records ({filteredInvitations.length})
-                        </CardTitle>
-                        <div className="flex items-center gap-2">
-                          {selectedInvitations.length > 0 && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={resendSelectedInvitations}
-                              disabled={resendingInvitations.length > 0}
-                            >
-                              <RefreshCw className={`w-4 h-4 mr-2 ${resendingInvitations.length > 0 ? 'animate-spin' : ''}`} />
-                              {resendingInvitations.length > 0 
-                                ? `Resending... (${resendingInvitations.length})` 
-                                : `Resend Selected (${selectedInvitations.length})`
-                              }
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      {historyLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                          <p className="ml-4 text-gray-600">Loading invitation history...</p>
-                        </div>
-                      ) : filteredInvitations.length === 0 ? (
-                        <div className="text-center py-12">
-                          <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                          <h4 className="text-lg font-medium text-gray-900 mb-2">No Invitations Found</h4>
-                          <p className="text-gray-600 mb-6">
-                            {invitations.length === 0 
-                              ? "No invitations have been sent for this event yet."
-                              : "No invitations match your search criteria."
-                            }
-                          </p>
-                          <div className="flex gap-3">
-                            <Button onClick={() => fetchInvitationHistory()} variant="outline">
-                              <RefreshCw className="w-4 h-4 mr-2" />
-                              Refresh
-                            </Button>
-                            <Button onClick={() => setActiveTab('send')}>
-                              <Send className="w-4 h-4 mr-2" />
-                              Send Invitations
-                            </Button>
+                        {/* Invitations Table */}
+                        {historyLoading ? (
+                          <div className="flex items-center justify-center py-8">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                            <p className="ml-3 text-xs text-gray-600 dark:text-gray-400">Loading...</p>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {filteredInvitations.map((invitation) => (
-                            <div
-                              key={invitation.id}
-                              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
-                            >
-                              <div className="flex items-center gap-3">
-                                <Checkbox
-                                  checked={selectedInvitations.includes(invitation.id)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setSelectedInvitations([...selectedInvitations, invitation.id]);
-                                    } else {
-                                      setSelectedInvitations(selectedInvitations.filter(id => id !== invitation.id));
-                                    }
-                                  }}
-                                />
-                                {getStatusIcon(invitation.status)}
-                                <div>
-                                  <div className="font-medium">{invitation.participantName}</div>
-                                  <div className="text-sm text-gray-600">{invitation.participantEmail}</div>
-                                  {invitation.errorMessage && (
-                                    <div className="text-sm text-red-600 mt-1">
-                                      Error: {invitation.errorMessage}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center gap-4">
-                                <div className="text-right">
-                                  <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeVariant(invitation.status)}`}>
-                                    {invitation.status.charAt(0).toUpperCase() + invitation.status.slice(1)}
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    Last sent: {formatDateTime(invitation.lastSentAt)}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    Attempts: {invitation.attemptCount}
-                                  </div>
-                                </div>
-                                
-                                <div className="flex gap-1">
-                                  {invitation.qrCode && (
-                                    <Dialog>
-                                      <DialogTrigger asChild>
-                                        <Button size="sm" variant="ghost" title="View QR Code">
-                                          <QrCode className="w-4 h-4" />
+                        ) : filteredInvitations.length === 0 ? (
+                          <div className="text-center py-8">
+                            <Mail className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                              {invitations.length === 0 ? "No invitations sent yet" : "No matches"}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="text-[10px]">
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="text-[9px]">
+                                  <TableHead className="py-1.5 h-7 w-10">
+                                    <Checkbox
+                                      className="w-3.5 h-3.5"
+                                      checked={selectedInvitations.length === filteredInvitations.length && filteredInvitations.length > 0}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setSelectedInvitations(filteredInvitations.map(inv => inv.id));
+                                        } else {
+                                          setSelectedInvitations([]);
+                                        }
+                                      }}
+                                    />
+                                  </TableHead>
+                                  <TableHead className="py-1.5 h-7">Name</TableHead>
+                                  <TableHead className="py-1.5 h-7">Email</TableHead>
+                                  <TableHead className="py-1.5 h-7">Status</TableHead>
+                                  <TableHead className="py-1.5 h-7">Last Sent</TableHead>
+                                  <TableHead className="py-1.5 h-7 text-right">Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody className="text-[10px]">
+                                {filteredInvitations.map((invitation) => (
+                                  <TableRow key={invitation.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <TableCell className="py-1">
+                                      <Checkbox className="w-3.5 h-3.5"
+                                        checked={selectedInvitations.includes(invitation.id)}
+                                        onCheckedChange={(checked) => {
+                                          if (checked) {
+                                            setSelectedInvitations([...selectedInvitations, invitation.id]);
+                                          } else {
+                                            setSelectedInvitations(selectedInvitations.filter(id => id !== invitation.id));
+                                          }
+                                        }}
+                                      />
+                                    </TableCell>
+                                    <TableCell className="py-1">
+                                      <div className="flex items-center gap-0.5">
+                                        <span className="font-medium leading-tight">{invitation.participantName}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="py-1">
+                                      <span className="leading-tight">{invitation.participantEmail}</span>
+                                    </TableCell>
+                                    <TableCell className="py-1">
+                                      <Badge className={`text-[9px] px-1.5 py-0 h-4 ${getStatusBadgeVariant(invitation.status)}`}>
+                                        {invitation.status}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="py-1">
+                                      <span className="text-[9px] leading-tight">{formatDateTime(invitation.lastSentAt)}</span>
+                                    </TableCell>
+                                    <TableCell className="py-1 text-right">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 w-6 p-0"
+                                        title="Resend"
+                                        onClick={() => resendInvitation(invitation)}
+                                        disabled={resendingInvitations.includes(invitation.id)}
+                                      >
+                                        <RefreshCw className={`w-2.5 h-2.5 ${resendingInvitations.includes(invitation.id) ? 'animate-spin' : ''}`} />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Right Column: Join Requests */}
+                    <Card className="bg-white dark:bg-gray-800">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Users className="w-5 h-5" />
+                          Join Requests ({joinRequests.filter(r => r.status === 'pending').length})
+                        </CardTitle>
+                        <CardDescription>
+                          Participants requesting to join via QR code
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {joinRequestsLoading ? (
+                          <div className="flex items-center justify-center py-8">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                            <p className="ml-3 text-xs text-gray-600 dark:text-gray-400">Loading...</p>
+                          </div>
+                        ) : joinRequests.filter(r => r.status === 'pending').length === 0 ? (
+                          <div className="text-center py-8">
+                            <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                              No pending requests
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="text-[10px]">
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="text-[9px]">
+                                  <TableHead className="py-1.5 h-7">Name</TableHead>
+                                  <TableHead className="py-1.5 h-7">Email</TableHead>
+                                  <TableHead className="py-1.5 h-7">Requested</TableHead>
+                                  <TableHead className="py-1.5 h-7 text-right">Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody className="text-[10px]">
+                                {joinRequests.filter(r => r.status === 'pending').map((request) => (
+                                  <TableRow key={request._id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <TableCell className="py-1">
+                                      <span className="font-medium leading-tight">{request.participant.name}</span>
+                                    </TableCell>
+                                    <TableCell className="py-1">
+                                      <span className="leading-tight">{request.participant.email}</span>
+                                    </TableCell>
+                                    <TableCell className="py-1">
+                                      <span className="text-[9px] leading-tight">{formatDateTime(request.requestedAt)}</span>
+                                    </TableCell>
+                                    <TableCell className="py-1 text-right">
+                                      <div className="flex items-center justify-end gap-0.5">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleJoinRequest(request._id, 'approve')}
+                                          disabled={processingRequest === request._id}
+                                          className="h-6 px-2 text-[9px] bg-green-600 hover:bg-green-700"
+                                        >
+                                          {processingRequest === request._id ? (
+                                            <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                                          ) : (
+                                            <>
+                                              <CheckCircle className="w-2.5 h-2.5 mr-0.5" />
+                                              Approve
+                                            </>
+                                          )}
                                         </Button>
-                                      </DialogTrigger>
-                                      <DialogContent className="sm:max-w-md">
-                                        <DialogHeader>
-                                          <DialogTitle>QR Code for {invitation.participantName}</DialogTitle>
-                                          <DialogDescription>
-                                            Scan this QR code to check in at the event
-                                          </DialogDescription>
-                                        </DialogHeader>
-                                        <div className="flex flex-col items-center space-y-4">
-                                          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
-                                            <img 
-                                              src={invitation.qrCode} 
-                                              alt="QR Code" 
-                                              className="w-64 h-64"
-                                            />
-                                          </div>
-                                          <div className="text-center text-sm text-gray-600">
-                                            <p><strong>Event:</strong> {selectedEvent?.title}</p>
-                                            <p><strong>Participant:</strong> {invitation.participantName}</p>
-                                            <p><strong>Email:</strong> {invitation.participantEmail}</p>
-                                          </div>
-                                        </div>
-                                      </DialogContent>
-                                    </Dialog>
-                                  )}
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost" 
-                                    title="Resend Invitation"
-                                    onClick={() => resendInvitation(invitation)}
-                                    disabled={resendingInvitations.includes(invitation.id)}
-                                  >
-                                    <RefreshCw className={`w-4 h-4 ${resendingInvitations.includes(invitation.id) ? 'animate-spin' : ''}`} />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleJoinRequest(request._id, 'reject')}
+                                          disabled={processingRequest === request._id}
+                                          className="h-6 px-2 text-[9px] text-red-600 border-red-300 hover:bg-red-50"
+                                        >
+                                          <XCircle className="w-2.5 h-2.5 mr-0.5" />
+                                          Reject
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
                 </>
               )}
             </TabsContent>
