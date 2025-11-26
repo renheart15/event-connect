@@ -1155,6 +1155,53 @@ router.post('/join', auth, [
       });
     }
 
+    // CRITICAL: Check if event is private and requires organizer approval
+    if (!event.published) {
+      console.log('🔒 [PRIVATE EVENT] Event is private, checking for approved invitation...');
+
+      // Check if participant has an accepted invitation
+      const Invitation = require('../models/Invitation');
+      const invitation = await Invitation.findOne({
+        event: event._id,
+        participant: userId
+      });
+
+      console.log('🔍 [PRIVATE EVENT] Invitation found:', {
+        exists: !!invitation,
+        status: invitation?.status
+      });
+
+      if (!invitation) {
+        console.log('❌ [PRIVATE EVENT] No invitation found - access denied');
+        return res.status(403).json({
+          success: false,
+          message: 'This is a private event. You need organizer approval to join.',
+          requiresApproval: true
+        });
+      }
+
+      if (invitation.status === 'pending_approval') {
+        console.log('⏳ [PRIVATE EVENT] Invitation pending approval - access denied');
+        return res.status(403).json({
+          success: false,
+          message: 'Your access request is pending organizer approval.',
+          requiresApproval: true,
+          isPendingApproval: true
+        });
+      }
+
+      if (invitation.status !== 'accepted') {
+        console.log('❌ [PRIVATE EVENT] Invitation not accepted - access denied');
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have access to this private event.',
+          requiresApproval: true
+        });
+      }
+
+      console.log('✅ [PRIVATE EVENT] Invitation accepted - proceeding with join');
+    }
+
     // Check if event has a registration form that needs to be filled
     const registrationForm = await RegistrationForm.findOne({
       event: event._id,

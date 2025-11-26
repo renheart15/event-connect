@@ -4111,13 +4111,14 @@ const ParticipantDashboard = () => {
       const acceptedInvitations = getAcceptedInvitations();
       const declinedInvitations = getDeclinedInvitations();
       const pendingInvitations = myInvitations.filter(invitation => invitation.status === 'pending' && !isInvitationExpired(invitation));
-      
+      const pendingApprovalInvitations = myInvitations.filter(invitation => invitation.status === 'pending_approval' && !isInvitationExpired(invitation));
+
       return (
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Invitations</h2>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 dark:text-gray-400">{upcomingEvents.length} invitations</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{upcomingEvents.length + pendingApprovalInvitations.length} invitations</span>
               <Button
                 onClick={() => fetchParticipantData(true)}
                 disabled={isRefreshing}
@@ -4130,13 +4131,45 @@ const ParticipantDashboard = () => {
             </div>
           </div>
           
-          {upcomingEvents.length === 0 ? (
+          {upcomingEvents.length === 0 && pendingApprovalInvitations.length === 0 ? (
             <div className="text-center text-gray-500 dark:text-gray-400 py-12">
               <p className="text-lg mb-2">No invitations</p>
               <p className="text-sm">You'll see event invitations here</p>
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Pending Approval Requests */}
+              {pendingApprovalInvitations.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Pending Organizer Approval ({pendingApprovalInvitations.length})</h3>
+                  {pendingApprovalInvitations.map((invitation) => (
+                    <div key={invitation._id} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-amber-200 dark:border-amber-700">
+                      <div className="flex flex-col">
+                        <div className="flex items-start justify-between">
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{invitation.event.title}</h3>
+                          <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 ml-2" />
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{invitation.event.description}</p>
+                        <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          <span>{formatEventDate(invitation.event)}</span>
+                          <span className="mx-2">•</span>
+                          <span>{formatEventTime(invitation.event)}</span>
+                        </div>
+
+                        <div className="mt-3">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                            Waiting for Organizer Approval
+                          </span>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            This is a private event. The organizer will review your request.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Pending Invitations */}
               {pendingInvitations.length > 0 && (
                 <div className="space-y-3">
