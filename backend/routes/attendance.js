@@ -1158,20 +1158,43 @@ router.post('/join', auth, [
     // CRITICAL: Check if event is private and requires organizer approval
     if (!event.published) {
       console.log('🔒 [PRIVATE EVENT] Event is private, checking for approved invitation...');
+      console.log('🔍 [PRIVATE EVENT] Event details:', {
+        eventId: event._id,
+        eventIdType: typeof event._id,
+        eventTitle: event.title,
+        published: event.published
+      });
+      console.log('🔍 [PRIVATE EVENT] User details:', {
+        userId: userId,
+        userIdType: typeof userId,
+        userEmail: req.user?.email,
+        userName: req.user?.name
+      });
 
       // Check if participant has an accepted invitation
       const Invitation = require('../models/Invitation');
+
+      // Try to find invitation - use toString() to ensure consistent comparison
       const invitation = await Invitation.findOne({
         event: event._id,
         participant: userId
+      }).populate('event').populate('participant');
+
+      console.log('🔍 [PRIVATE EVENT] Invitation search result:', {
+        found: !!invitation,
+        invitationId: invitation?._id,
+        status: invitation?.status,
+        eventMatch: invitation?.event?._id?.toString() === event._id.toString(),
+        participantMatch: invitation?.participant?._id?.toString() === userId.toString()
       });
 
-      console.log('🔍 [PRIVATE EVENT] Invitation search:', {
-        eventId: event._id,
-        participantId: userId,
-        found: !!invitation,
-        status: invitation?.status
-      });
+      // Also search for ALL invitations for this user to debug
+      const allUserInvitations = await Invitation.find({ participant: userId });
+      console.log('🔍 [PRIVATE EVENT] All invitations for user:', allUserInvitations.map(inv => ({
+        id: inv._id,
+        event: inv.event,
+        status: inv.status
+      })));
 
       if (!invitation) {
         console.log('❌ [PRIVATE EVENT] No invitation found - access denied');

@@ -2640,7 +2640,62 @@ const ParticipantDashboard = () => {
       const finalAttendanceRecord = attendanceByEventId || attendanceByEventIdString;
 
       if (!invitation && !finalAttendanceRecord) {
-        // Automatically join the event first
+        // CRITICAL: For private events, use request-access endpoint instead of join
+        // This handles the approval workflow correctly
+        if (!event.published) {
+          console.log('🔒 [QR SCAN] Private event detected, requesting access...');
+          try {
+            const requestResponse = await fetch(`${API_CONFIG.API_BASE}/invitations/request-access`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ eventId: event._id })
+            });
+
+            const requestResult = await requestResponse.json();
+
+            if (requestResult.success && requestResult.requiresApproval) {
+              // Access request sent or already pending
+              toast({
+                title: "Access Request",
+                description: requestResult.message || "Your access request has been sent to the organizer.",
+                variant: "default",
+              });
+              // Refresh data to show the pending/accepted invitation
+              fetchParticipantData(true);
+              return;
+            } else if (requestResult.success && !requestResult.requiresApproval) {
+              // Already has access - refresh data and continue
+              toast({
+                title: "Access Granted",
+                description: "You already have access to this event. Refreshing...",
+                variant: "default",
+              });
+              // Refresh data to load the attendance record
+              await fetchParticipantData(true);
+              // After refresh, try scanning again
+              toast({
+                title: "Please Scan Again",
+                description: "Your data has been refreshed. Please scan the QR code again.",
+              });
+              return;
+            } else {
+              throw new Error(requestResult.message || 'Failed to request access');
+            }
+          } catch (requestError) {
+            console.error('🚀 [PRIVATE EVENT] Request access failed:', requestError);
+            toast({
+              title: "Error",
+              description: requestError.message || "Failed to request access to this private event.",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
+        // Public event - use join endpoint
         try {
           const joinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
             method: 'POST',
