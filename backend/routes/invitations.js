@@ -1191,4 +1191,165 @@ router.delete('/my/declined', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/invitations/pending-approvals/:eventId
+// @desc    Get all pending approval requests for an event (organizer only)
+// @access  Private (Organizer)
+router.get('/pending-approvals/:eventId', auth, async (req, res) => {
+  try {
+    console.log('📋 [PENDING APPROVALS] Fetching for event:', req.params.eventId);
+
+    // Verify event belongs to organizer
+    const event = await Event.findOne({
+      _id: req.params.eventId,
+      organizer: req.user._id
+    });
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found or access denied'
+      });
+    }
+
+    // Get all pending_approval invitations for this event
+    const pendingApprovals = await Invitation.find({
+      event: req.params.eventId,
+      status: 'pending_approval'
+    })
+    .populate('participant', 'name email')
+    .sort({ sentAt: -1 });
+
+    console.log('✅ [PENDING APPROVALS] Found:', pendingApprovals.length);
+
+    res.json({
+      success: true,
+      data: {
+        pendingApprovals,
+        count: pendingApprovals.length
+      }
+    });
+  } catch (error) {
+    console.error('Get pending approvals error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get pending approvals',
+      error: error.message
+    });
+  }
+});
+
+// @route   PUT /api/invitations/approve/:invitationId
+// @desc    Approve a pending approval request (organizer only)
+// @access  Private (Organizer)
+router.put('/approve/:invitationId', auth, async (req, res) => {
+  try {
+    console.log('✅ [APPROVE REQUEST] Processing for invitation:', req.params.invitationId);
+
+    // Find the invitation
+    const invitation = await Invitation.findById(req.params.invitationId)
+      .populate('event');
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invitation not found'
+      });
+    }
+
+    // Verify event belongs to organizer
+    if (invitation.event.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied - not your event'
+      });
+    }
+
+    // Verify invitation is in pending_approval status
+    if (invitation.status !== 'pending_approval') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot approve invitation with status: ${invitation.status}`
+      });
+    }
+
+    // Update invitation status to 'pending' (normal invitation)
+    invitation.status = 'pending';
+    invitation.respondedAt = new Date();
+    await invitation.save();
+
+    console.log('✅ [APPROVE REQUEST] Approved invitation:', invitation._id);
+
+    // Populate participant info for response
+    await invitation.populate('participant', 'name email');
+
+    res.json({
+      success: true,
+      message: 'Access request approved successfully',
+      data: {
+        invitation
+      }
+    });
+  } catch (error) {
+    console.error('Approve invitation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve request',
+      error: error.message
+    });
+  }
+});
+
+// @route   PUT /api/invitations/reject/:invitationId
+// @desc    Reject a pending approval request (organizer only)
+// @access  Private (Organizer)
+router.put('/reject/:invitationId', auth, async (req, res) => {
+  try {
+    console.log('❌ [REJECT REQUEST] Processing for invitation:', req.params.invitationId);
+
+    // Find the invitation
+    const invitation = await Invitation.findById(req.params.invitationId)
+      .populate('event');
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invitation not found'
+      });
+    }
+
+    // Verify event belongs to organizer
+    if (invitation.event.organizer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied - not your event'
+      });
+    }
+
+    // Verify invitation is in pending_approval status
+    if (invitation.status !== 'pending_approval') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot reject invitation with status: ${invitation.status}`
+      });
+    }
+
+    // Delete the invitation (reject and remove from system)
+    await Invitation.findByIdAndDelete(req.params.invitationId);
+
+    console.log('❌ [REJECT REQUEST] Rejected and deleted invitation:', invitation._id);
+
+    res.json({
+      success: true,
+      message: 'Access request rejected successfully'
+    });
+  } catch (error) {
+    console.error('Reject invitation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject request',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

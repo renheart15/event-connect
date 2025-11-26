@@ -182,7 +182,7 @@ const Invitations = () => {
       setJoinRequestsLoading(true);
       const token = localStorage.getItem('token');
 
-      const response = await fetch(`/api/events/${selectedEventId}/join-requests`, {
+      const response = await fetch(`/api/invitations/pending-approvals/${selectedEventId}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -191,7 +191,15 @@ const Invitations = () => {
       const result = await response.json();
 
       if (result.success) {
-        setJoinRequests(result.data.joinRequests || []);
+        // Transform pending approvals to match JoinRequest interface
+        const transformedRequests = (result.data.pendingApprovals || []).map((approval: any) => ({
+          _id: approval._id,
+          participant: approval.participant,
+          event: approval.event,
+          status: 'pending', // All pending_approval invitations are shown as pending
+          requestedAt: approval.sentAt
+        }));
+        setJoinRequests(transformedRequests);
       } else {
         console.error('Failed to load join requests:', result.message);
       }
@@ -207,8 +215,8 @@ const Invitations = () => {
       setProcessingRequest(requestId);
       const token = localStorage.getItem('token');
 
-      const response = await fetch(`/api/events/join-requests/${requestId}/${action}`, {
-        method: 'POST',
+      const response = await fetch(`/api/invitations/${action}/${requestId}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`

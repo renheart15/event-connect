@@ -172,12 +172,22 @@ export default function RegistrationFormModal({
       console.log('📥 [REGISTRATION MODAL] Registration response:', result);
 
       if (result.success) {
-        toast({
-          title: "Registration submitted",
-          description: "Your registration has been submitted successfully. You can now join the event.",
-          variant: "default",
-        });
-        onSubmitSuccess();
+        // Check if this is a pending approval request
+        if (result.requiresApproval) {
+          toast({
+            title: "Request Submitted",
+            description: result.message || "Your access request has been submitted. The organizer will review and approve your request.",
+            variant: "default",
+          });
+          onClose(); // Close the modal
+        } else {
+          toast({
+            title: "Registration submitted",
+            description: "Your registration has been submitted successfully. You can now join the event.",
+            variant: "default",
+          });
+          onSubmitSuccess();
+        }
       } else {
         // Show detailed validation errors if available
         let errorMessage = result.message || 'Registration submission failed';

@@ -61,10 +61,10 @@ router.post('/', auth, [
     // Check if participant has access to this event
     // They have access if:
     // 1. Event is published (public event), OR
-    // 2. They have an invitation (accepted or pending)
+    // 2. They have an invitation (accepted, pending, or pending_approval)
     if (!event.published) {
       const Invitation = require('../models/Invitation');
-      const invitation = await Invitation.findOne({
+      let invitation = await Invitation.findOne({
         event: eventId,
         participant: participantId
       });
@@ -75,13 +75,56 @@ router.post('/', auth, [
       });
 
       if (!invitation) {
-        return res.status(403).json({
-          success: false,
-          message: 'You do not have access to register for this private event'
+        // For private events scanned via QR: Create a "pending_approval" invitation
+        // This allows participant to register but requires organizer approval
+        console.log('🔒 [REGISTRATION RESPONSE] Private event - creating pending approval request');
+
+        const crypto = require('crypto');
+        invitation = await Invitation.create({
+          event: eventId,
+          participant: participantId,
+          participantEmail: req.user.email,
+          participantName: req.user.name,
+          invitationCode: crypto.randomBytes(16).toString('hex').toUpperCase(),
+          qrCodeData: `PENDING_APPROVAL_${eventId}_${participantId}`,
+          status: 'pending_approval',
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        });
+
+        console.log('✅ [REGISTRATION RESPONSE] Created pending approval invitation:', invitation._id);
+
+        // Return a special response indicating approval is needed
+        return res.status(202).json({
+          success: true,
+          message: 'Registration request submitted. Waiting for organizer approval.',
+          requiresApproval: true,
+          data: {
+            invitation: {
+              _id: invitation._id,
+              status: 'pending_approval',
+              event: eventId
+            }
+          }
         });
       }
 
-      // Allow registration if they have an invitation (any status)
+      // Check if invitation is in pending_approval state
+      if (invitation.status === 'pending_approval') {
+        return res.status(202).json({
+          success: true,
+          message: 'Your registration request is pending organizer approval.',
+          requiresApproval: true,
+          data: {
+            invitation: {
+              _id: invitation._id,
+              status: 'pending_approval',
+              event: eventId
+            }
+          }
+        });
+      }
+
+      // Allow registration if they have an accepted/pending invitation
       // Even pending invitations can register first, then decide to accept/decline
     }
 

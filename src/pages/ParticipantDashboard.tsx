@@ -5106,6 +5106,21 @@ const ParticipantDashboard = () => {
               </a>
             </div>
           </div>
+
+          {/* Account Actions */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account</h3>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </button>
+            <p className="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">
+              You will be logged out of your account
+            </p>
+          </div>
         </div>
       );
     }
