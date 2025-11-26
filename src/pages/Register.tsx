@@ -11,14 +11,15 @@ import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 
 const Register = () => {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<'participant' | 'organizer'>('participant');
   const [organizationCode, setOrganizationCode] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   // Add safety checks for navigation
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -34,19 +35,27 @@ const Register = () => {
       if (roleFromUrl === 'organizer' || roleFromUrl === 'participant') {
         setRole(roleFromUrl as 'participant' | 'organizer');
       }
-      
+
       // Pre-fill email and name from invitation
       const emailFromUrl = searchParams.get('email');
       const nameFromUrl = searchParams.get('name');
       const invitationCode = searchParams.get('invitationCode');
-      
+
       if (emailFromUrl) {
         setEmail(decodeURIComponent(emailFromUrl));
       }
       if (nameFromUrl) {
-        setName(decodeURIComponent(nameFromUrl));
+        // Split the name into first and last name
+        const fullName = decodeURIComponent(nameFromUrl);
+        const nameParts = fullName.split(' ');
+        if (nameParts.length > 0) {
+          setFirstName(nameParts[0]);
+          if (nameParts.length > 1) {
+            setLastName(nameParts.slice(1).join(' '));
+          }
+        }
       }
-      
+
       // If coming from invitation, force participant role and set invitation flow
       if (invitationCode) {
         setRole('participant');
@@ -70,22 +79,33 @@ const Register = () => {
       });
     }
 
+    // Combine first name and last name
+    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+
+    if (!fullName) {
+      return toast({
+        title: "Name is required",
+        description: 'Please enter your first and last name.',
+        variant: 'destructive',
+      });
+    }
+
     setLoading(true);
     try {
-      console.log('Attempting registration with:', { name, email, role });
-      
+      console.log('Attempting registration with:', { name: fullName, email, role });
+
       // POST to your backend using fetch
       const response = await fetch(`${API_CONFIG.API_BASE}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          name, 
-          email, 
-          password, 
-          role, 
-          organizationCode: organizationCode.trim() || undefined 
+        body: JSON.stringify({
+          name: fullName,
+          email,
+          password,
+          role,
+          organizationCode: organizationCode.trim() || undefined
         })
       });
 
@@ -204,16 +224,30 @@ const Register = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleRegister} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="Full Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  placeholder="First Name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  placeholder="Last Name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                />
+              </div>
             </div>
 
             <div className="space-y-2">

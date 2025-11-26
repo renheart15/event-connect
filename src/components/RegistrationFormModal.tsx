@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,6 +59,69 @@ export default function RegistrationFormModal({
     hasRegistrationForm: !!registrationForm,
     fields: registrationForm?.fields?.length
   });
+
+  // Auto-fill name and email fields from logged-in user account
+  useEffect(() => {
+    if (isOpen && registrationForm?.fields) {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          const autoFilledData: Record<string, any> = {};
+
+          // Split user's full name into first and last name
+          const nameParts = user.name ? user.name.split(' ') : [];
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+          registrationForm.fields.forEach(field => {
+            const labelLower = field.label.toLowerCase();
+
+            // Auto-fill first name field
+            if ((labelLower.includes('first name') || labelLower === 'first name') &&
+                field.type === 'text' &&
+                firstName) {
+              autoFilledData[field.id] = firstName;
+              console.log(`✅ [AUTO-FILL] Pre-filling "${field.label}" with: ${firstName}`);
+            }
+
+            // Auto-fill last name field
+            if ((labelLower.includes('last name') || labelLower === 'last name') &&
+                field.type === 'text' &&
+                lastName) {
+              autoFilledData[field.id] = lastName;
+              console.log(`✅ [AUTO-FILL] Pre-filling "${field.label}" with: ${lastName}`);
+            }
+
+            // Auto-fill full name field (fallback for forms that still use single name field)
+            if ((labelLower.includes('full name') || (labelLower.includes('name') && !labelLower.includes('first') && !labelLower.includes('last'))) &&
+                field.type === 'text' &&
+                user.name &&
+                !labelLower.includes('first') &&
+                !labelLower.includes('last')) {
+              autoFilledData[field.id] = user.name;
+              console.log(`✅ [AUTO-FILL] Pre-filling "${field.label}" with: ${user.name}`);
+            }
+
+            // Auto-fill email field
+            if ((labelLower.includes('email') || labelLower.includes('e-mail')) &&
+                field.type === 'email' &&
+                user.email) {
+              autoFilledData[field.id] = user.email;
+              console.log(`✅ [AUTO-FILL] Pre-filling "${field.label}" with: ${user.email}`);
+            }
+          });
+
+          if (Object.keys(autoFilledData).length > 0) {
+            setFormData(autoFilledData);
+            console.log('✅ [AUTO-FILL] Form data initialized:', autoFilledData);
+          }
+        } catch (error) {
+          console.error('❌ [AUTO-FILL] Error parsing user data:', error);
+        }
+      }
+    }
+  }, [isOpen, registrationForm]);
 
   const handleInputChange = (fieldId: string, value: any) => {
     setFormData(prev => ({
@@ -222,8 +285,22 @@ export default function RegistrationFormModal({
     }
   };
 
+  // Handle dialog open change - properly handle the boolean parameter from Dialog
+  const handleOpenChange = (open: boolean) => {
+    console.log('🔔 [REGISTRATION MODAL] Dialog onOpenChange called with:', open);
+    console.log('🔔 [REGISTRATION MODAL] isRequired:', isRequired);
+
+    // If dialog is being closed (open = false) and form is not required, call onClose
+    if (!open && !isRequired) {
+      console.log('🔔 [REGISTRATION MODAL] Calling onClose handler');
+      onClose();
+    } else if (!open && isRequired) {
+      console.log('⚠️ [REGISTRATION MODAL] Close prevented - form is required');
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={isRequired ? undefined : onClose}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         className="max-w-2xl max-h-[80vh] overflow-y-auto"
         onInteractOutside={(e) => {

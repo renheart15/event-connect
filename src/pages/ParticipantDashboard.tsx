@@ -74,6 +74,7 @@ const ParticipantDashboard = () => {
   const [pendingEventCode, setPendingEventCode] = useState('');
   const [pendingEventTitle, setPendingEventTitle] = useState('');
   const [pendingEventId, setPendingEventId] = useState('');
+  const [pendingInvitationId, setPendingInvitationId] = useState(''); // Store invitation ID to accept after registration
   const [registrationFormData, setRegistrationFormData] = useState<any>(null);
   const [isRegistrationRequired, setIsRegistrationRequired] = useState(false); // Track if form is required
   const [registrationContext, setRegistrationContext] = useState<'invitation' | 'public' | null>(null); // Track context: invitation acceptance or public event join
@@ -3629,18 +3630,46 @@ const ParticipantDashboard = () => {
 
     // Use ref to get the current context (avoids stale closure issues)
     const currentContext = registrationContextRef.current;
-    
-    // If this was from invitation acceptance, just reload the page
-    if (currentContext === 'invitation') {
+
+    // If this was from invitation acceptance, accept the invitation now
+    if (currentContext === 'invitation' && pendingInvitationId) {
       toast({
         title: "Registration Complete",
-        description: `You have successfully registered for "${pendingEventTitle}". The page will refresh.`,
+        description: `You have successfully registered for "${pendingEventTitle}". Accepting invitation...`,
       });
+
+      try {
+        // Now accept the invitation
+        const apiResponse = await fetch(`${API_CONFIG.API_BASE}/invitations/${pendingInvitationId}/respond`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ response: 'accepted' })
+        });
+
+        const data = await apiResponse.json();
+        if (data.success) {
+          toast({
+            title: "Invitation Accepted",
+            description: `You have successfully accepted the invitation for "${pendingEventTitle}".`,
+          });
+        }
+      } catch (error) {
+        console.error('❌ [REGISTRATION SUCCESS] Error accepting invitation:', error);
+        toast({
+          title: "Error",
+          description: "Registration completed but failed to accept invitation. Please try again.",
+          variant: "destructive",
+        });
+      }
 
       // Clear pending data
       setPendingEventCode('');
       setPendingEventTitle('');
       setPendingEventId('');
+      setPendingInvitationId('');
       setRegistrationFormData(null);
       setRegistrationContext(null);
       registrationContextRef.current = null;
@@ -5682,6 +5711,61 @@ const ParticipantDashboard = () => {
         return;
       }
 
+      // CRITICAL FIX: For acceptance, check registration requirements BEFORE accepting the invitation
+      if (response === 'accepted' && invitation) {
+        // Extract eventId - invitation.event could be a populated object or a string ID
+        let eventId: string;
+        if (typeof invitation.event === 'string') {
+          eventId = invitation.event;
+        } else if (invitation.event && invitation.event._id) {
+          eventId = invitation.event._id;
+        } else {
+          console.error('❌ [INVITATION RESPONSE] Cannot determine eventId from:', invitation.event);
+          return;
+        }
+
+        // Check if event requires registration and if user has already submitted
+        const checkResponse = await fetch(`${API_CONFIG.API_BASE}/registration-responses/check/${eventId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const checkData = await checkResponse.json();
+
+        // If registration is required and user hasn't submitted yet, show the form FIRST
+        if (checkData.success && checkData.data.requiresRegistration && !checkData.data.hasSubmitted) {
+          // Extract event details safely
+          const eventTitle = typeof invitation.event === 'string' ? 'Event' : (invitation.event.title || 'Event');
+          const eventCode = typeof invitation.event === 'string' ? '' : (invitation.event.eventCode || '');
+
+          // Use event ID from registrationForm if available, otherwise use the extracted one
+          const finalEventId = checkData.data.registrationForm.event || eventId;
+
+          // Store the pending invitation ID so we can accept it after registration
+          setPendingInvitationId(invitationId);
+
+          // Show registration form modal - user must complete it to accept the invitation
+          setRegistrationFormData(checkData.data.registrationForm);
+          setPendingEventCode(eventCode);
+          setPendingEventTitle(eventTitle);
+          setPendingEventId(finalEventId);
+          setIsRegistrationRequired(true);
+          setRegistrationContext('invitation'); // Mark as invitation context
+          registrationContextRef.current = 'invitation';
+          setShowRegistrationForm(true);
+
+          toast({
+            title: "Registration Required",
+            description: "Please complete the registration form to accept this invitation.",
+          });
+
+          return; // Don't accept invitation yet - wait for form submission
+        }
+      }
+
+      // Accept or decline the invitation (only reached if no registration required or declining)
       const apiResponse = await fetch(`${API_CONFIG.API_BASE}/invitations/${invitationId}/respond`, {
         method: 'PUT',
         headers: {
@@ -5698,52 +5782,7 @@ const ParticipantDashboard = () => {
           description: `You have ${response} the invitation successfully`,
         });
 
-        // If invitation was accepted, check if registration form is required
-        if (response === 'accepted' && invitation) {
-          // Extract eventId - invitation.event could be a populated object or a string ID
-          let eventId: string;
-          if (typeof invitation.event === 'string') {
-            eventId = invitation.event;
-          } else if (invitation.event && invitation.event._id) {
-            eventId = invitation.event._id;
-          } else {
-            console.error('❌ [INVITATION RESPONSE] Cannot determine eventId from:', invitation.event);
-            window.location.reload();
-            return;
-          }
-          // Check if event requires registration and if user has already submitted
-          const checkResponse = await fetch(`${API_CONFIG.API_BASE}/registration-responses/check/${eventId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
-
-          const checkData = await checkResponse.json();
-          // If registration is required and user hasn't submitted yet, show the form
-          if (checkData.success && checkData.data.requiresRegistration && !checkData.data.hasSubmitted) {
-            // Extract event details safely
-            const eventTitle = typeof invitation.event === 'string' ? 'Event' : (invitation.event.title || 'Event');
-            const eventCode = typeof invitation.event === 'string' ? '' : (invitation.event.eventCode || '');
-
-            // Use event ID from registrationForm if available, otherwise use the extracted one
-            const finalEventId = checkData.data.registrationForm.event || eventId;
-
-            // Show registration form modal before reload
-            setRegistrationFormData(checkData.data.registrationForm);
-            setPendingEventCode(eventCode);
-            setPendingEventTitle(eventTitle);
-            setPendingEventId(finalEventId);
-            setIsRegistrationRequired(true);
-            setRegistrationContext('invitation'); // Mark as invitation context
-            registrationContextRef.current = 'invitation';
-            setShowRegistrationForm(true);
-            return; // Don't reload yet, wait for form submission
-          } else {
-          }
-        }
-
-        // Refresh data only if no registration form needs to be shown
+        // Refresh data
         window.location.reload();
       } else {
         throw new Error(data.message);
@@ -7044,13 +7083,33 @@ const ParticipantDashboard = () => {
         <RegistrationFormModal
           isOpen={showRegistrationForm}
           onClose={() => {
-            // Only allow closing if form is not required
-            if (!isRegistrationRequired) {
-              setShowRegistrationForm(false);
-              setPendingEventCode('');
-              setPendingEventTitle('');
-              setPendingEventId('');
-              setRegistrationFormData(null);
+            // Check context before clearing
+            const context = registrationContextRef.current;
+
+            // Always allow closing the modal
+            setShowRegistrationForm(false);
+            setPendingEventCode('');
+            setPendingEventTitle('');
+            setPendingEventId('');
+            setPendingInvitationId(''); // Clear pending invitation ID
+            setRegistrationFormData(null);
+            setIsRegistrationRequired(false); // Reset required flag
+            setRegistrationContext(null); // Clear context
+            registrationContextRef.current = null;
+
+            // Show a toast message explaining the consequences
+            if (context === 'invitation') {
+              toast({
+                title: "Registration Form Closed",
+                description: "Your invitation remains pending. Complete the registration form to accept the invitation.",
+                variant: "default",
+              });
+            } else {
+              toast({
+                title: "Registration Form Closed",
+                description: "You must complete the registration form to join this event.",
+                variant: "default",
+              });
             }
           }}
           eventId={pendingEventId}
@@ -7058,7 +7117,7 @@ const ParticipantDashboard = () => {
           registrationForm={registrationFormData}
           onSubmitSuccess={handleRegistrationSuccess}
           token={token}
-          isRequired={isRegistrationRequired}
+          isRequired={false}
         />
       )}
     </div>
