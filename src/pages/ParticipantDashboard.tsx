@@ -2653,6 +2653,29 @@ const ParticipantDashboard = () => {
 
           const joinResult = await joinResponse.json();
           if (!joinResult.success) {
+            // Handle pending approval for private events
+            if (joinResult.requiresApproval && joinResult.isPendingApproval) {
+              toast({
+                title: "Pending Approval",
+                description: joinResult.message || "Your access request is pending organizer approval. You will be notified once approved.",
+                variant: "default",
+              });
+              // Refresh data to show the pending invitation
+              fetchParticipantData(true);
+              return;
+            }
+
+            // Handle private event that requires approval (no invitation yet)
+            if (joinResult.requiresApproval) {
+              toast({
+                title: "Approval Required",
+                description: joinResult.message || "This is a private event. You need organizer approval to join.",
+                variant: "default",
+              });
+              return;
+            }
+
+            // Handle registration form requirement
             if (joinResult.requiresRegistration && joinResult.registrationForm) {
               // Show registration form modal
               setRegistrationFormData(joinResult.registrationForm);

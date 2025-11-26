@@ -1166,8 +1166,10 @@ router.post('/join', auth, [
         participant: userId
       });
 
-      console.log('🔍 [PRIVATE EVENT] Invitation found:', {
-        exists: !!invitation,
+      console.log('🔍 [PRIVATE EVENT] Invitation search:', {
+        eventId: event._id,
+        participantId: userId,
+        found: !!invitation,
         status: invitation?.status
       });
 
@@ -1184,22 +1186,51 @@ router.post('/join', auth, [
         console.log('⏳ [PRIVATE EVENT] Invitation pending approval - access denied');
         return res.status(403).json({
           success: false,
-          message: 'Your access request is pending organizer approval.',
+          message: 'Your access request is pending organizer approval. You will be notified once approved.',
           requiresApproval: true,
           isPendingApproval: true
         });
       }
 
       if (invitation.status !== 'accepted') {
-        console.log('❌ [PRIVATE EVENT] Invitation not accepted - access denied');
+        console.log('❌ [PRIVATE EVENT] Invitation not accepted (status: ' + invitation.status + ') - access denied');
         return res.status(403).json({
           success: false,
-          message: 'You do not have access to this private event.',
+          message: `Your invitation is ${invitation.status}. You cannot access this private event.`,
           requiresApproval: true
         });
       }
 
-      console.log('✅ [PRIVATE EVENT] Invitation accepted - proceeding with join');
+      console.log('✅ [PRIVATE EVENT] Invitation accepted - checking for attendance record...');
+
+      // IMPORTANT: If invitation is accepted, they should already have an attendance record
+      // created by the approval process. If not, something went wrong.
+      const approvedAttendance = await AttendanceLog.findOne({
+        event: event._id,
+        participant: userId
+      });
+
+      if (approvedAttendance) {
+        console.log('✅ [PRIVATE EVENT] Attendance record exists from approval - returning success');
+        return res.status(200).json({
+          success: true,
+          message: 'You are already registered for this event.',
+          data: {
+            attendanceRecord: approvedAttendance,
+            event: {
+              _id: event._id,
+              title: event.title,
+              eventCode: event.eventCode,
+              date: event.date,
+              startTime: event.startTime,
+              endTime: event.endTime,
+              location: event.location
+            }
+          }
+        });
+      }
+
+      console.log('⚠️ [PRIVATE EVENT] Invitation accepted but no attendance record found - will create one now');
     }
 
     // Check if event has a registration form that needs to be filled
