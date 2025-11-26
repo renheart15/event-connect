@@ -1247,7 +1247,8 @@ router.put('/approve/:invitationId', auth, async (req, res) => {
 
     // Find the invitation
     const invitation = await Invitation.findById(req.params.invitationId)
-      .populate('event');
+      .populate('event')
+      .populate('participant');
 
     if (!invitation) {
       return res.status(404).json({
@@ -1272,19 +1273,59 @@ router.put('/approve/:invitationId', auth, async (req, res) => {
       });
     }
 
-    // Update invitation status to 'pending' (normal invitation)
-    invitation.status = 'pending';
+    // Update invitation status to 'accepted' (auto-accept on approval)
+    invitation.status = 'accepted';
     invitation.respondedAt = new Date();
     await invitation.save();
 
-    console.log('✅ [APPROVE REQUEST] Approved invitation:', invitation._id);
+    console.log('✅ [APPROVE REQUEST] Approved invitation and auto-accepted:', invitation._id);
 
-    // Populate participant info for response
-    await invitation.populate('participant', 'name email');
+    // Auto-create attendance record and initialize location tracking
+    try {
+      // Check if attendance record already exists
+      let attendanceRecord = await AttendanceLog.findOne({
+        event: invitation.event._id,
+        participant: invitation.participant._id
+      });
+
+      if (!attendanceRecord) {
+        // Create attendance record with status 'registered'
+        attendanceRecord = new AttendanceLog({
+          event: invitation.event._id,
+          participant: invitation.participant._id,
+          invitation: invitation._id,
+          status: 'registered',
+          registrationName: invitation.participantName || invitation.participant.name,
+          registrationEmail: invitation.participantEmail || invitation.participant.email
+        });
+
+        await attendanceRecord.save();
+        console.log('✅ [ATTENDANCE] Created attendance record with status "registered"');
+
+        // Initialize location tracking immediately
+        const locationTrackingService = require('../services/locationTrackingService');
+        try {
+          await locationTrackingService.initializeLocationTracking(
+            invitation.event._id,
+            invitation.participant._id,
+            attendanceRecord._id
+          );
+          console.log('✅ [LOCATION TRACKING] Initialized location tracking for approved participant');
+        } catch (locationError) {
+          console.error('⚠️ [LOCATION TRACKING] Failed to initialize:', locationError);
+          // Don't fail the approval if location tracking initialization fails
+        }
+      } else {
+        console.log('ℹ️ [ATTENDANCE] Attendance record already exists with status:', attendanceRecord.status);
+      }
+    } catch (attendanceError) {
+      console.error('⚠️ [ATTENDANCE] Failed to create attendance record:', attendanceError);
+      // Don't fail the approval if attendance creation fails
+    }
 
     res.json({
       success: true,
-      message: 'Access request approved successfully',
+      message: 'Access request approved successfully. Participant is now registered for the event.',
       data: {
         invitation
       }

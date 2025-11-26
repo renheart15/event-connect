@@ -77,39 +77,9 @@ const JoinEvent = () => {
   const confirmJoinEvent = async () => {
     setIsJoining(true);
     try {
-      const token = localStorage.getItem('token');
-
-      // Check if event is private (not published)
-      if (!event.published) {
-        // Send join request for private event
-        const response = await fetch('/api/events/join-requests', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            eventId: event._id
-          })
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-          toast({
-            title: "Join Request Sent",
-            description: "Your request to join this private event has been sent to the organizer for approval.",
-          });
-          setShowJoinModal(false);
-          // Optionally redirect or stay on page
-          navigate('/');
-        } else {
-          throw new Error(result.message || 'Failed to send join request');
-        }
-      } else {
-        // Public event - check for registration form first
-        await checkForRegistrationForm(event._id || event.id);
-      }
+      // For both public and private events, check for registration form first
+      // The backend will handle creating pending_approval invitations for private events
+      await checkForRegistrationForm(event._id || event.id);
     } catch (error: any) {
       console.error('Error joining event:', error);
       toast({

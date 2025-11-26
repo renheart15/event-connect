@@ -228,11 +228,14 @@ const Invitations = () => {
       if (result.success) {
         toast({
           title: action === 'approve' ? 'Request Approved' : 'Request Rejected',
-          description: `Join request has been ${action}d successfully.`,
+          description: action === 'approve'
+            ? 'Participant has been registered and can now access the event.'
+            : 'Join request has been rejected.',
         });
 
-        // Refresh join requests
+        // Refresh both join requests and invitation records
         fetchJoinRequests();
+        fetchInvitationHistory();
       } else {
         toast({
           title: "Error",
@@ -959,7 +962,6 @@ const Invitations = () => {
                                           ) : (
                                             <>
                                               <CheckCircle className="w-2.5 h-2.5 mr-0.5" />
-                                              Approve
                                             </>
                                           )}
                                         </Button>
@@ -971,7 +973,6 @@ const Invitations = () => {
                                           className="h-6 px-2 text-[9px] text-red-600 border-red-300 hover:bg-red-50"
                                         >
                                           <XCircle className="w-2.5 h-2.5 mr-0.5" />
-                                          Reject
                                         </Button>
                                       </div>
                                     </TableCell>
