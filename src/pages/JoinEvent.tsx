@@ -155,29 +155,65 @@ const JoinEvent = () => {
   const joinEventDirectly = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/attendance/join', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          eventCode: eventCode?.toUpperCase()
-        })
-      });
 
-      const result = await response.json();
-
-      if (result.success) {
-        toast({
-          title: "Successfully Joined!",
-          description: `You've joined "${event.title}"`,
+      // Check if event is private (not published)
+      if (!event.published) {
+        // For private events without registration form, request access
+        const response = await fetch('/api/invitations/request-access', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            eventId: event._id || event.id
+          })
         });
 
-        // Redirect to participant dashboard
-        navigate(`/participant-dashboard?eventCode=${eventCode}`);
+        const result = await response.json();
+
+        if (result.success && result.requiresApproval) {
+          toast({
+            title: "Access Request Sent",
+            description: result.message || "Your request to join this private event has been sent to the organizer for approval.",
+          });
+          navigate('/');
+        } else if (result.success && !result.requiresApproval) {
+          // Already has access
+          toast({
+            title: "Access Granted",
+            description: result.message || "You already have access to this event.",
+          });
+          navigate(`/participant-dashboard?eventCode=${eventCode}`);
+        } else {
+          throw new Error(result.message || 'Failed to request access');
+        }
       } else {
-        throw new Error(result.message || 'Failed to join event');
+        // Public event - join directly
+        const response = await fetch('/api/attendance/join', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            eventCode: eventCode?.toUpperCase()
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          toast({
+            title: "Successfully Joined!",
+            description: `You've joined "${event.title}"`,
+          });
+
+          // Redirect to participant dashboard
+          navigate(`/participant-dashboard?eventCode=${eventCode}`);
+        } else {
+          throw new Error(result.message || 'Failed to join event');
+        }
       }
     } catch (error: any) {
       console.error('Error joining event:', error);

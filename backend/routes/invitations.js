@@ -1393,4 +1393,109 @@ router.put('/reject/:invitationId', auth, async (req, res) => {
   }
 });
 
+// @route   POST /api/invitations/request-access
+// @desc    Request access to a private event (participant)
+// @access  Private (Participant)
+router.post('/request-access', auth, async (req, res) => {
+  try {
+    const { eventId } = req.body;
+    const participantId = req.user._id;
+
+    console.log('🔒 [REQUEST ACCESS] Participant requesting access:', {
+      eventId,
+      participantId,
+      userEmail: req.user.email,
+      userName: req.user.name
+    });
+
+    if (!eventId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Event ID is required'
+      });
+    }
+
+    // Check if event exists
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+
+    // Check if event is private
+    if (event.published) {
+      return res.status(400).json({
+        success: false,
+        message: 'This event is public. You can join directly without approval.'
+      });
+    }
+
+    // Check if invitation already exists
+    const existingInvitation = await Invitation.findOne({
+      event: eventId,
+      participant: participantId
+    });
+
+    if (existingInvitation) {
+      // If already has an invitation, return appropriate message
+      if (existingInvitation.status === 'pending_approval') {
+        return res.status(200).json({
+          success: true,
+          requiresApproval: true,
+          message: 'Your access request is already pending organizer approval.',
+          data: {
+            invitation: existingInvitation
+          }
+        });
+      } else if (existingInvitation.status === 'accepted') {
+        return res.status(200).json({
+          success: true,
+          requiresApproval: false,
+          message: 'You already have access to this event.',
+          data: {
+            invitation: existingInvitation
+          }
+        });
+      }
+    }
+
+    // Create pending approval invitation
+    const crypto = require('crypto');
+    const invitation = await Invitation.create({
+      event: eventId,
+      participant: participantId,
+      participantEmail: req.user.email,
+      participantName: req.user.name,
+      invitationCode: crypto.randomBytes(16).toString('hex').toUpperCase(),
+      qrCodeData: `PENDING_APPROVAL_${eventId}_${participantId}`,
+      status: 'pending_approval',
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    });
+
+    console.log('✅ [REQUEST ACCESS] Created pending approval invitation:', invitation._id);
+
+    res.status(202).json({
+      success: true,
+      requiresApproval: true,
+      message: 'Access request submitted. Waiting for organizer approval.',
+      data: {
+        invitation: {
+          _id: invitation._id,
+          status: 'pending_approval',
+          event: eventId
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Request access error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to request access',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
