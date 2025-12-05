@@ -302,12 +302,15 @@ router.get('/event/:eventId', auth, async (req, res) => {
 // @access  Private (Participant)
 router.get('/check/:eventId', auth, async (req, res) => {
   try {
+    console.log('🔍 [REG-CHECK] Checking registration status for event:', req.params.eventId, 'participant:', req.user._id);
+
     const registrationForm = await RegistrationForm.findOne({
       event: req.params.eventId,
       isActive: true
     });
 
     if (!registrationForm) {
+      console.log('ℹ️ [REG-CHECK] No active registration form found for event');
       return res.json({
         success: true,
         data: {
@@ -317,21 +320,35 @@ router.get('/check/:eventId', auth, async (req, res) => {
       });
     }
 
+    console.log('✅ [REG-CHECK] Registration form found:', registrationForm._id);
+
     const existingResponse = await RegistrationResponse.findOne({
       registrationForm: registrationForm._id,
       participant: req.user._id
     });
 
-    res.json({
+    console.log('🔍 [REG-CHECK] Existing response found:', !!existingResponse);
+    if (existingResponse) {
+      console.log('📋 [REG-CHECK] Response details:', {
+        _id: existingResponse._id,
+        submittedAt: existingResponse.submittedAt
+      });
+    }
+
+    const result = {
       success: true,
       data: {
         hasSubmitted: !!existingResponse,
         requiresRegistration: true,
         registrationForm: registrationForm
       }
-    });
+    };
+
+    console.log('📤 [REG-CHECK] Returning:', { hasSubmitted: !!existingResponse, requiresRegistration: true });
+
+    res.json(result);
   } catch (error) {
-    console.error('Check registration status error:', error);
+    console.error('❌ [REG-CHECK] Check registration status error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to check registration status',

@@ -1596,12 +1596,18 @@ router.delete('/remove-participant', auth, requireOrganizer, [
         participant: participantId
       });
       if (deletedRegistrationResponse) {
-        console.log('✅ Deleted registration response for removed participant');
+        console.log('✅ [REMOVE-PARTICIPANT] Deleted registration response for removed participant');
+        console.log('✅ [REMOVE-PARTICIPANT] Deleted response details:', {
+          _id: deletedRegistrationResponse._id,
+          registrationForm: deletedRegistrationResponse.registrationForm,
+          event: deletedRegistrationResponse.event,
+          participant: deletedRegistrationResponse.participant
+        });
       } else {
-        console.log('ℹ️ No registration response found for this participant');
+        console.log('ℹ️ [REMOVE-PARTICIPANT] No registration response found for this participant (event:', eventId, 'participant:', participantId, ')');
       }
     } catch (registrationError) {
-      console.error('⚠️ Failed to delete registration response:', registrationError);
+      console.error('⚠️ [REMOVE-PARTICIPANT] Failed to delete registration response:', registrationError);
       // Don't fail the operation if cleanup fails
     }
 

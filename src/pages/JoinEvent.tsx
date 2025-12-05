@@ -104,6 +104,7 @@ const JoinEvent = () => {
   const checkForRegistrationForm = async (eventId: string) => {
     try {
       const token = localStorage.getItem('token');
+      console.log('🔍 [JOIN] Checking for registration form for event:', eventId);
 
       // Check if event has a registration form
       const formResponse = await fetch(`${API_CONFIG.API_BASE}/registration-forms/event/${eventId}`, {
@@ -114,6 +115,7 @@ const JoinEvent = () => {
       });
 
       const formData = await formResponse.json();
+      console.log('🔍 [JOIN] Registration form exists:', !!formData.data?.registrationForm);
 
       if (formData.success && formData.data && formData.data.registrationForm) {
         // Check if user has already submitted a response
@@ -128,22 +130,30 @@ const JoinEvent = () => {
         );
 
         const responseCheck = await responseCheckResponse.json();
+        console.log('🔍 [JOIN] Registration response check:', {
+          success: responseCheck.success,
+          hasSubmitted: responseCheck.data?.hasSubmitted,
+          requiresRegistration: responseCheck.data?.requiresRegistration
+        });
 
         if (responseCheck.success && responseCheck.data && !responseCheck.data.hasSubmitted) {
           // Show registration form modal - user must complete it to join
+          console.log('✅ [JOIN] Showing registration form (not yet submitted)');
           setRegistrationFormData(formData.data.registrationForm);
           setShowRegistrationForm(true);
           setShowJoinModal(false); // Close join confirmation modal
         } else {
           // User already submitted form, join directly
+          console.log('ℹ️ [JOIN] Registration already submitted, joining directly');
           await joinEventDirectly();
         }
       } else {
         // No registration form, join directly
+        console.log('ℹ️ [JOIN] No registration form found, joining directly');
         await joinEventDirectly();
       }
     } catch (error) {
-      console.error('Error checking for registration form:', error);
+      console.error('❌ [JOIN] Error checking for registration form:', error);
       toast({
         title: "Error",
         description: "Failed to process join request. Please try again.",

@@ -79,14 +79,8 @@ const EventMonitor = () => {
         throw new Error(data.message);
       }
 
-      // CRITICAL FIX: Filter out registered participants - only show checked-in, absent, or checked-out
-      // Registered participants haven't actually attended yet
-      const filteredLogs = data.data.attendanceLogs.filter(log =>
-        log.status !== 'registered'
-      );
-
-      // Transform attendance data for display
-      const transformedParticipants = filteredLogs.map(log => {
+      // Transform attendance data for display - include all participants (registered, checked-in, absent, checked-out)
+      const transformedParticipants = data.data.attendanceLogs.map(log => {
         // Calculate real-time duration for checked-in participants
         let duration = log.duration || 0;
         if (log.status === 'checked-in' && log.checkInTime) {
@@ -104,6 +98,8 @@ const EventMonitor = () => {
           displayStatus = 'marked-absent';
         } else if (log.status === 'checked-out') {
           displayStatus = 'left-early';
+        } else if (log.status === 'registered') {
+          displayStatus = 'registered';
         } else {
           displayStatus = log.status; // fallback to raw status
         }
@@ -465,6 +461,7 @@ const EventMonitor = () => {
       case 'low-battery': return 'destructive';
       case 'left-early': return 'outline';
       case 'marked-absent': return 'destructive';
+      case 'registered': return 'secondary';
       default: return 'outline';
     }
   };
@@ -476,6 +473,7 @@ const EventMonitor = () => {
       case 'low-battery': return <AlertTriangle className="w-4 h-4" />;
       case 'left-early': return <MapPin className="w-4 h-4" />;
       case 'marked-absent': return <XCircle className="w-4 h-4" />;
+      case 'registered': return <Users className="w-4 h-4" />;
       default: return <User className="w-4 h-4" />;
     }
   };

@@ -829,39 +829,24 @@ const Invitations = () => {
                   {selectedEvent && (
                     <Card className="bg-white dark:bg-gray-800">
                       <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <CardTitle className="flex items-center gap-2">
-                              <Users className="w-5 h-5" />
-                              Participants
-                            </CardTitle>
-                            <div className="mt-2">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-gray-600">{selectedEvent.title}</span>
-                                {getStatusBadge(selectedEvent.status)}
-                              </div>
-                              <CardDescription className="text-sm text-gray-500 mt-1">
-                                {formatDate(selectedEvent.date)} • {
-                                  typeof selectedEvent.location === 'object'
-                                    ? selectedEvent.location.address || 'Unknown'
-                                    : selectedEvent.location || 'Unknown'
-                                }
-                              </CardDescription>
+                        <div>
+                          <CardTitle className="flex items-center gap-2">
+                            <Users className="w-5 h-5" />
+                            Participants
+                          </CardTitle>
+                          <div className="mt-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-600">{selectedEvent.title}</span>
+                              {getStatusBadge(selectedEvent.status)}
                             </div>
+                            <CardDescription className="text-sm text-gray-500 mt-1">
+                              {formatDate(selectedEvent.date)} • {
+                                typeof selectedEvent.location === 'object'
+                                  ? selectedEvent.location.address || 'Unknown'
+                                  : selectedEvent.location || 'Unknown'
+                              }
+                            </CardDescription>
                           </div>
-                          <Button
-                            onClick={() => {
-                              setInvitations([]);
-                              setJoinRequests([]);
-                              fetchInvitationHistory();
-                              fetchJoinRequests();
-                            }}
-                            variant="outline"
-                            size="sm"
-                          >
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Refresh
-                          </Button>
                         </div>
                       </CardHeader>
                     </Card>
