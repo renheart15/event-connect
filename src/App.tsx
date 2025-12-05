@@ -9,16 +9,27 @@ import { initializeMobileAppDetection } from "./utils/mobileAppDetection";
 // Initialize theme on app load
 const initializeTheme = () => {
   try {
-    const saved = localStorage.getItem('theme');
+    // Check both possible localStorage keys for theme
+    const saved = localStorage.getItem('theme') || localStorage.getItem('themePreference');
+
     if (saved) {
+      // Handle both 'dark'/'light' and 'system'/'dark'/'light' formats
       if (saved === 'dark') {
         document.documentElement.classList.add('dark');
-      } else {
+      } else if (saved === 'light') {
         document.documentElement.classList.remove('dark');
+      } else if (saved === 'system') {
+        // Only for 'system', check system preference
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
       }
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+    } else {
+      // No saved preference - default to light mode
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
     }
   } catch (error) {
     console.error('Theme initialization error:', error);

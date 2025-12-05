@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, RefreshCw } from 'lucide-react';
 import { AppSidebar } from './AppSidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from './ui/sidebar';
 import { Button } from './ui/button';
@@ -100,6 +100,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               className="rounded-lg"
             >
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => window.location.reload()}
+              className="rounded-lg"
+            >
+              <RefreshCw className="w-4 h-4" />
             </Button>
             <NotificationDropdown />
             <ProfileDropdown />

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { QrCode, Camera, Upload, Menu, Zap, Loader2, X, Flashlight, MapPin, AlertTriangle, CheckCircle, User, Settings, LogOut, RefreshCw, MessageSquare, Building2, Copy, UserPlus, Globe, Calendar, Clock, Edit, Save, Lock, Eye, EyeOff } from 'lucide-react';
+import { QrCode, Camera, Upload, Menu, Zap, Loader2, X, Flashlight, MapPin, AlertTriangle, CheckCircle, User, Settings, LogOut, RefreshCw, MessageSquare, Building2, Copy, UserPlus, Globe, Calendar, Clock, Edit, Save, Lock, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { API_CONFIG } from '@/config';
 import { useParticipantLocationUpdater } from '@/hooks/useLocationTracking';
@@ -117,6 +117,10 @@ const ParticipantDashboard = () => {
   const [eventToDelete, setEventToDelete] = useState<any>(null);
   const [isDeletingEvent, setIsDeletingEvent] = useState(false);
 
+  // Collapsible sections state
+  const [isCurrentlyAttendingCollapsed, setIsCurrentlyAttendingCollapsed] = useState(false);
+  const [isLocationTrackingCollapsed, setIsLocationTrackingCollapsed] = useState(false);
+
   // Settings state
   const [notificationSettings, setNotificationSettings] = useState(() => {
     const saved = localStorage.getItem('notificationSettings');
@@ -126,7 +130,8 @@ const ParticipantDashboard = () => {
     };
   });
   const [themePreference, setThemePreference] = useState(() => {
-    return localStorage.getItem('themePreference') || 'system';
+    // Use 'theme' key for consistency with App.tsx
+    return localStorage.getItem('theme') || 'light';
   });
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -575,8 +580,40 @@ const ParticipantDashboard = () => {
       lastLocationSent.current = { lat, lng, timestamp: now };
       setLastLocationUpdateTime(new Date());
       console.log('✅ [LOCATION] Update sent successfully');
+
+      // Clear any queued offline updates on successful send
+      try {
+        localStorage.removeItem(`offlineLocationQueue_${eventId}`);
+      } catch (e) {}
+
     } catch (error) {
       console.error('❌ [LOCATION] Update failed:', error);
+
+      // Queue update for retry when back online (for background/offline scenarios)
+      if (!navigator.onLine || document.hidden) {
+        try {
+          const queueKey = `offlineLocationQueue_${eventId}`;
+          const queuedUpdates = JSON.parse(localStorage.getItem(queueKey) || '[]');
+          queuedUpdates.push({
+            lat,
+            lng,
+            accuracy,
+            batteryLevel,
+            timestamp: now
+          });
+
+          // Keep only last 10 updates to prevent storage overflow
+          if (queuedUpdates.length > 10) {
+            queuedUpdates.shift();
+          }
+
+          localStorage.setItem(queueKey, JSON.stringify(queuedUpdates));
+          console.log('📦 [OFFLINE] Queued location update for retry');
+        } catch (storageError) {
+          console.error('Failed to queue offline update:', storageError);
+        }
+      }
+
       // Don't update lastLocationSent on failure so it will retry next time
     }
   };
@@ -752,7 +789,8 @@ const ParticipantDashboard = () => {
 
   const handleThemeChange = (theme: string) => {
     setThemePreference(theme);
-    localStorage.setItem('themePreference', theme);
+    // Use 'theme' key for consistency with App.tsx
+    localStorage.setItem('theme', theme);
 
     // Apply theme
     const root = window.document.documentElement;
@@ -761,8 +799,11 @@ const ParticipantDashboard = () => {
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       root.classList.add(systemTheme);
+    } else if (theme === 'dark') {
+      root.classList.add('dark');
     } else {
-      root.classList.add(theme);
+      // 'light' or any other value - remove dark class
+      root.classList.remove('dark');
     }
 
     toast({
@@ -770,6 +811,22 @@ const ParticipantDashboard = () => {
       description: `Theme set to ${theme}`,
     });
   };
+
+  // Initialize theme on component mount
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+
+    if (themePreference === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.add(systemTheme);
+    } else if (themePreference === 'dark') {
+      root.classList.add('dark');
+    } else {
+      // 'light' - explicitly remove dark class
+      root.classList.remove('dark');
+    }
+  }, []); // Run only once on mount
 
   // Native mobile app initialization
   useEffect(() => {
@@ -782,7 +839,7 @@ const ParticipantDashboard = () => {
 
         // Check location permissions on startup
         await checkLocationPermissions();
-        
+
         // Hide splash screen after 2 seconds
         setTimeout(async () => {
           await SplashScreen.hide();
@@ -793,14 +850,14 @@ const ParticipantDashboard = () => {
         setTimeout(() => {
           setShowSplash(false);
         }, 2000);
-        
+
         // Online/offline detection for web
         const handleOnline = () => setIsOnline(true);
         const handleOffline = () => setIsOnline(false);
-        
+
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
-        
+
         return () => {
           window.removeEventListener('online', handleOnline);
           window.removeEventListener('offline', handleOffline);
@@ -1028,6 +1085,82 @@ const ParticipantDashboard = () => {
     fetchUserOrganizations();
   }, [token]);
 
+
+  // Process queued offline location updates
+  const processOfflineLocationQueue = async (eventId: string) => {
+    try {
+      const queueKey = `offlineLocationQueue_${eventId}`;
+      const queuedUpdates = JSON.parse(localStorage.getItem(queueKey) || '[]');
+
+      if (queuedUpdates.length > 0) {
+        console.log(`🔄 [OFFLINE SYNC] Processing ${queuedUpdates.length} queued location updates`);
+
+        // Send the most recent update (since we only care about current location)
+        const latestUpdate = queuedUpdates[queuedUpdates.length - 1];
+
+        await updateLocation(
+          eventId,
+          user._id,
+          latestUpdate.lat,
+          latestUpdate.lng,
+          latestUpdate.accuracy,
+          latestUpdate.batteryLevel
+        );
+
+        // Clear queue on success
+        localStorage.removeItem(queueKey);
+        console.log('✅ [OFFLINE SYNC] Successfully synced queued updates');
+
+        toast({
+          title: "Location Synced",
+          description: "Queued location updates have been synced",
+        });
+      }
+    } catch (error) {
+      console.error('❌ [OFFLINE SYNC] Failed to process queue:', error);
+    }
+  };
+
+  // Monitor app visibility state for background optimization
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.hidden) {
+        console.log('📱 App moved to background - optimizing tracking');
+        // App is in background - tracking continues via BackgroundGeolocation
+      } else {
+        console.log('📱 App moved to foreground - resuming normal tracking');
+        // App is in foreground - normal tracking resumes
+
+        // Try to sync any queued offline updates
+        const currentlyAttending = getCurrentlyAttending();
+        if (currentlyAttending.length > 0) {
+          const event = currentlyAttending[0];
+          const eventId = event.event._id || event.event;
+          await processOfflineLocationQueue(eventId);
+        }
+      }
+    };
+
+    const handleOnlineStatus = async () => {
+      console.log('🌐 [NETWORK] Back online - syncing queued updates');
+
+      // Try to sync any queued offline updates
+      const currentlyAttending = getCurrentlyAttending();
+      if (currentlyAttending.length > 0) {
+        const event = currentlyAttending[0];
+        const eventId = event.event._id || event.event;
+        await processOfflineLocationQueue(eventId);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnlineStatus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnlineStatus);
+    };
+  }, []);
 
   // Force cleanup any active camera streams on component mount
   useEffect(() => {
@@ -2976,7 +3109,57 @@ const ParticipantDashboard = () => {
         const attendanceRecord = myAttendance.find(att => att.event?._id === event._id || att.event?._id?.toString() === event._id?.toString());
 
         if (!attendanceRecord) {
-          // Automatically join the event first
+          // CRITICAL: For private events, use request-access endpoint instead of join
+          // This handles the approval workflow correctly
+          if (!event.published) {
+            console.log('🔒 [QR SCAN] Private event detected, requesting access...');
+            try {
+              const requestResponse = await fetch(`${API_CONFIG.API_BASE}/invitations/request-access`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ eventId: event._id })
+              });
+
+              const requestResult = await requestResponse.json();
+
+              if (requestResult.success && requestResult.requiresApproval) {
+                // Access request sent or already pending
+                toast({
+                  title: "Access Request Sent",
+                  description: requestResult.message || "Your access request has been sent to the organizer. You will be notified once approved.",
+                  variant: "default",
+                });
+                // Refresh data to show the pending/accepted invitation
+                await fetchParticipantData(true);
+                return;
+              } else if (requestResult.success && !requestResult.requiresApproval) {
+                // Already has access - refresh data and continue
+                toast({
+                  title: "Access Granted",
+                  description: "You already have access to this event. Please scan again.",
+                  variant: "default",
+                });
+                // Refresh data to load the attendance record
+                await fetchParticipantData(true);
+                return;
+              } else {
+                throw new Error(requestResult.message || 'Failed to request access');
+              }
+            } catch (requestError) {
+              console.error('🚀 [QR SCAN - PRIVATE EVENT] Request access failed:', requestError);
+              toast({
+                title: "Error",
+                description: requestError.message || "Failed to request access to this private event.",
+                variant: "destructive",
+              });
+              return;
+            }
+          }
+
+          // Public event - Automatically join the event first
           try {
             const joinResponse = await fetch(`${API_CONFIG.API_BASE}/attendance/join`, {
               method: 'POST',
@@ -6049,9 +6232,19 @@ const ParticipantDashboard = () => {
       // Start watching location with BACKGROUND GEOLOCATION
       if (Capacitor.isNativePlatform()) {
         // For native platforms, use BackgroundGeolocation for reliable background tracking
-        console.log('🌍 Starting BACKGROUND geolocation tracking...');
+        console.log('🌍 Starting OPTIMIZED BACKGROUND geolocation tracking...');
 
         try {
+          // Get current battery level for adaptive tracking
+          const currentBattery = await getBatteryLevel();
+          const isLowBattery = currentBattery !== null && currentBattery < 20;
+
+          // Adaptive settings based on battery level
+          const distanceFilter = isLowBattery ? 25 : 10; // meters - less frequent on low battery
+          const minUpdateInterval = isLowBattery ? 30000 : 15000; // milliseconds - 30s/15s
+
+          console.log(`⚙️ Battery-adaptive tracking: ${currentBattery}% battery, ${distanceFilter}m filter, ${minUpdateInterval/1000}s interval`);
+
           const watchId = await BackgroundGeolocation.addWatcher(
             {
               // Background notification config
@@ -6061,9 +6254,9 @@ const ParticipantDashboard = () => {
               // Request permissions (including "Always Allow" for iOS)
               requestPermissions: true,
 
-              // Location settings
+              // Optimized location settings
               stale: false,  // Don't use stale locations
-              distanceFilter: 10,  // Update every 10 meters
+              distanceFilter: distanceFilter,  // Update based on movement (adaptive)
 
             },
             async (location, error) => {
@@ -6077,17 +6270,33 @@ const ParticipantDashboard = () => {
                     description: "Please enable 'Always Allow' location permission in Settings for background tracking.",
                     variant: "destructive",
                   });
+                } else if (error.code === 'LOCATION_DISABLED') {
+                  console.warn('⚠️ Location services disabled on device');
                 }
                 return;
               }
 
               if (location) {
+                // Throttle updates based on minimum interval to save battery
+                const now = Date.now();
+                const lastUpdateKey = `lastLocationUpdate_${eventId}`;
+                const lastUpdate = parseInt(localStorage.getItem(lastUpdateKey) || '0');
+
+                if (now - lastUpdate < minUpdateInterval) {
+                  console.log('⏭️ Skipping update - too soon (throttled for battery)');
+                  return;
+                }
+
                 console.log('📍 Background location update:', {
                   lat: location.latitude,
                   lng: location.longitude,
                   accuracy: location.accuracy,
+                  battery: currentBattery + '%',
                   time: new Date(location.time).toLocaleTimeString()
                 });
+
+                // Update last update timestamp
+                localStorage.setItem(lastUpdateKey, now.toString());
 
                 const batteryLevel = await getBatteryLevel();
                 await sendLocationUpdate(
@@ -6477,10 +6686,10 @@ const ParticipantDashboard = () => {
   }
 
   return (
-    <div className="w-full h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 select-none touch-manipulation max-w-full overflow-x-hidden overflow-y-hidden relative">
+    <div className="w-full h-screen bg-white dark:bg-gray-950 select-none touch-manipulation max-w-full overflow-x-hidden overflow-y-hidden relative" style={{ paddingTop: 'var(--safe-area-inset-top)' }}>
       {/* Offline Indicator */}
       {!isOnline && (
-        <div className="fixed top-0 left-0 right-0 bg-red-500 text-white text-center py-1 text-xs z-40">
+        <div className="fixed left-0 right-0 bg-red-500 text-white text-center py-2 text-xs z-40 font-medium" style={{ top: 'var(--safe-area-inset-top)' }}>
           <span>📡 Offline Mode - Some features may be limited</span>
         </div>
       )}
@@ -6488,9 +6697,10 @@ const ParticipantDashboard = () => {
       {/* Persistent Stale Location Warning Banner - Does NOT auto-dismiss */}
       {currentLocationStatus?.outsideTimer?.reason === 'stale' && (
         <div
-          className={`fixed top-0 left-0 right-0 py-2 px-4 text-center text-sm font-medium z-50 bg-orange-600 text-white border-b-2 border-orange-700 ${
-            !isOnline ? 'mt-6' : ''
+          className={`fixed left-0 right-0 py-2 px-4 text-center text-sm font-medium z-50 bg-orange-600 text-white border-b-2 border-orange-700 ${
+            !isOnline ? 'mt-7' : ''
           }`}
+          style={{ top: !isOnline ? 'calc(var(--safe-area-inset-top) + 1.75rem)' : 'var(--safe-area-inset-top)' }}
         >
           <div className="flex items-center justify-center gap-2">
             <AlertTriangle className="w-4 h-4 animate-pulse" />
@@ -6502,14 +6712,15 @@ const ParticipantDashboard = () => {
       {/* Location Alert Banner - Disappears after 5 seconds */}
       {showLocationAlert && currentLocationStatus && currentLocationStatus.outsideTimer?.reason !== 'stale' && (
         <div
-          className={`fixed top-0 left-0 right-0 py-2 px-4 text-center text-sm font-medium z-50 transition-all duration-300 ${
-            !isOnline ? 'mt-6' : currentLocationStatus?.outsideTimer?.reason === 'stale' ? 'mt-10' : ''
+          className={`fixed left-0 right-0 py-2 px-4 text-center text-sm font-medium z-50 transition-all duration-300 ${
+            !isOnline ? 'mt-7' : currentLocationStatus?.outsideTimer?.reason === 'stale' ? 'mt-10' : ''
           } ${
             locationAlertType === 'inside'
               ? 'bg-green-500 text-white'
               : 'bg-orange-500 text-white'
           }`}
           style={{
+            top: !isOnline ? 'calc(var(--safe-area-inset-top) + 1.75rem)' : currentLocationStatus?.outsideTimer?.reason === 'stale' ? 'calc(var(--safe-area-inset-top) + 2.5rem)' : 'var(--safe-area-inset-top)',
             animation: isLocationAlertFading
               ? 'fadeOut 0.5s ease-out'
               : 'slideDown 0.3s ease-out'
@@ -6532,167 +6743,187 @@ const ParticipantDashboard = () => {
       )}
 
 
-      {/* Top Header Bar */}
-      <div className={`flex items-center px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 transition-all duration-300 ${
+      {/* Top Header Bar - Native Mobile Style */}
+      <div className={`flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 transition-all duration-300 ${
         currentLocationStatus?.outsideTimer?.reason === 'stale' && !isOnline && showLocationAlert ? 'mt-[7.5rem]' :
         currentLocationStatus?.outsideTimer?.reason === 'stale' && !isOnline ? 'mt-16' :
         currentLocationStatus?.outsideTimer?.reason === 'stale' && showLocationAlert ? 'mt-20' :
         currentLocationStatus?.outsideTimer?.reason === 'stale' ? 'mt-10' :
         !isOnline && showLocationAlert ? 'mt-16' :
-        !isOnline ? 'mt-6' :
+        !isOnline ? 'mt-7' :
         showLocationAlert ? 'mt-10' : ''
       }`}>
         {/* Menu Button */}
         <button
           onClick={() => setShowHistoryDropdown(!showHistoryDropdown)}
-          className="w-10 h-10 bg-gray-100 dark:bg-gray-600 rounded-lg flex items-center justify-center text-gray-700 dark:text-white active:bg-gray-200 dark:active:bg-gray-500 touch-manipulation relative"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-gray-700 dark:text-white active:bg-gray-100 dark:active:bg-gray-800 touch-manipulation"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-6 h-6" />
+        </button>
+
+        {/* App Title */}
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Event Connect</h1>
+
+        {/* Refresh Button */}
+        <button
+          onClick={() => fetchParticipantData(true)}
+          disabled={isRefreshing}
+          className="w-10 h-10 rounded-full flex items-center justify-center text-gray-700 dark:text-white active:bg-gray-100 dark:active:bg-gray-800 touch-manipulation"
+        >
+          <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
 
-      {/* Navigation Sidebar */}
-      <div className={`fixed top-0 left-0 h-full w-80 portrait:w-72 bg-white dark:bg-gray-800 shadow-xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
+      {/* Navigation Sidebar - Native Mobile Style */}
+      <div className={`fixed top-0 left-0 h-full w-80 portrait:w-72 bg-white dark:bg-gray-900 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
         showHistoryDropdown ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      }`} style={{ paddingTop: 'var(--safe-area-inset-top)' }}>
         {/* Sidebar Header - Fixed */}
-        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-purple-600">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-white">Navigation</h2>
-            <button 
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-800 bg-blue-600 dark:bg-blue-700">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white">Menu</h2>
+            <button
               onClick={() => setShowHistoryDropdown(false)}
-              className="w-8 h-8 bg-white bg-opacity-20 rounded-lg flex items-center justify-center text-white hover:bg-opacity-30 transition-colors"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-white active:bg-white active:bg-opacity-20 transition-colors"
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
-          </div>
-          
-          {/* Header */}
-          <div className="text-center">
-            <Menu className="w-8 h-8 mx-auto mb-2 text-white" />
-            <h3 className="text-lg font-semibold text-white">Events</h3>
           </div>
         </div>
 
         {/* Navigation Content - Scrollable */}
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent">
           <div className="p-3 sm:p-4">
-          <div className="space-y-2">
+          <div className="space-y-1">
             {/* Upcoming Events */}
-            <button 
+            <button
               onClick={() => { updateActiveView('upcoming'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
-                activeView === 'upcoming' ? 'bg-orange-50 dark:bg-orange-900/20 border-l-3 border-orange-500' : ''
+              className={`w-full flex items-center p-3 rounded-xl transition-all text-left ${
+                activeView === 'upcoming' ? 'bg-orange-500 dark:bg-orange-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
-                <QrCode className="w-4 h-4 text-white" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
+                activeView === 'upcoming' ? 'bg-white bg-opacity-30' : 'bg-orange-100 dark:bg-orange-900'
+              }`}>
+                <QrCode className={`w-5 h-5 ${activeView === 'upcoming' ? 'text-white' : 'text-orange-600 dark:text-orange-400'}`} />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Invitations</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Events you are invited to</p>
+                <p className={`text-sm font-semibold ${activeView === 'upcoming' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>Invitations</p>
+                <p className={`text-xs ${activeView === 'upcoming' ? 'text-white text-opacity-90' : 'text-gray-500 dark:text-gray-400'}`}>Pending invites</p>
               </div>
             </button>
-            
+
             {/* Active Events */}
-            <button 
+            <button
               onClick={() => { updateActiveView('active'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
-                activeView === 'active' ? 'bg-green-50 dark:bg-green-900/20 border-l-3 border-green-500' : ''
+              className={`w-full flex items-center p-3 rounded-xl transition-all text-left ${
+                activeView === 'active' ? 'bg-green-500 dark:bg-green-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
-                <QrCode className="w-4 h-4 text-white" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
+                activeView === 'active' ? 'bg-white bg-opacity-30' : 'bg-green-100 dark:bg-green-900'
+              }`}>
+                <Zap className={`w-5 h-5 ${activeView === 'active' ? 'text-white' : 'text-green-600 dark:text-green-400'}`} />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Currently Attending</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Events you are attending</p>
+                <p className={`text-sm font-semibold ${activeView === 'active' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>Active Events</p>
+                <p className={`text-xs ${activeView === 'active' ? 'text-white text-opacity-90' : 'text-gray-500 dark:text-gray-400'}`}>Currently attending</p>
               </div>
             </button>
-            
+
             {/* Completed Events */}
-            <button 
+            <button
               onClick={() => { updateActiveView('completed'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
-                activeView === 'completed' ? 'bg-gray-50 dark:bg-gray-900/20 border-l-3 border-gray-500' : ''
+              className={`w-full flex items-center p-3 rounded-xl transition-all text-left ${
+                activeView === 'completed' ? 'bg-gray-600 dark:bg-gray-700' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-gray-500 to-gray-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
-                <CheckCircle className="w-4 h-4 text-white" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
+                activeView === 'completed' ? 'bg-white bg-opacity-30' : 'bg-gray-100 dark:bg-gray-800'
+              }`}>
+                <CheckCircle className={`w-5 h-5 ${activeView === 'completed' ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`} />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Completed Events</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Events you have completed</p>
+                <p className={`text-sm font-semibold ${activeView === 'completed' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>Completed</p>
+                <p className={`text-xs ${activeView === 'completed' ? 'text-white text-opacity-90' : 'text-gray-500 dark:text-gray-400'}`}>Past events</p>
               </div>
             </button>
-            
+
             {/* Browse Public Events */}
-            <button 
+            <button
               onClick={() => { updateActiveView('public'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
-                activeView === 'public' ? 'bg-blue-50 dark:bg-blue-900/20 border-l-3 border-blue-500' : ''
+              className={`w-full flex items-center p-3 rounded-xl transition-all text-left ${
+                activeView === 'public' ? 'bg-blue-500 dark:bg-blue-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
-                <Globe className="w-4 h-4 text-white" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
+                activeView === 'public' ? 'bg-white bg-opacity-30' : 'bg-blue-100 dark:bg-blue-900'
+              }`}>
+                <Globe className={`w-5 h-5 ${activeView === 'public' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Browse Events</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Discover public events</p>
+                <p className={`text-sm font-semibold ${activeView === 'public' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>Browse Events</p>
+                <p className={`text-xs ${activeView === 'public' ? 'text-white text-opacity-90' : 'text-gray-500 dark:text-gray-400'}`}>Discover events</p>
               </div>
             </button>
           </div>
           
           {/* Account Section */}
           <div className="space-y-1 mt-6">
-            <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3">Account</h3>
-            
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-3 mb-2">Account</h3>
+
             {/* Profile */}
-            <button 
+            <button
               onClick={() => { updateActiveView('profile'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
-                activeView === 'profile' ? 'bg-purple-50 dark:bg-purple-900/20 border-l-3 border-purple-500' : ''
+              className={`w-full flex items-center p-3 rounded-xl transition-all text-left ${
+                activeView === 'profile' ? 'bg-purple-500 dark:bg-purple-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-purple-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
-                <User className="w-4 h-4 text-white" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
+                activeView === 'profile' ? 'bg-white bg-opacity-30' : 'bg-purple-100 dark:bg-purple-900'
+              }`}>
+                <User className={`w-5 h-5 ${activeView === 'profile' ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`} />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Profile</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Your account information</p>
+                <p className={`text-sm font-semibold ${activeView === 'profile' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>Profile</p>
+                <p className={`text-xs ${activeView === 'profile' ? 'text-white text-opacity-90' : 'text-gray-500 dark:text-gray-400'}`}>Account info</p>
               </div>
             </button>
-            
+
             {/* Settings */}
-            <button 
+            <button
               onClick={() => { updateActiveView('settings'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
-                activeView === 'settings' ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-3 border-indigo-500' : ''
+              className={`w-full flex items-center p-3 rounded-xl transition-all text-left ${
+                activeView === 'settings' ? 'bg-indigo-500 dark:bg-indigo-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
-                <Settings className="w-4 h-4 text-white" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
+                activeView === 'settings' ? 'bg-white bg-opacity-30' : 'bg-indigo-100 dark:bg-indigo-900'
+              }`}>
+                <Settings className={`w-5 h-5 ${activeView === 'settings' ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}`} />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Settings</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">App preferences</p>
+                <p className={`text-sm font-semibold ${activeView === 'settings' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>Settings</p>
+                <p className={`text-xs ${activeView === 'settings' ? 'text-white text-opacity-90' : 'text-gray-500 dark:text-gray-400'}`}>Preferences</p>
               </div>
             </button>
-            
+
             {/* Organization */}
-            <button 
+            <button
               onClick={() => { updateActiveView('organization'); setShowHistoryDropdown(false); }}
-              className={`w-full flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors text-left ${
-                activeView === 'organization' ? 'bg-cyan-50 dark:bg-cyan-900/20 border-l-3 border-cyan-500' : ''
+              className={`w-full flex items-center p-3 rounded-xl transition-all text-left ${
+                activeView === 'organization' ? 'bg-cyan-500 dark:bg-cyan-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-cyan-500 to-cyan-600 rounded-md flex items-center justify-center mr-2 flex-shrink-0">
-                <Building2 className="w-4 h-4 text-white" />
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
+                activeView === 'organization' ? 'bg-white bg-opacity-30' : 'bg-cyan-100 dark:bg-cyan-900'
+              }`}>
+                <Building2 className={`w-5 h-5 ${activeView === 'organization' ? 'text-white' : 'text-cyan-600 dark:text-cyan-400'}`} />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">Organization</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Manage organization</p>
+                <p className={`text-sm font-semibold ${activeView === 'organization' ? 'text-white' : 'text-gray-900 dark:text-white'}`}>Organization</p>
+                <p className={`text-xs ${activeView === 'organization' ? 'text-white text-opacity-90' : 'text-gray-500 dark:text-gray-400'}`}>Manage org</p>
               </div>
             </button>
           </div>
@@ -6700,22 +6931,20 @@ const ParticipantDashboard = () => {
         </div>
 
         {/* Sidebar Footer - Fixed */}
-        <div className="flex-shrink-0 p-3 sm:p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div className="space-y-3">
-            {/* Logout Button */}
-            <button 
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center p-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </button>
-            
-            <div className="text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {`${scanHistory.length} scan${scanHistory.length !== 1 ? 's' : ''} recorded`}
-              </p>
-            </div>
+        <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
+          {/* Logout Button */}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center p-3 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-xl font-semibold transition-colors shadow-sm"
+          >
+            <LogOut className="w-5 h-5 mr-2" />
+            Sign Out
+          </button>
+
+          <div className="text-center mt-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {`${scanHistory.length} scan${scanHistory.length !== 1 ? 's' : ''} recorded`}
+            </p>
           </div>
         </div>
       </div>
@@ -6728,21 +6957,21 @@ const ParticipantDashboard = () => {
         ></div>
       )}
 
-      {/* Event Code Input Section */}
-      <div className="px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      {/* Event Code Input Section - Native Mobile Style */}
+      <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
         <div className="flex gap-2">
           <input
             type="text"
             placeholder="Enter event code"
             value={eventCode}
             onChange={(e) => setEventCode(e.target.value.toUpperCase())}
-            className="flex-1 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
-          <Button 
-            onClick={handleJoinEventMobile} 
+          <Button
+            onClick={handleJoinEventMobile}
             disabled={isJoining || !eventCode}
             size="sm"
-            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-3 active:scale-95 transition-transform touch-manipulation"
+            className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 rounded-xl font-semibold active:scale-95 transition-all touch-manipulation shadow-sm"
           >
             {isJoining ? (
               <>
@@ -6760,8 +6989,20 @@ const ParticipantDashboard = () => {
       {getCurrentlyAttending().length > 0 && (
         <div className="mx-4 mt-2 space-y-2">
           {getCurrentlyAttending().map(attendance => (
-            <div key={attendance._id} className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
-              <h3 className="text-green-800 dark:text-green-200 font-semibold text-xs mb-1">Currently Attending</h3>
+            <div key={attendance._id} className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setIsCurrentlyAttendingCollapsed(!isCurrentlyAttendingCollapsed)}
+                className="w-full p-3 flex items-center justify-between active:bg-green-100 dark:active:bg-green-900/30 transition-colors"
+              >
+                <h3 className="text-green-800 dark:text-green-200 font-semibold text-xs">Currently Attending</h3>
+                {isCurrentlyAttendingCollapsed ? (
+                  <ChevronDown className="w-4 h-4 text-green-700 dark:text-green-300" />
+                ) : (
+                  <ChevronUp className="w-4 h-4 text-green-700 dark:text-green-300" />
+                )}
+              </button>
+              {!isCurrentlyAttendingCollapsed && (
+                <div className="px-3 pb-3">
               {getCurrentlyAttending().map(attendance => (
                 <div key={attendance._id} className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -6819,13 +7060,15 @@ const ParticipantDashboard = () => {
                   </div>
                 </div>
               ))}
+                </div>
+              )}
             </div>
           ))}
 
           {/* Location Status */}
           {(isTracking || currentLocationStatus) && (
-            <div className={`p-3 border rounded-lg ${
-              currentLocationStatus?.status === 'inside' || currentLocationStatus?.isWithinGeofence 
+            <div className={`border rounded-lg overflow-hidden ${
+              currentLocationStatus?.status === 'inside' || currentLocationStatus?.isWithinGeofence
                 ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
                 : currentLocationStatus?.status === 'warning'
                 ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700'
@@ -6833,28 +7076,64 @@ const ParticipantDashboard = () => {
                 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
                 : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700'
             }`}>
-              <div className="flex items-center gap-2 mb-1">
-                {currentLocationStatus?.isWithinGeofence ? (
-                  <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                ) : currentLocationStatus?.status === 'exceeded_limit' ? (
-                  <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
-                ) : (
-                  <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                )}
-                <h3 className={`font-semibold text-xs ${
-                  currentLocationStatus?.isWithinGeofence 
-                    ? 'text-green-800 dark:text-green-200'
+              <button
+                onClick={() => setIsLocationTrackingCollapsed(!isLocationTrackingCollapsed)}
+                className={`w-full p-3 flex items-center justify-between transition-colors ${
+                  currentLocationStatus?.isWithinGeofence
+                    ? 'active:bg-green-100 dark:active:bg-green-900/30'
                     : currentLocationStatus?.status === 'warning'
-                    ? 'text-yellow-800 dark:text-yellow-200'
+                    ? 'active:bg-yellow-100 dark:active:bg-yellow-900/30'
                     : currentLocationStatus?.status === 'exceeded_limit'
-                    ? 'text-red-800 dark:text-red-200'
-                    : 'text-blue-800 dark:text-blue-200'
-                }`}>
-                  Location Tracking
-                </h3>
-              </div>
-              
-              {currentLocationStatus ? (
+                    ? 'active:bg-red-100 dark:active:bg-red-900/30'
+                    : 'active:bg-blue-100 dark:active:bg-blue-900/30'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {currentLocationStatus?.isWithinGeofence ? (
+                    <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                  ) : currentLocationStatus?.status === 'exceeded_limit' ? (
+                    <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                  ) : (
+                    <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  )}
+                  <h3 className={`font-semibold text-xs ${
+                    currentLocationStatus?.isWithinGeofence
+                      ? 'text-green-800 dark:text-green-200'
+                      : currentLocationStatus?.status === 'warning'
+                      ? 'text-yellow-800 dark:text-yellow-200'
+                      : currentLocationStatus?.status === 'exceeded_limit'
+                      ? 'text-red-800 dark:text-red-200'
+                      : 'text-blue-800 dark:text-blue-200'
+                  }`}>
+                    Location Tracking
+                  </h3>
+                </div>
+                {isLocationTrackingCollapsed ? (
+                  <ChevronDown className={`w-4 h-4 ${
+                    currentLocationStatus?.isWithinGeofence
+                      ? 'text-green-700 dark:text-green-300'
+                      : currentLocationStatus?.status === 'warning'
+                      ? 'text-yellow-700 dark:text-yellow-300'
+                      : currentLocationStatus?.status === 'exceeded_limit'
+                      ? 'text-red-700 dark:text-red-300'
+                      : 'text-blue-700 dark:text-blue-300'
+                  }`} />
+                ) : (
+                  <ChevronUp className={`w-4 h-4 ${
+                    currentLocationStatus?.isWithinGeofence
+                      ? 'text-green-700 dark:text-green-300'
+                      : currentLocationStatus?.status === 'warning'
+                      ? 'text-yellow-700 dark:text-yellow-300'
+                      : currentLocationStatus?.status === 'exceeded_limit'
+                      ? 'text-red-700 dark:text-red-300'
+                      : 'text-blue-700 dark:text-blue-300'
+                  }`} />
+                )}
+              </button>
+
+              {!isLocationTrackingCollapsed && (
+                <div className="px-3 pb-3">
+                  {currentLocationStatus ? (
                 <div className="space-y-1">
                   {/* Show stale location badge if applicable */}
                   {currentLocationStatus.outsideTimer?.reason === 'stale' && (
@@ -6903,10 +7182,12 @@ const ParticipantDashboard = () => {
                     </p>
                   )}
                 </div>
-              ) : (
-                <p className="text-xs text-blue-600 dark:text-blue-400">
-                  Location tracking is active
-                </p>
+                  ) : (
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      Location tracking is active
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -6920,7 +7201,7 @@ const ParticipantDashboard = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 relative bg-gray-100 dark:bg-gray-800 overflow-y-auto pb-28" style={{ height: 'calc(100vh - 240px)' }}>
+      <div className="flex-1 relative bg-gray-100 dark:bg-gray-800 overflow-y-auto" style={{ height: 'calc(100vh - 240px)', paddingBottom: 'calc(7rem + var(--safe-area-inset-bottom))' }}>
         {isCameraActive ? (
           <div className="relative h-full">
             <video
@@ -6961,36 +7242,36 @@ const ParticipantDashboard = () => {
         )}
       </div>
 
-      {/* Bottom Navigation - Centered */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-3 z-50">
-        <div className="flex items-center justify-center space-x-6 sm:space-x-8">
-          <button 
+      {/* Bottom Navigation - Native Mobile Style */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-4 py-3 z-50" style={{ paddingBottom: 'max(0.75rem, var(--safe-area-inset-bottom))' }}>
+        <div className="flex items-center justify-center space-x-8">
+          <button
             onClick={handleQRUploadMobile}
             disabled={isUploading}
             className="flex flex-col items-center touch-manipulation active:scale-95 transition-transform"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center shadow-lg active:from-blue-700 active:to-purple-700">
+            <div className="w-16 h-16 bg-blue-500 dark:bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg active:bg-blue-600 dark:active:bg-blue-700">
               {isUploading ? (
-                <Loader2 className="w-6 h-6 sm:w-7 sm:h-7 text-white animate-spin" />
+                <Loader2 className="w-7 h-7 text-white animate-spin" />
               ) : (
-                <Upload className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                <Upload className="w-7 h-7 text-white" />
               )}
             </div>
-            <span className="text-blue-600 dark:text-blue-400 text-xs mt-2 font-medium">Upload QR</span>
+            <span className="text-gray-700 dark:text-gray-300 text-xs mt-1.5 font-medium">Upload</span>
           </button>
-          
+
           <button
             onClick={startQRScannerMobile}
             className={`flex flex-col items-center touch-manipulation active:scale-95 transition-transform`}
           >
-            <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-lg ${
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${
               isCameraActive
-                ? 'bg-gradient-to-r from-red-600 to-red-700 active:from-red-700 active:to-red-800'
-                : 'bg-gradient-to-r from-blue-600 to-purple-600 active:from-blue-700 active:to-purple-700'
+                ? 'bg-red-500 dark:bg-red-600 active:bg-red-600 dark:active:bg-red-700'
+                : 'bg-blue-500 dark:bg-blue-600 active:bg-blue-600 dark:active:bg-blue-700'
             }`}>
-              {isCameraActive ? <X className="w-6 h-6 sm:w-7 sm:h-7 text-white" /> : <Camera className="w-6 h-6 sm:w-7 sm:h-7 text-white" />}
+              {isCameraActive ? <X className="w-7 h-7 text-white" /> : <Camera className="w-7 h-7 text-white" />}
             </div>
-            <span className="text-blue-600 dark:text-blue-400 text-xs mt-2 font-medium">{isCameraActive ? 'Stop Cam' : 'Camera'}</span>
+            <span className="text-gray-700 dark:text-gray-300 text-xs mt-1.5 font-medium">{isCameraActive ? 'Stop' : 'Scan'}</span>
           </button>
         </div>
       </div>

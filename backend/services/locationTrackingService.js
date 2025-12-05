@@ -295,10 +295,10 @@ class LocationTrackingService {
       return;
     }
 
-    // Check if data is stale (>3 minutes since last update) - Changed from 5 to 3
+    // Check if data is stale (>5 minutes since last update) - Increased for battery-adaptive tracking
     const now = new Date();
     const minutesSinceUpdate = (now - new Date(locationStatus.lastLocationUpdate)) / (1000 * 60);
-    const isStale = minutesSinceUpdate > 3;
+    const isStale = minutesSinceUpdate > 5;
 
     console.log(`🔍 [STATUS CHECK] Participant: ${locationStatus.participant?.name || locationStatus.participant}`);
     console.log(`📊 [STATUS CHECK] Minutes since update: ${Math.round(minutesSinceUpdate)}, Is stale: ${isStale}`);
@@ -354,12 +354,12 @@ class LocationTrackingService {
       totalTime = locationStatus.calculateTotalTimeOutside();
       console.log(`⏱️ [TIMER] Active outside timer: ${totalTime}s (${Math.floor(totalTime / 60)} min)`);
     } else if (isStale && locationStatus.outsideTimer) {
-      // If stale, activate timer and count time AFTER the 3-minute stale threshold
+      // If stale, activate timer and count time AFTER the 5-minute stale threshold
       // This applies regardless of whether they're inside or outside
       console.log(`⚠️ [STALE DATA] Participant data is stale (${Math.round(minutesSinceUpdate)} min). Activating timer.`);
 
-      // Calculate the time when data became stale (3 minutes after last update)
-      const staleThresholdTime = new Date(new Date(locationStatus.lastLocationUpdate).getTime() + (3 * 60 * 1000));
+      // Calculate the time when data became stale (5 minutes after last update)
+      const staleThresholdTime = new Date(new Date(locationStatus.lastLocationUpdate).getTime() + (5 * 60 * 1000));
 
       // Activate the timer starting from when data became stale (not from last update)
       locationStatus.outsideTimer.isActive = true;
@@ -371,7 +371,7 @@ class LocationTrackingService {
       this.startMonitoringTimer(locationStatus._id, event.maxTimeOutside);
 
       // CRITICAL FIX: Include previously accumulated time + new stale time
-      const timeAfterStaleThreshold = minutesSinceUpdate - 3; // Minutes after stale threshold
+      const timeAfterStaleThreshold = minutesSinceUpdate - 5; // Minutes after stale threshold
       const newStaleTime = Math.floor(Math.max(0, timeAfterStaleThreshold) * 60); // Convert to seconds
       totalTime = locationStatus.outsideTimer.totalTimeOutside + newStaleTime; // Add to accumulated time
 
