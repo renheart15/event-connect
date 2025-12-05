@@ -1633,20 +1633,33 @@ router.delete('/remove-participant', auth, requireOrganizer, [
 
     // CRITICAL: Delete registration responses so participant can re-register when rejoining
     try {
-      const deletedRegistrationResponse = await RegistrationResponse.findOneAndDelete({
+      // Find all registration forms for this event first (to ensure we delete all responses)
+      const registrationForms = await RegistrationForm.find({
         event: eventId,
-        participant: participantId
+        isActive: true
       });
-      if (deletedRegistrationResponse) {
-        console.log('✅ [REMOVE-PARTICIPANT] Deleted registration response for removed participant');
-        console.log('✅ [REMOVE-PARTICIPANT] Deleted response details:', {
-          _id: deletedRegistrationResponse._id,
-          registrationForm: deletedRegistrationResponse.registrationForm,
-          event: deletedRegistrationResponse.event,
-          participant: deletedRegistrationResponse.participant
+
+      let deletedCount = 0;
+      for (const form of registrationForms) {
+        // Use the same query pattern as the check (registrationForm + participant)
+        const deletedResponse = await RegistrationResponse.findOneAndDelete({
+          registrationForm: form._id,
+          participant: participantId
         });
+        if (deletedResponse) {
+          deletedCount++;
+          console.log('✅ [REMOVE-PARTICIPANT] Deleted registration response:', {
+            _id: deletedResponse._id,
+            registrationForm: deletedResponse.registrationForm,
+            formTitle: form.title
+          });
+        }
+      }
+
+      if (deletedCount > 0) {
+        console.log(`✅ [REMOVE-PARTICIPANT] Deleted ${deletedCount} registration response(s) for removed participant`);
       } else {
-        console.log('ℹ️ [REMOVE-PARTICIPANT] No registration response found for this participant (event:', eventId, 'participant:', participantId, ')');
+        console.log('ℹ️ [REMOVE-PARTICIPANT] No registration responses found for this participant');
       }
     } catch (registrationError) {
       console.error('⚠️ [REMOVE-PARTICIPANT] Failed to delete registration response:', registrationError);

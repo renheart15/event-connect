@@ -77,8 +77,8 @@ const ParticipantDashboard = () => {
   const [pendingInvitationId, setPendingInvitationId] = useState(''); // Store invitation ID to accept after registration
   const [registrationFormData, setRegistrationFormData] = useState<any>(null);
   const [isRegistrationRequired, setIsRegistrationRequired] = useState(false); // Track if form is required
-  const [registrationContext, setRegistrationContext] = useState<'invitation' | 'public' | null>(null); // Track context: invitation acceptance or public event join
-  const registrationContextRef = useRef<'invitation' | 'public' | null>(null); // Ref to avoid stale closure issues
+  const [registrationContext, setRegistrationContext] = useState<'invitation' | 'public' | 'qr-scan' | null>(null); // Track context: invitation acceptance, public event join, or QR scan check-in
+  const registrationContextRef = useRef<'invitation' | 'public' | 'qr-scan' | null>(null); // Ref to avoid stale closure issues
   const [activeOrganization, setActiveOrganization] = useState<any>(null);
   
   // Event record modal state
