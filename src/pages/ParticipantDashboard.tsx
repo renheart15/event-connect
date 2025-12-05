@@ -6238,12 +6238,15 @@ const ParticipantDashboard = () => {
           // Get current battery level for adaptive tracking
           const currentBattery = await getBatteryLevel();
           const isLowBattery = currentBattery !== null && currentBattery < 20;
+          const isCriticalBattery = currentBattery !== null && currentBattery < 10;
 
-          // Adaptive settings based on battery level
-          const distanceFilter = isLowBattery ? 25 : 10; // meters - less frequent on low battery
-          const minUpdateInterval = isLowBattery ? 30000 : 15000; // milliseconds - 30s/15s
+          // OPTIMIZED: More battery-efficient settings
+          // Geofence monitoring works well with 50-100m distance filter
+          // Longer intervals save significant battery without losing accuracy
+          const distanceFilter = isCriticalBattery ? 100 : (isLowBattery ? 75 : 50); // meters
+          const minUpdateInterval = isCriticalBattery ? 180000 : (isLowBattery ? 120000 : 60000); // ms: 3min/2min/1min
 
-          console.log(`⚙️ Battery-adaptive tracking: ${currentBattery}% battery, ${distanceFilter}m filter, ${minUpdateInterval/1000}s interval`);
+          console.log(`⚙️ OPTIMIZED Battery-adaptive tracking: ${currentBattery}% battery, ${distanceFilter}m filter, ${minUpdateInterval/1000}s interval`);
 
           const watchId = await BackgroundGeolocation.addWatcher(
             {

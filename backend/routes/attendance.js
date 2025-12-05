@@ -131,12 +131,23 @@ router.post('/checkin', [
     }
 
     // Check if invitation matches QR data
-    if (invitation.event._id.toString() !== eventId || 
-        invitation.participant._id.toString() !== participantId ||
+    // Note: For invitations without linked accounts, participant will be null
+    if (invitation.event._id.toString() !== eventId ||
+        (invitation.participant && invitation.participant._id.toString() !== participantId) ||
+        (!invitation.participant && participantId) ||
         invitation.invitationCode !== code) {
       return res.status(400).json({
         success: false,
         message: 'Invalid QR code data'
+      });
+    }
+
+    // If participant is not linked yet, they need to create an account first
+    if (!invitation.participant) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please create an account first to check in. Use the invitation link in your email to sign up.',
+        requiresSignup: true
       });
     }
 
@@ -232,8 +243,9 @@ router.post('/checkin', [
     const { name: registrationName, email: registrationEmail } = await extractNameEmailFromRegistration(eventId, participantId);
 
     // FALLBACK: If no registration response or no name/email in registration, use participant's user data
-    let finalName = registrationName || invitation.participant.name;
-    let finalEmail = registrationEmail || invitation.participant.email;
+    // Use invitation data if participant account exists, otherwise use invitation metadata
+    let finalName = registrationName || (invitation.participant ? invitation.participant.name : invitation.participantName);
+    let finalEmail = registrationEmail || (invitation.participant ? invitation.participant.email : invitation.participantEmail);
 
     if (!registrationName || !registrationEmail) {
       console.log(`📝 [CHECK-IN] Missing registration data, using user account data: name="${finalName}", email="${finalEmail}"`);
@@ -1437,7 +1449,11 @@ router.delete('/leave', auth, [
     // Delete the attendance record (this removes them from the event)
     await AttendanceLog.findByIdAndDelete(attendanceRecord._id);
 
-    console.log('Successfully removed participant from event');
+    // NOTE: We don't delete registration/feedback responses when participant leaves voluntarily
+    // They retain their responses in case they rejoin, and organizer keeps the data for analytics
+    // Only when organizer removes them (remove-participant endpoint) do we delete everything
+
+    console.log('Participant successfully left the event');
 
     res.json({
       success: true,
@@ -1570,6 +1586,39 @@ router.delete('/remove-participant', auth, requireOrganizer, [
       }
     } catch (invitationError) {
       console.error('⚠️ Failed to delete invitation:', invitationError);
+      // Don't fail the operation if cleanup fails
+    }
+
+    // CRITICAL: Delete registration responses so participant can re-register when rejoining
+    try {
+      const deletedRegistrationResponse = await RegistrationResponse.findOneAndDelete({
+        event: eventId,
+        participant: participantId
+      });
+      if (deletedRegistrationResponse) {
+        console.log('✅ Deleted registration response for removed participant');
+      } else {
+        console.log('ℹ️ No registration response found for this participant');
+      }
+    } catch (registrationError) {
+      console.error('⚠️ Failed to delete registration response:', registrationError);
+      // Don't fail the operation if cleanup fails
+    }
+
+    // CRITICAL: Delete feedback responses so participant can submit feedback again when rejoining
+    const FeedbackResponse = require('../models/FeedbackResponse');
+    try {
+      const deletedFeedbackResponses = await FeedbackResponse.deleteMany({
+        event: eventId,
+        participant: participantId
+      });
+      if (deletedFeedbackResponses.deletedCount > 0) {
+        console.log(`✅ Deleted ${deletedFeedbackResponses.deletedCount} feedback response(s) for removed participant`);
+      } else {
+        console.log('ℹ️ No feedback responses found for this participant');
+      }
+    } catch (feedbackError) {
+      console.error('⚠️ Failed to delete feedback responses:', feedbackError);
       // Don't fail the operation if cleanup fails
     }
 

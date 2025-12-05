@@ -694,6 +694,121 @@ const Invitations = () => {
             </TabsContent>
 
             <TabsContent value="history" className="space-y-6 mt-6">
+              {/* Event Selection */}
+              <Card className="bg-white dark:bg-gray-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5" />
+                    Select Event
+                  </CardTitle>
+                  <CardDescription>
+                    Choose an event to view its participants
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Select value={selectedEventId} onValueChange={setSelectedEventId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select an event..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {events.map((event) => (
+                          <SelectItem
+                            key={event.id}
+                            value={event.id}
+                            className="cursor-pointer hover:bg-accent focus:bg-accent"
+                            disabled={false}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className="font-medium text-foreground">{event.title}</span>
+                              <div className="flex items-center gap-2 ml-4">
+                                {getStatusBadge(event.status)}
+                                <span className="text-sm text-muted-foreground">
+                                  {formatDate(event.date)}
+                                </span>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {selectedEvent && (
+                      <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border">
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-lg font-semibold text-gray-900">{selectedEvent.title}</h4>
+                            {getStatusBadge(selectedEvent.status)}
+                          </div>
+
+                          {selectedEvent.description && (
+                            <p className="text-gray-600 text-sm">{selectedEvent.description}</p>
+                          )}
+
+                          {/* Fixed grid layout with proper spacing */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div className="space-y-3">
+                              <div className="flex items-start text-sm text-gray-600">
+                                <Calendar className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-medium">{formatDate(selectedEvent.date)}</div>
+                                  <div className="text-gray-500">
+                                    {formatTime(selectedEvent.startTime)}
+                                    {selectedEvent.endTime && ` - ${formatTime(selectedEvent.endTime)}`}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-start text-sm text-gray-600">
+                                <MapPin className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />
+                                <span className="min-w-0 flex-1 break-words">
+                                  {typeof selectedEvent.location === 'object'
+                                    ? selectedEvent.location.address || 'Unknown'
+                                    : selectedEvent.location || 'Unknown'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-start text-sm text-gray-600">
+                                <Users className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-medium">
+                                    {selectedEvent.checkedIn}/{selectedEvent.totalParticipants} participants
+                                  </div>
+                                  {selectedEvent.currentlyPresent > 0 && (
+                                    <div className="text-gray-500">
+                                      {selectedEvent.currentlyPresent} currently present
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Fixed event code display */}
+                              <div className="flex items-center text-sm text-gray-600">
+                                <div className="w-4 h-4 mr-2 flex-shrink-0 flex items-center justify-center">
+                                  <span className="text-[10px] font-mono font-bold bg-gray-200 dark:bg-gray-700 rounded px-1 py-0.5">
+                                    #
+                                  </span>
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-gray-500">Event Code:</span>
+                                    <span className="font-mono font-bold text-gray-900 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-base">
+                                      {selectedEvent.eventCode}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
               {!selectedEventId ? (
                 <Card className="bg-white dark:bg-gray-800">
                   <CardContent className="flex flex-col items-center justify-center py-12">
@@ -704,12 +819,8 @@ const Invitations = () => {
                       Select an Event
                     </h3>
                     <p className="text-gray-600 text-center mb-6">
-                      Choose an event from the Send Invitations tab to view its participants.
+                      Choose an event above to view its participants.
                     </p>
-                    <Button onClick={() => setActiveTab('send')} variant="outline">
-                      <Send className="w-4 h-4 mr-2" />
-                      Go to Send Invitations
-                    </Button>
                   </CardContent>
                 </Card>
               ) : (

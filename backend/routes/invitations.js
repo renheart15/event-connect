@@ -495,7 +495,13 @@ router.get('/code/:code', async (req, res) => {
 // @access  Private (Participant only)
 router.get('/my', auth, async (req, res) => {
   try {
-    const invitations = await Invitation.find({ participant: req.user._id })
+    // Find invitations by participant ID OR by email (for invitations not yet linked)
+    const invitations = await Invitation.find({
+      $or: [
+        { participant: req.user._id },
+        { participantEmail: req.user.email.toLowerCase(), participant: null }
+      ]
+    })
       .populate({
         path: 'event',
         select: 'title date startTime endTime duration location description organizer published status',
@@ -1044,8 +1050,12 @@ router.delete('/my/expired', auth, async (req, res) => {
     const now = new Date();
     
     // Find all invitations for the current user, populate event data
+    // Include invitations by participant ID OR by email (for invitations not yet linked)
     const allInvitations = await Invitation.find({
-      participant: req.user._id
+      $or: [
+        { participant: req.user._id },
+        { participantEmail: req.user.email.toLowerCase(), participant: null }
+      ]
     }).populate({
       path: 'event'
       // Participants can see all invitations they received, regardless of event publication status
@@ -1105,7 +1115,10 @@ router.delete('/my/expired', auth, async (req, res) => {
     const expiredIds = expiredInvitations.map(inv => inv._id);
     const result = await Invitation.deleteMany({
       _id: { $in: expiredIds },
-      participant: req.user._id
+      $or: [
+        { participant: req.user._id },
+        { participantEmail: req.user.email.toLowerCase(), participant: null }
+      ]
     });
 
     res.json({
@@ -1129,9 +1142,12 @@ router.delete('/my/expired', auth, async (req, res) => {
 router.delete('/my/accepted', auth, async (req, res) => {
   try {
     // Find all accepted invitations for the current user
+    // Include invitations by participant ID OR by email (for invitations not yet linked)
     const acceptedInvitations = await Invitation.find({
-      participant: req.user._id,
-      status: 'accepted'
+      $or: [
+        { participant: req.user._id, status: 'accepted' },
+        { participantEmail: req.user.email.toLowerCase(), participant: null, status: 'accepted' }
+      ]
     });
 
     if (acceptedInvitations.length === 0) {
@@ -1143,9 +1159,12 @@ router.delete('/my/accepted', auth, async (req, res) => {
     }
 
     // Delete all accepted invitations for the current user
+    // Include invitations by participant ID OR by email (for invitations not yet linked)
     const result = await Invitation.deleteMany({
-      participant: req.user._id,
-      status: 'accepted'
+      $or: [
+        { participant: req.user._id, status: 'accepted' },
+        { participantEmail: req.user.email.toLowerCase(), participant: null, status: 'accepted' }
+      ]
     });
 
     res.json({
@@ -1169,9 +1188,12 @@ router.delete('/my/accepted', auth, async (req, res) => {
 router.delete('/my/declined', auth, async (req, res) => {
   try {
     // Find all declined invitations for the current user
+    // Include invitations by participant ID OR by email (for invitations not yet linked)
     const declinedInvitations = await Invitation.find({
-      participant: req.user._id,
-      status: 'declined'
+      $or: [
+        { participant: req.user._id, status: 'declined' },
+        { participantEmail: req.user.email.toLowerCase(), participant: null, status: 'declined' }
+      ]
     });
 
     if (declinedInvitations.length === 0) {
@@ -1183,9 +1205,12 @@ router.delete('/my/declined', auth, async (req, res) => {
     }
 
     // Delete all declined invitations for the current user
+    // Include invitations by participant ID OR by email (for invitations not yet linked)
     const result = await Invitation.deleteMany({
-      participant: req.user._id,
-      status: 'declined'
+      $or: [
+        { participant: req.user._id, status: 'declined' },
+        { participantEmail: req.user.email.toLowerCase(), participant: null, status: 'declined' }
+      ]
     });
 
     res.json({

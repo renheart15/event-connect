@@ -6,6 +6,41 @@ class LocationTrackingService {
   constructor() {
     this.activeTracking = new Map(); // eventId -> Set of participantIds
     this.timers = new Map(); // statusId -> timer reference
+    this.locationBatchQueue = new Map(); // participantId -> {location, timestamp}
+    this.batchTimer = null;
+    this.initializeBatchProcessing();
+  }
+
+  // OPTIMIZATION: Batch location updates to reduce database writes
+  initializeBatchProcessing() {
+    // Process batched updates every 10 seconds
+    this.batchTimer = setInterval(() => {
+      if (this.locationBatchQueue.size > 0) {
+        console.log(`📦 [BATCH] Processing ${this.locationBatchQueue.size} batched location updates`);
+        this.processBatchedUpdates();
+      }
+    }, 10000); // Process every 10 seconds
+  }
+
+  // Process all batched location updates
+  async processBatchedUpdates() {
+    const updates = Array.from(this.locationBatchQueue.entries());
+    this.locationBatchQueue.clear();
+
+    const promises = updates.map(async ([key, data]) => {
+      try {
+        const { eventId, participantId, latitude, longitude, accuracy, batteryLevel, timestamp } = data;
+
+        // Only process if not too old (< 30 seconds)
+        if (Date.now() - timestamp < 30000) {
+          await this.updateParticipantLocation(eventId, participantId, latitude, longitude, accuracy, batteryLevel);
+        }
+      } catch (error) {
+        console.error(`❌ [BATCH] Error processing update for ${key}:`, error.message);
+      }
+    });
+
+    await Promise.allSettled(promises);
   }
 
   // Calculate distance between two points using Haversine formula
@@ -496,9 +531,21 @@ class LocationTrackingService {
   }
 
   // Start monitoring timer for a participant
+  // OPTIMIZED: Reduced frequency to save server resources
   startMonitoringTimer(statusId, maxTimeOutsideMinutes) {
     // Clear existing timer if any
     this.clearMonitoringTimer(statusId);
+
+    // OPTIMIZATION: Use adaptive interval based on how close to limit
+    // Check more frequently as participant approaches time limit
+    const getCheckInterval = (totalTimeSeconds, maxTimeSeconds) => {
+      const timeRemaining = maxTimeSeconds - totalTimeSeconds;
+      const minutesRemaining = timeRemaining / 60;
+
+      if (minutesRemaining <= 2) return 10000;  // 10s when < 2 min remaining
+      if (minutesRemaining <= 5) return 30000;  // 30s when < 5 min remaining
+      return 60000; // 60s when plenty of time remaining
+    };
 
     // Set timer to check status periodically
     const timer = setInterval(async () => {
@@ -516,12 +563,26 @@ class LocationTrackingService {
         await this.updateParticipantStatus(locationStatus, locationStatus.event);
         await locationStatus.save();
 
+        // OPTIMIZATION: Adjust check frequency based on time remaining
+        const totalTime = locationStatus.calculateTotalTimeOutside();
+        const maxTimeSeconds = locationStatus.event.maxTimeOutside * 60;
+        const newInterval = getCheckInterval(totalTime, maxTimeSeconds);
+
+        // If interval should change, restart timer with new frequency
+        const currentInterval = this.timers.get(statusId.toString() + '_interval');
+        if (currentInterval !== newInterval) {
+          this.timers.set(statusId.toString() + '_interval', newInterval);
+          this.clearMonitoringTimer(statusId);
+          this.startMonitoringTimer(statusId, locationStatus.event.maxTimeOutside);
+        }
+
       } catch (error) {
         console.error('Error in monitoring timer:', error);
       }
-    }, 1000); // Check every 1 second for immediate response
+    }, 30000); // Start with 30 second checks (reduced from 1 second)
 
     this.timers.set(statusId.toString(), timer);
+    this.timers.set(statusId.toString() + '_interval', 30000);
   }
 
   // Clear monitoring timer
@@ -753,6 +814,13 @@ class LocationTrackingService {
     }
     this.timers.clear();
     this.activeTracking.clear();
+
+    // Clear batch timer
+    if (this.batchTimer) {
+      clearInterval(this.batchTimer);
+      this.batchTimer = null;
+    }
+    this.locationBatchQueue.clear();
   }
 }
 
