@@ -25,6 +25,16 @@ interface Participant {
     _id: string;
     status: string;
   };
+  registrationData?: {
+    [key: string]: any;
+  };
+}
+
+interface RegistrationField {
+  id: string;
+  label: string;
+  type: string;
+  required: boolean;
 }
 
 interface ParticipantReportsProps {
@@ -41,6 +51,8 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [eventData, setEventData] = useState<any>(null);
+  const [registrationFields, setRegistrationFields] = useState<RegistrationField[]>([]);
+  const [registrationResponses, setRegistrationResponses] = useState<Map<string, any>>(new Map());
 
   // Fetch participants data when component opens
   useEffect(() => {
@@ -52,13 +64,13 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
   const fetchParticipants = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const token = localStorage.getItem('token');
       console.log('Fetching attendance for eventId:', eventId);
-      
-      // Fetch both attendance logs and invitations
-      const [attendanceResponse, invitationsResponse] = await Promise.all([
+
+      // Fetch attendance logs, invitations, and registration responses
+      const [attendanceResponse, invitationsResponse, registrationResponsesRes] = await Promise.all([
         fetch(`/api/attendance/event/${eventId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -70,12 +82,19 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
+        }),
+        fetch(`/api/registration-responses/event/${eventId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         })
       ]);
 
       console.log('Attendance response status:', attendanceResponse.status);
       console.log('Invitations response status:', invitationsResponse.status);
-      
+      console.log('Registration responses status:', registrationResponsesRes.status);
+
       if (!attendanceResponse.ok) {
         const errorText = await attendanceResponse.text();
         console.error('Attendance error response:', errorText);
@@ -84,13 +103,53 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
       const attendanceResult = await attendanceResponse.json();
       console.log('Attendance API Response:', attendanceResult);
-      
+
       let invitationsResult = { success: false, data: { invitations: [] } };
       if (invitationsResponse.ok) {
         invitationsResult = await invitationsResponse.json();
         console.log('Invitations API Response:', invitationsResult);
       }
-      
+
+      // Process registration responses
+      let regFields: RegistrationField[] = [];
+      const regResponsesMap = new Map<string, any>();
+
+      if (registrationResponsesRes.ok) {
+        const regResult = await registrationResponsesRes.json();
+        console.log('Registration Responses API Response:', regResult);
+
+        if (regResult.success && regResult.data?.responses) {
+          const responses = regResult.data.responses;
+
+          // Extract registration form fields from first response
+          if (responses.length > 0 && responses[0].registrationForm?.fields) {
+            const allFields = responses[0].registrationForm.fields;
+            // Filter out name and email fields since they're already shown
+            regFields = allFields.filter((f: RegistrationField) => {
+              const label = f.label.toLowerCase();
+              return !label.includes('name') &&
+                     !label.includes('email') &&
+                     f.type !== 'email';
+            });
+            setRegistrationFields(regFields);
+            console.log('Registration fields (excluding name/email):', regFields);
+          }
+
+          // Map responses by participant ID
+          responses.forEach((response: any) => {
+            if (response.participant?._id && response.responses) {
+              // Convert Map to plain object if needed
+              const responsesObj = response.responses instanceof Map
+                ? Object.fromEntries(response.responses)
+                : response.responses;
+              regResponsesMap.set(response.participant._id, responsesObj);
+            }
+          });
+          setRegistrationResponses(regResponsesMap);
+          console.log('Registration responses mapped:', regResponsesMap.size, 'participants');
+        }
+      }
+
       if (attendanceResult.success) {
         const attendanceLogs = attendanceResult.data.attendanceLogs || [];
         const event = attendanceResult.data.event || null;
@@ -100,7 +159,14 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
         if (attendanceLogs.length > 0) {
           console.log('First attendance log structure:', JSON.stringify(attendanceLogs[0], null, 2));
         }
-        setParticipants(attendanceLogs);
+
+        // Enhance participants with registration data
+        const enhancedParticipants = attendanceLogs.map((p: Participant) => ({
+          ...p,
+          registrationData: regResponsesMap.get(p.participant._id) || {}
+        }));
+
+        setParticipants(enhancedParticipants);
         setEventData(event);
         console.log('[EVENT-DATA] Event data set:', {
           title: event?.title,
@@ -261,18 +327,25 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Participant Report');
 
-    // Set column widths
-    worksheet.columns = [
+    // Calculate total columns (6 base + registration fields)
+    const baseColumns = 6;
+    const totalColumns = baseColumns + registrationFields.length;
+    const lastColumn = String.fromCharCode(64 + totalColumns); // A=65, so 64+1=A
+
+    // Set column widths dynamically
+    const columnWidths = [
       { width: 20 }, // Participant Name
       { width: 30 }, // Email
       { width: 20 }, // Check-in Time
       { width: 20 }, // Check-out Time
       { width: 15 }, // Duration
-      { width: 15 }  // Status
+      { width: 15 }, // Status
+      ...registrationFields.map(() => ({ width: 25 })) // Registration fields
     ];
+    worksheet.columns = columnWidths;
 
-    // Row 1: Event title (merged A1:F1)
-    worksheet.mergeCells('A1:F1');
+    // Row 1: Event title (merged across all columns)
+    worksheet.mergeCells(`A1:${lastColumn}1`);
     const titleCell = worksheet.getCell('A1');
     titleCell.value = eventTitle;
     titleCell.font = { bold: true, size: 14 };
@@ -286,7 +359,16 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
     // Row 4: Headers
     const headerRow = worksheet.getRow(4);
-    headerRow.values = ['Participant Name', 'Email', 'Check-in Time', 'Check-out Time', 'Duration', 'Status'];
+    const headers = [
+      'Participant Name',
+      'Email',
+      'Check-in Time',
+      'Check-out Time',
+      'Duration',
+      'Status',
+      ...registrationFields.map(f => f.label)
+    ];
+    headerRow.values = headers;
     headerRow.font = { bold: true };
 
     // Row 5+: Data
@@ -294,7 +376,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
       .filter(p => p?.participant?.name && p?.participant?.email)
       .forEach((p, index) => {
         const row = worksheet.getRow(5 + index);
-        row.values = [
+        const baseValues = [
           p.participant.name,
           p.participant.email,
           formatTimeOnly(p.checkInTime),
@@ -302,6 +384,19 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
           formatDuration(p.checkInTime, p.checkOutTime),
           getCheckInStatus(p)
         ];
+
+        // Add registration field values
+        const regValues = registrationFields.map(field => {
+          const value = p.registrationData?.[field.id];
+          if (value === null || value === undefined) return 'N/A';
+          // Handle arrays (checkboxes)
+          if (Array.isArray(value)) return value.join(', ');
+          // Handle booleans
+          if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+          return String(value);
+        });
+
+        row.values = [...baseValues, ...regValues];
       });
 
     // Generate Excel file and trigger download
@@ -314,7 +409,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
     toast({
       title: "Report Exported",
-      description: "Participant report has been downloaded as Excel file.",
+      description: "Participant report has been downloaded as Excel file with registration data.",
     });
   };
 
@@ -488,63 +583,88 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                   </Button>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Check-in Time</TableHead>
-                      <TableHead>Check-out Time</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredParticipants.length === 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center p-8 text-gray-500">
-                          {participants.length === 0 ? (
-                            <div>
-                              <p className="mb-2">No attendance records found for this event.</p>
-                              <p className="text-sm">Participants must check in to appear in reports.</p>
-                            </div>
-                          ) : (
-                            `No participants found${searchTerm && ` matching "${searchTerm}"`}`
-                          )}
-                        </TableCell>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Check-in Time</TableHead>
+                        <TableHead>Check-out Time</TableHead>
+                        <TableHead>Duration</TableHead>
+                        <TableHead>Status</TableHead>
+                        {registrationFields.map(field => (
+                          <TableHead key={field.id}>{field.label}</TableHead>
+                        ))}
                       </TableRow>
-                    ) : (
-                      filteredParticipants.map((participant) => (
-                        <TableRow key={participant._id}>
-                          <TableCell className="font-medium">
-                            {participant?.participant?.name || 'Unknown'}
-                          </TableCell>
-                          <TableCell>
-                            {participant?.participant?.email || 'Unknown'}
-                          </TableCell>
-                          <TableCell>
-                            {formatDateTime(participant.checkInTime)}
-                          </TableCell>
-                          <TableCell>
-                            {participant.checkOutTime ? formatDateTime(participant.checkOutTime) : 'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            {formatDuration(participant.checkInTime, participant.checkOutTime)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={
-                              participant.status === 'absent' ? "destructive" :
-                              participant.status === 'checked-in' ? "default" :
-                              "secondary"
-                            }>
-                              {getCheckInStatus(participant)}
-                            </Badge>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredParticipants.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6 + registrationFields.length} className="text-center p-8 text-gray-500">
+                            {participants.length === 0 ? (
+                              <div>
+                                <p className="mb-2">No attendance records found for this event.</p>
+                                <p className="text-sm">Participants must check in to appear in reports.</p>
+                              </div>
+                            ) : (
+                              `No participants found${searchTerm && ` matching "${searchTerm}"`}`
+                            )}
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      ) : (
+                        filteredParticipants.map((participant) => (
+                          <TableRow key={participant._id}>
+                            <TableCell className="font-medium">
+                              {participant?.participant?.name || 'Unknown'}
+                            </TableCell>
+                            <TableCell>
+                              {participant?.participant?.email || 'Unknown'}
+                            </TableCell>
+                            <TableCell>
+                              {formatDateTime(participant.checkInTime)}
+                            </TableCell>
+                            <TableCell>
+                              {participant.checkOutTime ? formatDateTime(participant.checkOutTime) : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              {formatDuration(participant.checkInTime, participant.checkOutTime)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                participant.status === 'absent' ? "destructive" :
+                                participant.status === 'checked-in' ? "default" :
+                                "secondary"
+                              }>
+                                {getCheckInStatus(participant)}
+                              </Badge>
+                            </TableCell>
+                            {registrationFields.map(field => {
+                              const value = participant.registrationData?.[field.id];
+                              let displayValue = 'N/A';
+
+                              if (value !== null && value !== undefined) {
+                                if (Array.isArray(value)) {
+                                  displayValue = value.join(', ');
+                                } else if (typeof value === 'boolean') {
+                                  displayValue = value ? 'Yes' : 'No';
+                                } else {
+                                  displayValue = String(value);
+                                }
+                              }
+
+                              return (
+                                <TableCell key={field.id} className="max-w-xs truncate" title={displayValue}>
+                                  {displayValue}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

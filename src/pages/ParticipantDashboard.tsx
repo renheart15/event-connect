@@ -7201,7 +7201,7 @@ const ParticipantDashboard = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 relative bg-gray-100 dark:bg-gray-800 overflow-y-auto" style={{ height: 'calc(100vh - 240px)', paddingBottom: 'calc(7rem + var(--safe-area-inset-bottom))' }}>
+      <div className="flex-1 relative bg-gray-100 dark:bg-gray-800 overflow-y-auto" style={{ height: 'calc(100vh - 240px)', paddingBottom: 'calc(10rem + var(--safe-area-inset-bottom))' }}>
         {isCameraActive ? (
           <div className="relative h-full">
             <video

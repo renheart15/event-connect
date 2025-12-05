@@ -92,12 +92,28 @@ router.post('/register', [
     if (organization) {
       const orgRole = role === 'organizer' ? 'admin' : 'member';
       await organization.addMember(user._id, orgRole);
-      
+
       // If user is an organizer, also add them to the admins array
       if (role === 'organizer') {
         organization.admins.push(user._id);
         await organization.save();
       }
+    }
+
+    // Link any pending invitations to the new user account
+    const Invitation = require('../models/Invitation');
+    const pendingInvitations = await Invitation.updateMany(
+      {
+        participantEmail: email.toLowerCase(),
+        participant: null  // Only update invitations that don't have a participant yet
+      },
+      {
+        $set: { participant: user._id }
+      }
+    );
+
+    if (pendingInvitations.modifiedCount > 0) {
+      console.log(`✅ [REGISTRATION] Linked ${pendingInvitations.modifiedCount} pending invitation(s) to new user account`);
     }
 
     // Generate token

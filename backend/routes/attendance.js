@@ -1557,6 +1557,22 @@ router.delete('/remove-participant', auth, requireOrganizer, [
       // Don't fail the operation if cleanup fails
     }
 
+    // Also delete any invitations sent to this participant for this event
+    try {
+      const deletedInvitation = await Invitation.findOneAndDelete({
+        event: eventId,
+        participant: participantId
+      });
+      if (deletedInvitation) {
+        console.log('✅ Deleted invitation for removed participant');
+      } else {
+        console.log('ℹ️ No invitation found for this participant');
+      }
+    } catch (invitationError) {
+      console.error('⚠️ Failed to delete invitation:', invitationError);
+      // Don't fail the operation if cleanup fails
+    }
+
     console.log('Successfully removed participant from event');
 
     res.json({

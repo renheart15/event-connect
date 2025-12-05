@@ -78,23 +78,14 @@ router.post('/', auth, requireOrganizer, [
       });
     }
 
-    // Find or create participant user
+    // Check if participant has an account
     let participant = await User.findOne({ email: participantEmail });
-    if (!participant) {
-      // Create a temporary participant profile
-      participant = await User.create({
-        name: participantName,
-        email: participantEmail,
-        password: 'temp123456', // Temporary password, user should reset
-        role: 'participant',
-        isTemporaryAccount: true
-      });
-    }
 
     // Check if invitation already exists (allow resending)
+    // Use email-based lookup instead of participant ID to support non-registered users
     const existingInvitation = await Invitation.findOne({
       event: eventId,
-      participant: participant._id
+      participantEmail: participantEmail
     });
 
     let invitation;
@@ -152,7 +143,7 @@ router.post('/', auth, requireOrganizer, [
       // Create new invitation - expires immediately after event ends
       invitation = new Invitation({
         event: eventId,
-        participant: participant._id,
+        participant: participant ? participant._id : null,  // Link if account exists, otherwise null
         participantEmail,
         participantName,
         expiresAt: eventEndTime // Expires when event ends
@@ -414,9 +405,9 @@ router.get('/code/:code', async (req, res) => {
     // Update event status
     await updateSingleEventStatus(invitation.event._id);
 
-    // Check if participant has a real account (not just auto-created)
+    // Check if participant has an account
     const participant = invitation.participant;
-    const requiresSignup = participant && participant.isTemporaryAccount;
+    const requiresSignup = !participant;  // No signup required if already has account
 
     // Check if invitation has expired (but don't expire accepted invitations or if participant has checked in)
     const now = new Date();
@@ -806,12 +797,28 @@ router.put('/:id/respond', optionalAuth, [
     }
 
     // If user is authenticated, verify ownership
-    // If not authenticated, we'll allow public response (for email links)
-    if (req.user && req.user._id && invitation.participant.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied - not your invitation'
-      });
+    // If not authenticated, allow response using email verification (for users without accounts)
+    if (req.user && req.user._id) {
+      // If invitation has a participant linked, verify it matches the authenticated user
+      if (invitation.participant && invitation.participant.toString() !== req.user._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied - not your invitation'
+        });
+      }
+      // If invitation doesn't have a participant, verify email matches
+      if (!invitation.participant && invitation.participantEmail.toLowerCase() !== req.user.email.toLowerCase()) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied - invitation email does not match your account'
+        });
+      }
+      // If invitation doesn't have participant linked yet, link it now
+      if (!invitation.participant) {
+        invitation.participant = req.user._id;
+        await invitation.save();
+        console.log(`✅ [INVITATION] Linked invitation to user account during response`);
+      }
     }
 
     if (invitation.status !== 'pending') {
@@ -871,7 +878,8 @@ router.put('/:id/respond', optionalAuth, [
     await invitation.populate(['event', 'participant']);
 
     // CRITICAL: If invitation is accepted, create attendance record and initialize location tracking
-    if (response === 'accepted') {
+    // Only proceed if participant account is linked (either authenticated or linked above)
+    if (response === 'accepted' && invitation.participant) {
       console.log(`✅ [INVITATION ACCEPTED] Creating attendance record and initializing location tracking`);
 
       try {
@@ -992,7 +1000,7 @@ router.put('/:id/respond', optionalAuth, [
 router.delete('/:id', auth, async (req, res) => {
   try {
     const invitation = await Invitation.findById(req.params.id);
-    
+
     if (!invitation) {
       return res.status(404).json({
         success: false,
@@ -1001,7 +1009,11 @@ router.delete('/:id', auth, async (req, res) => {
     }
 
     // Check if the invitation belongs to the current user
-    if (invitation.participant.toString() !== req.user._id.toString()) {
+    // Check by participant ID if linked, or by email if not yet linked
+    const belongsToUser = (invitation.participant && invitation.participant.toString() === req.user._id.toString()) ||
+                          (invitation.participantEmail.toLowerCase() === req.user.email.toLowerCase());
+
+    if (!belongsToUser) {
       return res.status(403).json({
         success: false,
         message: 'Access denied - not your invitation'

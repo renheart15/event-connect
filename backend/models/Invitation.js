@@ -11,7 +11,7 @@ const invitationSchema = new mongoose.Schema({
   participant: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Participant is required']
+    required: false  // Optional - will be linked when user creates account
   },
   participantEmail: {
     type: String,
@@ -66,6 +66,10 @@ invitationSchema.pre('save', function(next) {
 });
 
 // Compound index to ensure one invitation per participant per event
-invitationSchema.index({ event: 1, participant: 1 }, { unique: true });
+// Allow sparse index to permit null participant values
+invitationSchema.index({ event: 1, participant: 1 }, { unique: true, sparse: true });
+
+// Additional index to ensure one invitation per email per event
+invitationSchema.index({ event: 1, participantEmail: 1 }, { unique: true });
 
 module.exports = mongoose.model('Invitation', invitationSchema);
