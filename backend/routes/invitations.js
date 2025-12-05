@@ -1488,6 +1488,49 @@ router.post('/request-access', auth, async (req, res) => {
       });
     }
 
+    // CRITICAL: Check if event has a registration form that needs to be filled
+    console.log('🔍 [REQUEST-ACCESS] Checking for registration form requirement...');
+    const RegistrationForm = require('../models/RegistrationForm');
+    const RegistrationResponse = require('../models/RegistrationResponse');
+
+    const registrationForm = await RegistrationForm.findOne({
+      event: eventId,
+      isActive: true
+    });
+
+    if (registrationForm) {
+      console.log('✅ [REQUEST-ACCESS] Registration form found:', registrationForm._id);
+
+      // Check if participant has already submitted registration
+      const existingResponse = await RegistrationResponse.findOne({
+        registrationForm: registrationForm._id,
+        participant: participantId
+      });
+
+      if (!existingResponse) {
+        console.log('❌ [REQUEST-ACCESS] Registration form not submitted - blocking access request');
+        return res.status(400).json({
+          success: false,
+          message: 'Registration form must be completed before requesting access to this private event',
+          requiresRegistration: true,
+          registrationForm: {
+            _id: registrationForm._id,
+            title: registrationForm.title,
+            description: registrationForm.description,
+            fields: registrationForm.fields
+          },
+          eventData: {
+            eventId: event._id,
+            eventTitle: event.title
+          }
+        });
+      }
+
+      console.log('✅ [REQUEST-ACCESS] Registration form already submitted, proceeding with access request');
+    } else {
+      console.log('ℹ️ [REQUEST-ACCESS] No registration form required for this event');
+    }
+
     // Check if invitation already exists
     const existingInvitation = await Invitation.findOne({
       event: eventId,

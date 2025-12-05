@@ -77,8 +77,8 @@ const ParticipantDashboard = () => {
   const [pendingInvitationId, setPendingInvitationId] = useState(''); // Store invitation ID to accept after registration
   const [registrationFormData, setRegistrationFormData] = useState<any>(null);
   const [isRegistrationRequired, setIsRegistrationRequired] = useState(false); // Track if form is required
-  const [registrationContext, setRegistrationContext] = useState<'invitation' | 'public' | 'qr-scan' | null>(null); // Track context: invitation acceptance, public event join, or QR scan check-in
-  const registrationContextRef = useRef<'invitation' | 'public' | 'qr-scan' | null>(null); // Ref to avoid stale closure issues
+  const [registrationContext, setRegistrationContext] = useState<'invitation' | 'public' | 'qr-scan' | 'private-qr-scan' | null>(null); // Track context: invitation acceptance, public event join, QR scan check-in, or private event QR scan
+  const registrationContextRef = useRef<'invitation' | 'public' | 'qr-scan' | 'private-qr-scan' | null>(null); // Ref to avoid stale closure issues
   const [activeOrganization, setActiveOrganization] = useState<any>(null);
   
   // Event record modal state
@@ -3159,6 +3159,26 @@ const ParticipantDashboard = () => {
 
               const requestResult = await requestResponse.json();
 
+              // Check if registration form is required
+              if (requestResult.requiresRegistration && requestResult.registrationForm) {
+                console.log('🔍 [QR-SCAN] Registration form required for private event - showing modal');
+                // Show registration form modal
+                setPendingEventId(requestResult.eventData?.eventId || event._id);
+                setPendingEventTitle(requestResult.eventData?.eventTitle || event.title);
+                setPendingEventCode(eventCode); // Store event code for retry after registration
+                setRegistrationFormData(requestResult.registrationForm);
+                setIsRegistrationRequired(true);
+                setRegistrationContext('private-qr-scan'); // Mark as private event QR scan context
+                registrationContextRef.current = 'private-qr-scan';
+                setShowRegistrationForm(true);
+
+                toast({
+                  title: "Registration Required",
+                  description: "Please complete the registration form to request access to this private event.",
+                });
+                return; // Don't throw error, just show the form
+              }
+
               if (requestResult.success && requestResult.requiresApproval) {
                 // Access request sent or already pending
                 toast({
@@ -3925,6 +3945,68 @@ const ParticipantDashboard = () => {
 
     // Use ref to get the current context (avoids stale closure issues)
     const currentContext = registrationContextRef.current;
+
+    // If this was from private event QR scan, retry request-access now
+    if (currentContext === 'private-qr-scan' && pendingEventId) {
+      console.log('✅ [PRIVATE-QR-SCAN] Registration complete - retrying request-access');
+
+      toast({
+        title: "Registration Complete",
+        description: "Now requesting access to the event...",
+      });
+
+      try {
+        // Retry request-access
+        const response = await fetch(`${API_CONFIG.API_BASE}/invitations/request-access`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ eventId: pendingEventId })
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.requiresApproval) {
+          toast({
+            title: "Access Request Sent!",
+            description: "Your access request has been sent to the organizer. You will be notified once approved.",
+          });
+        } else if (result.success && !result.requiresApproval) {
+          toast({
+            title: "Access Granted!",
+            description: "You now have access to this event.",
+          });
+        } else {
+          toast({
+            title: "Registration Complete",
+            description: `Registration submitted but access request failed: ${result.message}`,
+            variant: "destructive",
+          });
+        }
+      } catch (error: any) {
+        console.error('❌ [PRIVATE-QR-SCAN] Error retrying request-access after registration:', error);
+        toast({
+          title: "Registration Complete",
+          description: "Registration submitted but access request failed. Please try again.",
+          variant: "destructive",
+        });
+      }
+
+      // Clear pending data
+      setPendingEventCode('');
+      setPendingEventTitle('');
+      setPendingEventId('');
+      setPendingInvitationId('');
+      setRegistrationFormData(null);
+      setRegistrationContext(null);
+      registrationContextRef.current = null;
+
+      // Refresh data
+      await fetchParticipantData(true);
+      return;
+    }
 
     // If this was from QR scan check-in, retry the check-in now
     if (currentContext === 'qr-scan' && pendingInvitationId && pendingEventId) {
