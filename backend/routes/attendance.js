@@ -190,6 +190,48 @@ router.post('/checkin', [
       });
     }
 
+    // CRITICAL: Check if event has a registration form that needs to be filled
+    console.log('🔍 [QR-CHECKIN] Checking for registration form requirement...');
+    const registrationForm = await RegistrationForm.findOne({
+      event: event._id,
+      isActive: true
+    });
+
+    if (registrationForm) {
+      console.log('✅ [QR-CHECKIN] Registration form found:', registrationForm._id);
+
+      // Check if participant has already submitted registration
+      const existingResponse = await RegistrationResponse.findOne({
+        registrationForm: registrationForm._id,
+        participant: participantId
+      });
+
+      if (!existingResponse) {
+        console.log('❌ [QR-CHECKIN] Registration form not submitted - blocking check-in');
+        return res.status(400).json({
+          success: false,
+          message: 'Registration form must be completed before checking in',
+          requiresRegistration: true,
+          registrationForm: {
+            _id: registrationForm._id,
+            title: registrationForm.title,
+            description: registrationForm.description,
+            fields: registrationForm.fields
+          },
+          invitationData: {
+            invitationId: invitation._id,
+            eventId: event._id,
+            eventTitle: event.title,
+            participantId: participantId
+          }
+        });
+      }
+
+      console.log('✅ [QR-CHECKIN] Registration form already submitted, proceeding with check-in');
+    } else {
+      console.log('ℹ️ [QR-CHECKIN] No registration form required for this event');
+    }
+
     // Check if check-in/registration is within allowed time window (only for active events)
     const now = new Date();
 

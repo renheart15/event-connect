@@ -2563,7 +2563,7 @@ const ParticipantDashboard = () => {
                 });
 
                 const result = await response.json();
-                
+
                 if (result.success) {
                   // Send native notification
                   await notificationService.sendCheckInNotification(result.data.event.title);
@@ -2572,9 +2572,26 @@ const ParticipantDashboard = () => {
                   if (result.data.attendanceLog && result.data.attendanceLog._id) {
                     await startLocationWatching(result.data.event._id, result.data.attendanceLog._id);
                   }
-                  
+
                   // Refresh scan history from database
                   await refreshScanHistory();
+                } else if (result.requiresRegistration && result.registrationForm) {
+                  console.log('🔍 [QR-SCAN] Registration form required - showing modal');
+                  // Show registration form modal
+                  setPendingEventId(result.invitationData?.eventId || eventData.eventId);
+                  setPendingEventTitle(result.invitationData?.eventTitle || 'Event');
+                  setPendingInvitationId(result.invitationData?.invitationId || '');
+                  setRegistrationFormData(result.registrationForm);
+                  setIsRegistrationRequired(true);
+                  setRegistrationContext('qr-scan'); // Mark as QR scan context
+                  registrationContextRef.current = 'qr-scan';
+                  setShowRegistrationForm(true);
+
+                  toast({
+                    title: "Registration Required",
+                    description: "Please complete the registration form before checking in.",
+                  });
+                  return; // Don't throw error, just show the form
                 } else {
                   throw new Error(result.message);
                 }
@@ -3026,6 +3043,23 @@ const ParticipantDashboard = () => {
 
         // Refresh data
         window.location.reload();
+      } else if (checkinData.requiresRegistration && checkinData.registrationForm) {
+        console.log('🔍 [CHECK-IN] Registration form required - showing modal');
+        // Show registration form modal
+        setPendingEventId(event._id);
+        setPendingEventTitle(event.title);
+        setPendingInvitationId(invitation._id);
+        setRegistrationFormData(checkinData.registrationForm);
+        setIsRegistrationRequired(true);
+        setRegistrationContext('qr-scan'); // Mark as QR scan context
+        registrationContextRef.current = 'qr-scan';
+        setShowRegistrationForm(true);
+
+        toast({
+          title: "Registration Required",
+          description: "Please complete the registration form before checking in.",
+        });
+        return; // Don't throw error, just show the form
       } else {
         throw new Error(checkinData.message);
       }
@@ -3891,6 +3925,85 @@ const ParticipantDashboard = () => {
 
     // Use ref to get the current context (avoids stale closure issues)
     const currentContext = registrationContextRef.current;
+
+    // If this was from QR scan check-in, retry the check-in now
+    if (currentContext === 'qr-scan' && pendingInvitationId && pendingEventId) {
+      console.log('✅ [QR-SCAN] Registration complete - retrying check-in');
+
+      toast({
+        title: "Registration Complete",
+        description: "Now checking you in...",
+      });
+
+      try {
+        // Get location for check-in
+        const location = await getCurrentLocationSafely();
+
+        // Get user data
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+
+        // Rebuild QR data
+        const qrData = JSON.stringify({
+          invitationId: pendingInvitationId,
+          eventId: pendingEventId,
+          participantId: userData._id,
+          code: '' // We don't have the code, but backend won't verify it strictly
+        });
+
+        // Retry check-in
+        const response = await fetch(`${API_CONFIG.API_BASE}/attendance/checkin`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            qrData,
+            location
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          toast({
+            title: "Checked In!",
+            description: `Successfully completed registration and checked in to "${pendingEventTitle}"`,
+          });
+
+          // Start location tracking if needed
+          if (result.data.attendanceLog && result.data.attendanceLog._id) {
+            await startLocationWatching(pendingEventId, result.data.attendanceLog._id);
+          }
+        } else {
+          toast({
+            title: "Registration Complete",
+            description: `Registration submitted but check-in failed: ${result.message}. Please try scanning again.`,
+            variant: "destructive",
+          });
+        }
+      } catch (error: any) {
+        console.error('❌ [QR-SCAN] Error retrying check-in after registration:', error);
+        toast({
+          title: "Registration Complete",
+          description: "Registration submitted but check-in failed. Please try scanning again.",
+          variant: "destructive",
+        });
+      }
+
+      // Clear pending data
+      setPendingEventCode('');
+      setPendingEventTitle('');
+      setPendingEventId('');
+      setPendingInvitationId('');
+      setRegistrationFormData(null);
+      setRegistrationContext(null);
+      registrationContextRef.current = null;
+
+      // Reload the page to show updated status
+      window.location.reload();
+      return;
+    }
 
     // If this was from invitation acceptance, accept the invitation now
     if (currentContext === 'invitation' && pendingInvitationId) {
