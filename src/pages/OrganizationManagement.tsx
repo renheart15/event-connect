@@ -499,8 +499,6 @@ const OrganizationManagement = () => {
                 variant="outline"
                 className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-950"
               >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Join Organization
               </Button>
             </div>
           )}

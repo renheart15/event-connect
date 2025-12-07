@@ -11,7 +11,8 @@
       "Bash(timeout 3 npm run dev:*)",
       "Bash(npm cache clean:*)",
       "Bash(npm install:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

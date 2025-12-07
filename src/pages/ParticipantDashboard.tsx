@@ -4573,18 +4573,7 @@ const ParticipantDashboard = () => {
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Invitations</h2>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 dark:text-gray-400">{upcomingEvents.length + pendingApprovalInvitations.length} invitations</span>
-              <Button
-                onClick={() => fetchParticipantData(true)}
-                disabled={isRefreshing}
-                variant="outline"
-                size="sm"
-                className="h-8"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </Button>
-            </div>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{upcomingEvents.length + pendingApprovalInvitations.length} invitations</span>
           </div>
           
           {upcomingEvents.length === 0 && pendingApprovalInvitations.length === 0 ? (
@@ -4835,18 +4824,7 @@ const ParticipantDashboard = () => {
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Currently Attending</h2>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 dark:text-gray-400">{activeEvents.length} events</span>
-              <Button
-                onClick={() => fetchParticipantData(true)}
-                disabled={isRefreshing}
-                variant="outline"
-                size="sm"
-                className="h-8"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </Button>
-            </div>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{activeEvents.length} events</span>
           </div>
           
           {activeEvents.length === 0 ? (
@@ -4895,15 +4873,6 @@ const ParticipantDashboard = () => {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm text-gray-500 dark:text-gray-400">{completedEvents.length} events</span>
-              <Button
-                onClick={() => fetchParticipantData(true)}
-                disabled={isRefreshing}
-                variant="outline"
-                size="sm"
-                className="h-8"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </Button>
               {completedEvents.length > 0 && (
                 <Button
                   variant="outline"
@@ -5250,15 +5219,6 @@ const ParticipantDashboard = () => {
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Browse Events</h2>
-            <Button
-              onClick={fetchPublicEvents}
-              disabled={isRefreshing}
-              variant="outline"
-              size="sm"
-              className="h-8"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </Button>
           </div>
           
           {publicEvents.length === 0 ? (

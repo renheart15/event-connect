@@ -613,15 +613,6 @@ const EventMonitor = () => {
                 </div>
               </div>
 
-              <Button
-                onClick={() => fetchAttendanceData()}
-                variant="outline"
-                size="sm"
-                disabled={refreshing || eventData?.status === 'completed'}
-              >
-                <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-                {eventData?.status === 'completed' ? 'Event Ended' : refreshing ? 'Refreshing...' : 'Refresh Data'}
-              </Button>
               <Link to="/event-monitor">
                 <Button variant="outline">Back to Event Monitor</Button>
               </Link>
