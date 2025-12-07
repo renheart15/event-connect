@@ -494,12 +494,6 @@ const OrganizationManagement = () => {
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Organization
               </Button>
-              <Button
-                onClick={() => setShowJoinForm(true)}
-                variant="outline"
-                className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-950"
-              >
-              </Button>
             </div>
           )}
           {user?.role === 'participant' && !myOrganization && (
