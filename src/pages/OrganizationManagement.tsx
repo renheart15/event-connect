@@ -58,6 +58,7 @@ const OrganizationManagement = () => {
   const [user, setUser] = useState<any>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
+  const [previousSelectedOrg, setPreviousSelectedOrg] = useState<Organization | null>(null);
   const [myOrganization, setMyOrganization] = useState<Organization | null>(null);
   const [joinedOrganizations, setJoinedOrganizations] = useState<Organization[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -485,14 +486,31 @@ const OrganizationManagement = () => {
             <div className="flex gap-2">
               <Button
                 onClick={() => {
-                  setShowCreateForm(true);
-                  setSelectedOrg(null);
-                  setFormData({ name: '', description: '', organizationCode: '' });
+                  if (showCreateForm) {
+                    // Go back to default mode (organization info)
+                    setShowCreateForm(false);
+                    setSelectedOrg(previousSelectedOrg);
+                  } else {
+                    // Go to create mode
+                    setPreviousSelectedOrg(selectedOrg);
+                    setShowCreateForm(true);
+                    setSelectedOrg(null);
+                    setFormData({ name: '', description: '', organizationCode: '' });
+                  }
                 }}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Create New Organization
+                {showCreateForm ? (
+                  <>
+                    <Settings className="w-4 h-4 mr-2" />
+                    Update Organization
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create New Organization
+                  </>
+                )}
               </Button>
             </div>
           )}
@@ -605,7 +623,7 @@ const OrganizationManagement = () => {
           )}
 
           {/* Organization Form - For Organizers */}
-          {user?.role === 'organizer' && (showCreateForm || (selectedOrg && !myOrganization)) && (
+          {user?.role === 'organizer' && (showCreateForm || selectedOrg) && (
             <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -637,18 +655,18 @@ const OrganizationManagement = () => {
                   <div className="space-y-2">
                     <Label htmlFor="code">Organization Code</Label>
                     <div className="flex gap-2">
-                      <Input
-                        id="code"
-                        type="text"
-                        placeholder="6-10 characters"
-                        value={formData.organizationCode}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
-                          organizationCode: e.target.value.toUpperCase()
-                        }))}
-                        maxLength={10}
-                        required
-                      />
+                      <div className="flex-1">
+                        <Input
+                          id="code"
+                          name="organizationCode"
+                          type="text"
+                          placeholder="6-10 characters"
+                          value={formData.organizationCode}
+                          readOnly
+                          maxLength={10}
+                          required
+                        />
+                      </div>
                       <Button
                         type="button"
                         onClick={generateRandomCode}
