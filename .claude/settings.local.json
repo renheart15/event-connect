@@ -12,7 +12,12 @@
       "Bash(npm cache clean:*)",
       "Bash(npm install:*)",
       "Bash(find:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(timeout 10 tail:*)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Download, FileText, Loader2, RefreshCw } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search, Download, FileText, Loader2, RefreshCw, Filter, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ExcelJS from 'exceljs';
 
@@ -35,6 +36,13 @@ interface RegistrationField {
   label: string;
   type: string;
   required: boolean;
+  options?: string[];
+}
+
+interface FieldFilter {
+  fieldId: string;
+  fieldLabel: string;
+  value: string;
 }
 
 interface ParticipantReportsProps {
@@ -53,6 +61,8 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
   const [eventData, setEventData] = useState<any>(null);
   const [registrationFields, setRegistrationFields] = useState<RegistrationField[]>([]);
   const [registrationResponses, setRegistrationResponses] = useState<Map<string, any>>(new Map());
+  const [activeFilters, setActiveFilters] = useState<FieldFilter[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Fetch participants data when component opens
   useEffect(() => {
@@ -292,13 +302,101 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     return `${hours}h ${minutes}m`;
   };
 
+  // Get unique values for a field across all participants
+  const getUniqueValuesForField = (fieldId: string, fieldLabel: string): string[] => {
+    const values = new Set<string>();
+
+    // Handle special cases for name, email, and phone
+    if (fieldLabel.toLowerCase() === 'name') {
+      participants.forEach(p => {
+        if (p?.participant?.name) values.add(p.participant.name);
+      });
+    } else if (fieldLabel.toLowerCase() === 'email') {
+      participants.forEach(p => {
+        if (p?.participant?.email) values.add(p.participant.email);
+      });
+    } else {
+      // Handle custom registration fields
+      participants.forEach(p => {
+        const value = p.registrationData?.[fieldId];
+        if (value !== null && value !== undefined) {
+          if (Array.isArray(value)) {
+            value.forEach(v => values.add(String(v)));
+          } else if (typeof value === 'boolean') {
+            values.add(value ? 'Yes' : 'No');
+          } else {
+            values.add(String(value));
+          }
+        }
+      });
+    }
+
+    return Array.from(values).sort();
+  };
+
+  // Add a filter
+  const addFilter = (fieldId: string, fieldLabel: string, value: string) => {
+    // Remove existing filter for this field
+    const updatedFilters = activeFilters.filter(f => f.fieldId !== fieldId);
+    // Add new filter
+    setActiveFilters([...updatedFilters, { fieldId, fieldLabel, value }]);
+  };
+
+  // Remove a filter
+  const removeFilter = (fieldId: string) => {
+    setActiveFilters(activeFilters.filter(f => f.fieldId !== fieldId));
+  };
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setActiveFilters([]);
+    setSearchTerm('');
+  };
+
+  // Apply filters to participants
   const filteredParticipants = participants.filter(participant => {
     if (!participant?.participant?.name || !participant?.participant?.email) {
       console.warn('Invalid participant data:', participant);
       return false;
     }
-    return participant.participant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           participant.participant.email.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Search term filter (name or email)
+    const matchesSearch = searchTerm === '' ||
+      participant.participant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      participant.participant.email.toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    // Apply active filters
+    for (const filter of activeFilters) {
+      let participantValue: string;
+
+      // Handle special cases
+      if (filter.fieldLabel.toLowerCase() === 'name') {
+        participantValue = participant.participant.name;
+      } else if (filter.fieldLabel.toLowerCase() === 'email') {
+        participantValue = participant.participant.email;
+      } else {
+        // Handle custom registration fields
+        const value = participant.registrationData?.[filter.fieldId];
+        if (value === null || value === undefined) return false;
+
+        if (Array.isArray(value)) {
+          // For arrays, check if any value matches
+          if (!value.some(v => String(v) === filter.value)) return false;
+          continue;
+        } else if (typeof value === 'boolean') {
+          participantValue = value ? 'Yes' : 'No';
+        } else {
+          participantValue = String(value);
+        }
+      }
+
+      // Check if participant value matches filter value
+      if (participantValue !== filter.value) return false;
+    }
+
+    return true;
   });
 
   const handleExportCSV = async () => {
@@ -371,8 +469,8 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     headerRow.values = headers;
     headerRow.font = { bold: true };
 
-    // Row 5+: Data
-    participants
+    // Row 5+: Data (ONLY export filtered participants)
+    filteredParticipants
       .filter(p => p?.participant?.name && p?.participant?.email)
       .forEach((p, index) => {
         const row = worksheet.getRow(5 + index);
@@ -409,7 +507,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
     toast({
       title: "Report Exported",
-      description: "Participant report has been downloaded as Excel file with registration data.",
+      description: `Exported ${filteredParticipants.length} participant(s) to Excel file with registration data.`,
     });
   };
 
@@ -437,11 +535,12 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     }
   };
 
+  // Calculate stats based on filtered participants
   const stats = {
-    total: participants.length,
+    total: filteredParticipants.length,
     // CRITICAL FIX: Only count participants who ACTUALLY checked in AND stayed until end
     // Exclude: registered, absent, and those who left early
-    checkedIn: participants.filter(p => {
+    checkedIn: filteredParticipants.filter(p => {
       console.log(`[STATS-CHECKED-IN] Checking ${p.participant?.name}: status=${p.status}`);
       // Must have checked in
       if (p.status !== 'checked-in' && p.status !== 'checked-out') {
@@ -456,10 +555,10 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
       console.log(`[STATS-CHECKED-IN] ${p.participant?.name}: INCLUDED`);
       return true;
     }).length,
-    currentlyPresent: participants.filter(p => p.status === 'checked-in').length,
+    currentlyPresent: filteredParticipants.filter(p => p.status === 'checked-in').length,
     // Count: 'absent' status, 'registered' without check-in, AND left early
     // CRITICAL FIX: For UPCOMING events, registered participants are NOT absent
-    absent: participants.filter(p => {
+    absent: filteredParticipants.filter(p => {
       // For upcoming events, registered participants without check-in are NOT absent
       if (eventData?.status === 'upcoming' && p.status === 'registered' && !p.checkInTime) {
         console.log(`[STATS-ABSENT] ${p.participant?.name}: NOT counted as absent (upcoming event, registered)`);
@@ -480,7 +579,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     }).length
   };
 
-  console.log('[STATS] Final stats:', stats);
+  console.log('[STATS] Final stats (filtered):', stats);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -542,9 +641,17 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
               />
             </div>
             <div className="flex gap-2">
-              <Button 
-                onClick={fetchParticipants} 
-                variant="outline" 
+              <Button
+                onClick={() => setShowFilters(!showFilters)}
+                variant={showFilters ? "default" : "outline"}
+                className="flex items-center gap-2"
+              >
+                <Filter className="w-4 h-4" />
+                {showFilters ? 'Hide Filters' : 'Show Filters'}
+              </Button>
+              <Button
+                onClick={fetchParticipants}
+                variant="outline"
                 className="flex items-center gap-2"
                 disabled={loading}
               >
@@ -554,13 +661,125 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
               <Button
                 onClick={handleExportCSV}
                 className="flex items-center gap-2"
-                disabled={loading || participants.length === 0}
+                disabled={loading || filteredParticipants.length === 0}
               >
                 <Download className="w-4 h-4" />
-                Export Excel
+                Export Excel ({filteredParticipants.length})
               </Button>
             </div>
           </div>
+
+          {/* Filter Section */}
+          {showFilters && (
+            <Card>
+              <CardContent className="pt-4">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm font-semibold">Filter Participants</h3>
+                    {activeFilters.length > 0 && (
+                      <Button
+                        onClick={clearAllFilters}
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        Clear All Filters
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Active Filters Display */}
+                  {activeFilters.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {activeFilters.map((filter) => (
+                        <Badge key={filter.fieldId} variant="secondary" className="flex items-center gap-2 px-3 py-1">
+                          <span className="text-xs">
+                            <strong>{filter.fieldLabel}:</strong> {filter.value}
+                          </span>
+                          <X
+                            className="w-3 h-3 cursor-pointer hover:text-red-600"
+                            onClick={() => removeFilter(filter.fieldId)}
+                          />
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Filter Controls */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Name Filter */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-gray-700">Filter by Name</label>
+                      <Select
+                        value={activeFilters.find(f => f.fieldLabel.toLowerCase() === 'name')?.value || ''}
+                        onValueChange={(value) => addFilter('name', 'Name', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select name..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getUniqueValuesForField('name', 'Name').map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Email Filter */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-gray-700">Filter by Email</label>
+                      <Select
+                        value={activeFilters.find(f => f.fieldLabel.toLowerCase() === 'email')?.value || ''}
+                        onValueChange={(value) => addFilter('email', 'Email', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select email..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getUniqueValuesForField('email', 'Email').map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Dynamic Registration Field Filters */}
+                    {registrationFields.map((field) => (
+                      <div key={field.id} className="space-y-2">
+                        <label className="text-xs font-medium text-gray-700">
+                          Filter by {field.label}
+                        </label>
+                        <Select
+                          value={activeFilters.find(f => f.fieldId === field.id)?.value || ''}
+                          onValueChange={(value) => addFilter(field.id, field.label, value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={`Select ${field.label.toLowerCase()}...`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getUniqueValuesForField(field.id, field.label).map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {value}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Filter Results Summary */}
+                  <div className="text-sm text-gray-600">
+                    Showing <strong>{filteredParticipants.length}</strong> of <strong>{participants.length}</strong> participants
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Participants Table */}
           <Card>

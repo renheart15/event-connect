@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.eventconnect.mobile',
-  appName: 'Event Connect Mobile',
+  appName: 'Event Connect',
   webDir: 'dist',
   server: {
     // Use bundled files for instant loading
