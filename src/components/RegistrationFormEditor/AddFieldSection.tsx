@@ -4,16 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Trash2, Plus } from 'lucide-react';
-
-type FieldType = 'text' | 'email' | 'phone' | 'number' | 'textarea' | 'select' | 'checkbox';
-
-interface NewField {
-  type: FieldType;
-  label: string;
-  placeholder: string;
-  required: boolean;
-  options: string[];
-}
+import { FieldType, NewField } from '@/types/registration';
 
 interface AddFieldSectionProps {
   newField: NewField;
@@ -31,6 +22,7 @@ const fieldTypes = [
   { value: 'number', label: 'Number' },
   { value: 'textarea', label: 'Long Text' },
   { value: 'select', label: 'Dropdown' },
+  { value: 'radio', label: 'Radio Buttons' },
   { value: 'checkbox', label: 'Checkbox' }
 ];
 
@@ -85,7 +77,7 @@ const AddFieldSection = ({
         />
       </div>
 
-      {newField.type === 'select' && (
+      {(newField.type === 'select' || newField.type === 'radio') && (
         <div className="space-y-3">
           <Label className="text-sm font-medium text-card-foreground">Options</Label>
           <div className="space-y-2">

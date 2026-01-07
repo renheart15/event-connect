@@ -334,6 +334,37 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
     return Array.from(values).sort();
   };
 
+  // Check if a registration field should show filters
+  const shouldShowFieldFilter = (field: RegistrationField): boolean => {
+    // Always show filters for dropdown/select, radio, and checkbox type fields
+    if (field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') {
+      return true;
+    }
+
+    // For other field types, only show if they have duplicate answers
+    const valueCounts = new Map<string, number>();
+    let totalResponses = 0;
+
+    participants.forEach(p => {
+      const value = p.registrationData?.[field.id];
+      if (value !== null && value !== undefined) {
+        const stringValue = Array.isArray(value) ? value.join(', ') :
+                           typeof value === 'boolean' ? (value ? 'Yes' : 'No') :
+                           String(value);
+        valueCounts.set(stringValue, (valueCounts.get(stringValue) || 0) + 1);
+        totalResponses++;
+      }
+    });
+
+    // Check if there are answers that appear more than once (duplicates)
+    const hasDuplicates = Array.from(valueCounts.values()).some(count => count > 1);
+
+    return hasDuplicates && totalResponses > 1;
+  };
+
+  // Get filtered registration fields that should show filters
+  const filterableRegistrationFields = registrationFields.filter(shouldShowFieldFilter);
+
   // Add a filter
   const addFilter = (fieldId: string, fieldLabel: string, value: string) => {
     // Remove existing filter for this field
@@ -583,7 +614,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
@@ -594,7 +625,7 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[calc(90vh-8rem)] overflow-y-auto">
           {/* Stats Cards */}
           <div className="grid grid-cols-3 gap-4">
             <Card>
@@ -630,17 +661,17 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
           </div>
 
           {/* Controls */}
-          <div className="flex justify-between items-center">
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search participants..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <div className="flex gap-2">
+          <div className="flex justify-end items-center">
+            <div className="flex gap-2 items-center">
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search participants..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
               <Button
                 onClick={() => setShowFilters(!showFilters)}
                 variant={showFilters ? "default" : "outline"}
@@ -707,48 +738,8 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
 
                   {/* Filter Controls */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Name Filter */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-gray-700">Filter by Name</label>
-                      <Select
-                        value={activeFilters.find(f => f.fieldLabel.toLowerCase() === 'name')?.value || ''}
-                        onValueChange={(value) => addFilter('name', 'Name', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select name..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {getUniqueValuesForField('name', 'Name').map((value) => (
-                            <SelectItem key={value} value={value}>
-                              {value}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Email Filter */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-gray-700">Filter by Email</label>
-                      <Select
-                        value={activeFilters.find(f => f.fieldLabel.toLowerCase() === 'email')?.value || ''}
-                        onValueChange={(value) => addFilter('email', 'Email', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select email..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {getUniqueValuesForField('email', 'Email').map((value) => (
-                            <SelectItem key={value} value={value}>
-                              {value}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Dynamic Registration Field Filters */}
-                    {registrationFields.map((field) => (
+                    {/* Dynamic Registration Field Filters - Only dropdown fields with duplicate answers */}
+                    {filterableRegistrationFields.map((field) => (
                       <div key={field.id} className="space-y-2">
                         <label className="text-xs font-medium text-gray-700">
                           Filter by {field.label}
@@ -802,25 +793,28 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                   </Button>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Check-in Time</TableHead>
-                        <TableHead>Check-out Time</TableHead>
-                        <TableHead>Duration</TableHead>
-                        <TableHead>Status</TableHead>
-                        {registrationFields.map(field => (
-                          <TableHead key={field.id}>{field.label}</TableHead>
+                        <TableHead className="w-32">Name</TableHead>
+                        <TableHead className="w-40">Email</TableHead>
+                        <TableHead className="w-24">Check-in</TableHead>
+                        <TableHead className="w-24">Check-out</TableHead>
+                        <TableHead className="w-16">Duration</TableHead>
+                        <TableHead className="w-16">Status</TableHead>
+                        {registrationFields.slice(0, 2).map(field => (
+                          <TableHead key={field.id} className="w-24">{field.label}</TableHead>
                         ))}
+                        {registrationFields.length > 2 && (
+                          <TableHead className="w-24">More Fields</TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredParticipants.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6 + registrationFields.length} className="text-center p-8 text-gray-500">
+                          <TableCell colSpan={7 + Math.min(registrationFields.length, 3)} className="text-center p-8 text-gray-500">
                             {participants.length === 0 ? (
                               <div>
                                 <p className="mb-2">No attendance records found for this event.</p>
@@ -834,19 +828,19 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                       ) : (
                         filteredParticipants.map((participant) => (
                           <TableRow key={participant._id}>
-                            <TableCell className="font-medium">
+                            <TableCell className="font-medium text-xs truncate max-w-32" title={participant?.participant?.name || 'Unknown'}>
                               {participant?.participant?.name || 'Unknown'}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="text-xs truncate max-w-40" title={participant?.participant?.email || 'Unknown'}>
                               {participant?.participant?.email || 'Unknown'}
                             </TableCell>
-                            <TableCell>
-                              {formatDateTime(participant.checkInTime)}
+                            <TableCell className="text-xs">
+                              {formatDateTime(participant.checkInTime).split(',')[1]?.trim() || 'N/A'}
                             </TableCell>
-                            <TableCell>
-                              {participant.checkOutTime ? formatDateTime(participant.checkOutTime) : 'N/A'}
+                            <TableCell className="text-xs">
+                              {participant.checkOutTime ? formatDateTime(participant.checkOutTime).split(',')[1]?.trim() : 'N/A'}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="text-xs">
                               {formatDuration(participant.checkInTime, participant.checkOutTime)}
                             </TableCell>
                             <TableCell>
@@ -854,11 +848,12 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                                 participant.status === 'absent' ? "destructive" :
                                 participant.status === 'checked-in' ? "default" :
                                 "secondary"
-                              }>
+                              } className="text-xs px-1 py-0 h-5">
                                 {getCheckInStatus(participant)}
                               </Badge>
                             </TableCell>
-                            {registrationFields.map(field => {
+                            {/* Show first 2 registration fields */}
+                            {registrationFields.slice(0, 2).map(field => {
                               const value = participant.registrationData?.[field.id];
                               let displayValue = 'N/A';
 
@@ -873,11 +868,17 @@ const ParticipantReports = ({ eventId, eventTitle, isOpen, onClose }: Participan
                               }
 
                               return (
-                                <TableCell key={field.id} className="max-w-xs truncate" title={displayValue}>
+                                <TableCell key={field.id} className="text-xs truncate max-w-24" title={displayValue}>
                                   {displayValue}
                                 </TableCell>
                               );
                             })}
+                            {/* Show "More Fields" indicator if there are more than 2 fields */}
+                            {registrationFields.length > 2 && (
+                              <TableCell className="text-xs text-gray-500">
+                                +{registrationFields.length - 2} more
+                              </TableCell>
+                            )}
                           </TableRow>
                         ))
                       )}

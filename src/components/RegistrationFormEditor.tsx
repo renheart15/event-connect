@@ -7,18 +7,7 @@ import { Plus } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import AddFieldSection from './RegistrationFormEditor/AddFieldSection';
 import FormPreviewSection from './RegistrationFormEditor/FormPreviewSection';
-
-type FieldType = 'text' | 'email' | 'phone' | 'number' | 'textarea' | 'select' | 'checkbox';
-
-interface RegistrationField {
-  id: string;
-  type: FieldType;
-  label: string;
-  placeholder?: string;
-  required: boolean;
-  options?: string[];
-  isPermanent?: boolean;  // Flag to mark non-deletable fields
-}
+import { FieldType, RegistrationField, NewField } from '@/types/registration';
 
 interface RegistrationFormEditorProps {
   formId: string;
@@ -135,10 +124,10 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
       return;
     }
 
-    if (newField.type === 'select' && newField.options.filter(opt => opt.trim()).length === 0) {
+    if ((newField.type === 'select' || newField.type === 'radio') && newField.options.filter(opt => opt.trim()).length === 0) {
       toast({
         title: "Options required",
-        description: "Please add at least one option for dropdown fields",
+        description: "Please add at least one option for dropdown and radio button fields",
         variant: "destructive",
       });
       return;
@@ -150,7 +139,7 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
       label: newField.label.trim(),
       placeholder: newField.placeholder.trim() || undefined,
       required: newField.required,
-      options: newField.type === 'select' ? newField.options.filter(opt => opt.trim()) : undefined
+      options: (newField.type === 'select' || newField.type === 'radio') ? newField.options.filter(opt => opt.trim()) : undefined
     };
 
     setFields(prev => [...prev, field]);
@@ -249,7 +238,7 @@ const RegistrationFormEditor = ({ formId, mode, eventId, eventTitle }: Registrat
         eventId: mode === 'create' ? eventId : undefined,
         fields: fields.map(field => ({
           id: field.id,
-          type: field.type,
+          type: field.type === 'radio' ? 'select' : field.type, // Map radio to select for backend compatibility
           label: field.label,
           placeholder: field.placeholder || '',
           required: field.required,

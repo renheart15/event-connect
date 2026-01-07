@@ -4,20 +4,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Button } from '@/components/ui/button';
 import { Trash2, Plus } from 'lucide-react';
-
-type FieldType = 'text' | 'email' | 'phone' | 'number' | 'textarea' | 'select' | 'checkbox';
-
-interface RegistrationField {
-  id: string;
-  type: FieldType;
-  label: string;
-  placeholder?: string;
-  required: boolean;
-  options?: string[];
-  isPermanent?: boolean;
-}
+import { FieldType, RegistrationField } from '@/types/registration';
 
 interface FormPreviewSectionProps {
   formTitle: string;
@@ -113,6 +103,17 @@ const FormPreviewSection = ({
                           <SelectValue placeholder={field.placeholder || 'Select an option'} />
                         </SelectTrigger>
                       </Select>
+                    ) : field.type === 'radio' ? (
+                      <RadioGroup disabled className="space-y-2 p-2 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-600">
+                        {field.options?.map((option, index) => (
+                          <div key={index} className="flex items-center space-x-2">
+                            <RadioGroupItem value={option} className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500" />
+                            <Label className="text-xs text-gray-700 dark:text-gray-300 font-medium">
+                              {option}
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
                     ) : field.type === 'checkbox' ? (
                       <div className="flex items-center space-x-2 p-2 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-600">
                         <Checkbox disabled className="data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500" />
